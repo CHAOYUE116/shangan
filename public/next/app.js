@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.32';
+const APP_VERSION = '0.1.33';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1171,6 +1171,8 @@ function checkUpdate() {
   AppUpdate.reset();
   AppUpdate.start(JSON.stringify(UPDATE_MANIFEST_URLS));
 
+  const t0 = Date.now();
+  let reloading = false;
   clearInterval(checkUpdate._t);
   checkUpdate._t = setInterval(() => {
     let s;
@@ -1179,22 +1181,34 @@ function checkUpdate() {
     if (!box) { clearInterval(checkUpdate._t); return; }
     const pct = Number(s.progress) || 0;
     const canApply = s.state === 'done' && s.hasPending;
-    const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
-    box.innerHTML = `<div class="card-sub">${esc(s.message || '处理中…')}</div>
+    const finished = s.state === 'done' && !s.hasPending;
+    const stuck = s.state === 'checking' && Date.now() - t0 > 45000;
+    const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
+    let line = esc(s.message || '处理中…');
+    if (stuck) line = '检查超时 —— 换个网络或点下面重试';
+    if (finished && !reloading) line = `已更新到 ${esc(s.localVersion)}，正在重新加载…`;
+    box.innerHTML = `<div class="card-sub">${line}</div>
       <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
       <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
       ${s.newAppAvailable ? `<div class="card-sub" style="margin-top:6px;color:var(--amber,#9a6700)">发现新版 App ${esc(s.newAppVersion)}，需手动安装</div>` : ''}
-      ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新</button>' : ''}
-      ${s.state === 'error' ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+      ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
+      ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
     const ap = $('#upd-apply');
     if (ap) ap.onclick = () => {
       const r = AppUpdate.applyPending();
-      if (r === 'ok') { toast('题库已更新，重启 App 生效'); closeSheet(); }
-      else toast(r);
+      if (r === 'ok' || (typeof r === 'string' && r.startsWith('ok'))) {
+        box.innerHTML = '<div class="card-sub">题库已更新，正在重新加载…</div>';
+      } else { toast(r); }
     };
     const rt = $('#upd-retry');
     if (rt) rt.onclick = () => { closeSheet(); checkUpdate(); };
-    if (['done', 'error', 'uptodate'].includes(s.state) && !canApply) clearInterval(checkUpdate._t);
+    // 更新落地后自动重载一次，用户不用自己杀进程
+    if (finished && !reloading) {
+      reloading = true;
+      clearInterval(checkUpdate._t);
+      setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
+    }
+    if (['error', 'uptodate'].includes(s.state)) clearInterval(checkUpdate._t);
   }, 600);
 }
 
@@ -1277,7 +1291,7 @@ function renderMe() {
   <div class="card menu-card">
     <div class="menu-row" data-act="backup"><div class="menu-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('database')}</div><div class="subject-main"><div class="subject-title">数据与备份</div><div class="subject-sub">导出 / 导入 / 自动备份</div></div><span class="chev">›</span></div>
     ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">在线更新，不用重装 App</div></div><span class="chev">›</span></div>` : ''}
-    <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v0.1 · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
+    <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v${APP_VERSION} · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
   </div>
   <div class="section-head"><h2 class="section-title">阅读外观</h2></div>
   <div class="card"><div class="theme-row"><button class="chip ${theme === 'light' ? 'active' : ''}" data-theme-set="light">日间白</button><button class="chip ${theme === 'dark' ? 'active' : ''}" data-theme-set="dark">夜间墨</button><button class="chip" data-theme-set="auto">跟随系统</button></div></div>`;
