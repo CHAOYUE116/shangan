@@ -1156,12 +1156,18 @@ function openInApp(url, title) {
 }
 
 /* ---------- 题库在线更新 ---------- */
-// 换成你自己的仓库地址；GitHub 直连不稳时用 jsDelivr 镜像
-const UPDATE_MANIFEST_URLS = [
-  // jsDelivr 优先：国内可达，且有 CDN 缓存；raw.githubusercontent 兜底（国内常常不通）
-  'https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/manifest.json',
-  'https://raw.githubusercontent.com/CHAOYUE116/shangan/main/release/manifest.json',
-];
+// 换成你自己的仓库地址；GitHub 直连不稳时用镜像
+// 顺序：gh-proxy（国内可达且无缓存）→ raw（直连）→ jsDelivr（@main 有 12 小时缓存，只作兜底）
+// 每个地址带时间戳，避免任何一层拿到旧 manifest
+const UPDATE_MANIFEST_URLS = (() => {
+  const ts = Date.now();
+  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/release/manifest.json?t=${ts}`;
+  return [
+    `https://gh-proxy.com/https://${raw}`,
+    `https://${raw}`,
+    `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/manifest.json?t=${ts}`,
+  ];
+})();
 
 function checkUpdate() {
   if (!window.AppUpdate) { toast('在线更新只在 App 内可用'); return; }
