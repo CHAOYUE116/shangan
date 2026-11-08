@@ -1,76 +1,193 @@
-# 考公刷题（行测/申论/事业编）—— Web + Android + AI 解析
+# 上岸 · 考公刷题
 
-> 中文名：**没钱考什么公** · 关键词：考公 / 公考 / 刷题 / 行测 / 申论 / 事业单位 / kaogong / gongkao / xingce / shenlun
->
-> ⭐ 如果它帮到了你，欢迎点 **Star** / **Watch** —— 这会让更多备考的人在 GitHub 上搜到它。
+一个离线优先的公务员 / 事业单位考试刷题 App。题库全量装在手机里，断网也能刷；联网只用于题库增量、时政和 App 更新。
 
-零依赖 Node.js 后端 + 本地 SQLite 题库的考公刷题全栈应用：模块树刷题、错题本、学习统计，内置可插拔的 AI 智能体（行测方法论解析、申论要点批改、图形推理识图转写、学习建议、题目导入解析）。同一套代码同时服务浏览器端与 Android App（Capacitor）。
+> 题库数据来自公开真题与网络解析，仅供个人学习使用。
 
-> 📄 **许可**：本仓库代码以 [MIT](LICENSE) 许可开源；`public/vendor/**`、`skills/**`、`ref-skills/**` 内的第三方组件与技能包副本保留各自上游许可，不在 MIT 授权范围内。
->
-> ⚠️ **版权与合规**：题库数据（`tiku.db` / `materials.db` 及题目配图）版权归粉笔等来源方，已获来源方授权随本仓库分发，**仅供个人学习备考，请勿商用或二次分发**。数据采集工具不随本仓库分发。`tiku.db` 因超过 GitHub 单文件 100MB 限制被切成 `tiku.db.part-*` 分卷，克隆后运行 `node tools/reassemble-tiku.mjs` 一次即可还原（脚本自带 MD5 自校验）。
+---
 
-## 功能特性
+## 它解决什么问题
+
+市面上的刷题 App 有两个毛病：**要网**、**有广告且解析要付费**。
+
+上岸的做法反过来：
+
+- **离线全量**：61,000+ 道题、3,000+ 套卷、46,000+ 条考点，全部打进安装包，一次装好，坐地铁、进考场候场都能刷。
+- **一道题讲透**：每道题除了正确答案，还有逐项解析、考点标签、易错点提示。
+- **首页只问一件事**：今天做什么。打开就知道还剩几天、今天该刷多少、上次卡在哪。
+- **更新不装 App**：题库改了只下发几 MB 的增量，30 秒应用完，不用重新下载 135 MB 的安装包。
+
+---
+
+## 界面
+
+每个页面只回答一个问题，只留一个主按钮。
+
+| 页面 | 回答的问题 | 主按钮 |
+|---|---|---|
+| 首页 | 今天做什么 | 开始今天的 N 题 |
+| 答题页 | 我为什么错了 | 下一题 |
+| 结算页 | 进步了吗，下一步去哪 | 看错题 / 再来一组 |
+| 题库 | 练哪个方向 | 进入练习 |
+| 回顾 | 错在哪、忘了什么 | 开始回顾 |
+
+---
+
+## 功能
 
 **刷题**
+- 随机刷题、按试卷练、按考点练
+- 错题再练、模考（限时交卷评分）
+- 五科覆盖：公务员·行测 / 申论、事业编·职测 / 公基 / 综应
+- 按省份、年份、岗位类型筛卷
 
-- 模块树刷题：行测六大模块（政治理论/常识判断/言语理解/数量关系/判断推理/资料分析）知识点树；申论标准五题型树（归纳概括/综合分析/提出对策/贯彻执行/文章写作）；综应/事业编题型树——各节点题量/已做/正确率实时聚合
-- 题型覆盖：单选/多选/判断/不定项 + 申论/综应主观题；答题卡质感 UI（Ocean Depths 主题、深浅双模式、移动端优先 + 桌面适配）
-- 做题记录服务端落库（`practice.db`，手机/电脑跨设备同步）：错题本、收藏、单题重做、统计概览、近 7 天趋势
-- 自定义题库：导入自有题目（文本粘贴/PDF/Excel/图片 OCR），AI 辅助拆分为结构化题目，支持按科目管理
+**解析**
+- 逐选项解析，标出每个错误选项错在哪
+- 考点标签，直接跳到同考点的题
+- 图形推理题的公式图片离线内置
 
-**AI 能力**（五个智能体，OpenAI 兼容协议，各自独立 base_url / api_key / model，改完即生效，提示词带版本历史可回滚）
+**学习数据**
+- 章节正确率、近 7 天趋势
+- 每周学习报告 + 下周建议
+- 错题自动归档，按遗忘曲线安排回顾
 
-- **行测解析 AI**：注入速算/解题方法论技能库，按【考点/正确项解析/错误项排除/解题技巧】格式讲解
-- **申论批改 AI**：按要点采分制评分，自动提取题干分值，可带给定材料对照评分
-- **识图转写员**：多模态视觉模型，图形推理/图表/手写作答图片逐字转写；含图题自动走「识图 → 解析」两段式管线
-- **学习进度顾问**：基于真实做题数据输出【总体评估/薄弱环节/趋势分析/下一步行动】
-- **题目解析员**：自定义题库导入时把杂乱原文整理为结构化题目
-- **技能库可插拔**：AI 设置页导入技能包（SKILL.md + references），按名称自动注入提示词（`ref-skills/` 附开源技能上游副本，见下方致谢）
+**自定义**
+- 考试日期倒计时、每日目标题数
+- 日间白 / 夜间墨 / 跟随系统
 
-## 运行
+---
 
-- 环境要求：Node.js ≥ 22.5（使用内置 `node:sqlite`）
-- Windows 双击 `启动.bat`（自动打开浏览器），或：
+## 技术栈
 
-  ```powershell
-  node server.mjs 3000
-  ```
+```
+前端     原生 JS 单页应用（无框架），~2000 行
+壳       Capacitor 6 + Android WebView
+数据     SQLite × 2（tiku.db 题库 / practice.db 练习记录）
+桥接     NativeDbBridge.java（WebView ⇄ SQLite 直连）
+更新     UpdateManager.java（增量下载 + 事务应用 + 校验）
+```
 
-- 首次克隆后先运行 `node tools/reassemble-tiku.mjs` 重组题库（见上方版权说明）；AI 功能需在「AI 设置」页（`http://localhost:3000/?view=ai`）配置 base_url + api_key（DeepSeek/通义/GLM/OpenAI/本地 Ollama 等 OpenAI 兼容网关均可，测试按钮可先试跑）
-- 数据文件：`tiku.db`（只读题库，随仓库分卷分发）、`materials.db`（申论材料）；`practice.db`（做题记录）、`ai-config.db`（AI 配置）为本地生成，不入仓库
-- Android 打包：`app/` 为 Capacitor 工程，完整构建步骤见 [`BUILD_MANUAL.md`](BUILD_MANUAL.md)（含第三方构建者的 Debug 包路线）
+**为什么不用框架**：整个 App 就十几个页面，引入 React/Vue 带来的构建复杂度和包体积不划算。原生 JS 直接操作 DOM，启动更快，改起来也快。
+
+**为什么两套数据库**：`tiku.db` 是只读的题库（317 MB），更新时整块替换；`practice.db` 存用户记录（几 MB），永远不动。分开之后，更新题库不会影响做题历史。
+
+---
 
 ## 目录结构
 
 ```
-├── server.mjs                 # 零依赖后端（静态服务 + 刷题/记录/AI 接口）
-├── public/                    # Web 前端（App 端共享逻辑；vendor/ 为第三方库分发包）
-├── lib/
-│   ├── ai-agents.mjs          # AI 智能体配置与调用（技能注入/网关调用/热更新）
-│   ├── fenbi-tree.mjs         # 行测知识点树 + 申论/综应题型树
-│   ├── xingce-chapter-map.mjs # 真题章节 → 树节点映射
-│   ├── pdf-ocr.mjs            # 申论材料 PDF 视觉 OCR（可选）
-│   └── local-queries.mjs      # App 端本地查询
-├── app/                       # Capacitor Android 工程
-├── ref-skills/                # 开源考公技能上游副本（仅参考，运行时从本地技能库加载）
-├── docs/                      # 设计与技术文档
-└── 启动.bat                   # Windows 一键启动
+kaogong-shuati/          源码与数据工程
+├── public/
+│   ├── next/            前端源码（app.js / style.css）← 改这里
+│   ├── lib/             本地查询层（local-queries.js）
+│   └── local-api.js     /api/* 路由的离线实现
+├── tools/               数据工程脚本
+│   ├── import-fenbi-papers.mjs      真题 ETL 入库
+│   ├── fenbi-fetch-solutions.mjs    真题解析采集（Playwright）
+│   ├── build-tiku-delta.mjs         生成增量包
+│   ├── build-release-manifest.mjs   生成更新清单
+│   └── normalize-categories.mjs     清洗脏模块名
+├── build-app-assets.mjs 打包 DB 资源
+├── server.mjs           本地开发服务器
+└── release/manifest.json 更新清单（App 从这里读）
+
+app-shangan/             Android 工程
+└── android/app/src/main/java/com/kaogong/app/
+    ├── NativeDbBridge.java   SQLite 桥
+    ├── UpdateManager.java    更新管理
+    └── WebViewActivity.java  WebView 容器
 ```
 
-## 第三方开源组件致谢
+---
 
-本仓库 `ref-skills/` 目录包含以下开源考公技能项目的完整副本（仅作本地学习与 AI 方法论注入参考），版权归原作者所有，各副本遵循其上游许可证，不适用本仓库的 MIT 许可：
+## 构建
 
-| 项目 | 许可证 | 用途 |
+**环境**
+
+```
+JDK 17          D:\dev\jdk17
+Android SDK     D:\dev\android
+Node 18+
+```
+
+**出 APK**
+
+```bash
+cd kaogong-shuati
+node tools/sync-webapp.mjs          # public/next → webapp/
+node build-app-assets.mjs app-assets # 打包 tiku.db → tiku_app.db
+npx cap copy android                 # 同步到 Android 工程
+
+cd ../app-shangan/android
+./gradlew assembleRelease            # 产物在 app/build/outputs/apk/release/
+```
+
+**本地调试**
+
+```bash
+node server.mjs                      # http://localhost:5173
+```
+
+---
+
+## 更新机制
+
+题库改动不走应用商店，走自己的增量通道。
+
+```
+1. 本地版本 0.4.4-20261108-1915
+2. 拉 release/manifest.json
+3. 找到 from=0.4.4 的 delta
+4. 下载 696 KB 的 gz 包
+5. BEGIN → INSERT OR REPLACE → COMMIT
+6. 写 tiku_app.db.ver，前端 reload
+```
+
+**增量包里有什么**
+
+```json
+{
+  "version": "0.5.0-20261108-1955",
+  "papers":    [ ... ],   // 新增/修改的试卷
+  "questions": [ ... ],   // 新增/修改的题目
+  "deleted":   { "questions": [], "papers": [] }
+}
+```
+
+只包含变化的行，全量 87 MB 的更新被压缩到几百 KB。
+
+**清单地址**
+
+App 按顺序试三个镜像，第一个成功的就用：
+
+```
+1. gh-proxy.com/https://raw.githubusercontent.com/...  国内可达，无缓存
+2. raw.githubusercontent.com/...                       直连
+3. cdn.jsdelivr.net/gh/...@main/...                    CDN 兜底
+```
+
+> jsDelivr 对 `@main` 分支别名整体缓存约 12 小时，加 `?t=` 时间戳也绕不过去，所以只能放最后兜底。
+
+---
+
+## 数据来源
+
+- 真题试卷与解析：粉笔公开题库
+- 公基题目：公开整理版本
+- 考点体系：自建，46,000+ 条考点映射
+
+**数据现状**
+
+| 科目 | 题量 | 备注 |
 |---|---|---|
-| [shenlun-review-pro](https://github.com/liuyuexi1987/shenlun-review-pro) | GPL-3.0（副本内附 LICENSE 原文） | 申论批改/复盘方法论 |
-| Shenlun.skill | MIT | 申论备考训练 |
-| huasheng13-skill（作者 [WangJunqing-coder](https://github.com/WangJunqing-coder)） | MIT | 行测速算与解题方法论 |
-| daily-gongkao-skill | 上游未声明许可证，版权归原作者所有 | 公考日常学习参考 |
+| 公务员·行测 | 45,253 | 解析较完整 |
+| 事业编·职测 | 6,288 | 约 1,100 题缺解析 |
+| 公务员·申论 | 4,286 | 主观题，无标准答案 |
+| 事业编·公基 | 2,722 | 源数据无难度字段 |
+| 事业编·综应 | 2,532 | 主观题，72% 无详解 |
 
-说明：技能内容运行时从本地技能库加载（`ai-config.db` 的 user_skills 表），`ref-skills/` 仅为上游参考副本，软件功能不依赖该目录存在。`public/vendor/` 为开源库本地分发包：pdf.js（Apache-2.0）、SheetJS（Apache-2.0）、sql.js（MIT）。如上游作者对再分发有异议，请提 issue 联系移除。
+---
 
-## 参考
+## 免责
 
-- 申论/综应题库数据（Markdown，4886 题）：https://github.com/2421873411a-rgb/gongkao-tiku
+题库与解析均来自公开渠道，版权归原作者所有。本项目仅作个人学习工具，不提供任何商业服务。
