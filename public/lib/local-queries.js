@@ -34,7 +34,7 @@ const Q_MATERIALS_BY_PAPER =
 // ============ 题库精简（2026-08）：只保留近十年试卷（年份取试卷名前缀，如 "2024年..."） ============
 // 无年份名称（如 "天津市2"）substr 得非数字 → 自然排除；按分类刷试卷(/api/papers)不受影响
 const NOW_YEAR = new Date().getFullYear();
-const YEAR_FROM = NOW_YEAR - 9; // 近十年下限（2026 年即 2017）
+const YEAR_FROM = NOW_YEAR - 12; // 近十二年下限（2026 年即 2014）
 const YEAR_TO = NOW_YEAR + 1; // 覆盖下一年考试（如 2026 年备考 2027 国考）
 // year: 'all'=不限（自定义刷题可选） | '3'/'5'/'10'=近 N 年 | 缺省=近十年（精简口径）
 function yearCond(year) {
@@ -1067,6 +1067,17 @@ export function createLocalApi(tiku, practice, stats = {}) {
         `, subject)) {
           idxMap.set(`${r.category}|${r.sub}`, r.c);
         }
+        // 分类真数：某些题的 sub 没归进词表，按 category 兜底，避免总数凭空少一截
+        const groupReal = new Map();
+        for (const r of practice.all(`
+          SELECT qc.category, COUNT(DISTINCT qc.question_id) c FROM question_categories qc
+          JOIN questions q ON q.questionId = qc.question_id
+          JOIN papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+          WHERE qc.subject = ?
+          GROUP BY qc.category
+        `, subject)) {
+          groupReal.set(r.category, r.c);
+        }
         // 已做 = 该分类索引下的做题记录数（与总题量同源：question_categories，口径同 chapterStats）
         const catDone = statOf('catStats').get(subject) || new Map();
         groups = FENBI_TREE.map((g) => {
@@ -1075,7 +1086,8 @@ export function createLocalApi(tiku, practice, stats = {}) {
             const d = catDone.get(`${g.group}|${sub2.name}`);
             return { name: sub2.name, total: idxTotal, done: d?.c || 0, rate: null, chapters: [], leaves: [] };
           });
-          const total = subs.reduce((s, x) => s + x.total, 0);
+          const subSum = subs.reduce((s, x) => s + x.total, 0);
+          const total = Math.max(subSum, groupReal.get(g.group) || 0);
           return { group: g.group, total, done: subs.reduce((s, x) => s + x.done, 0), rate: null, chapters: [], subs };
         });
       } else {
