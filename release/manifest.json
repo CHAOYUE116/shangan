@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-08T17:47:40.043Z",
+  "publishedAt": "2026-11-08T17:52:16.683Z",
   "app": {
     "version": "0.1.33",
     "versionCode": 34,
@@ -15,7 +15,10 @@
     "dbVersion": "0.5.2-20261109-0130",
     "questions": 61768,
     "full": {
-      "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/tiku_app.db.gz",
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/tiku_app.db.gz",
+      "mirrors": [
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/tiku_app.db.gz"
+      ],
       "size": 88057598,
       "sha256": "99a3c577292456588859480042921dc3e3680204dc1439c9411ed71307f3af1f",
       "gzSha256": "5fe7fee85cebee5e335785c14c4b9eb91852b6f0b5a943ff073ae2169515e8ff",
@@ -26,7 +29,11 @@
       {
         "from": "0.5.0-20261108-1955",
         "to": "0.5.2-20261109-0130",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
+        "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
+        "mirrors": [
+          "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
+          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz"
+        ],
         "size": 2465886,
         "sha256": "e01ef17de674a1a1a181fce8d883febd190690b25023ebaf6630ad8277be49c9",
         "gzSha256": "6fc2cdd072acb922184dfadeb92be844f3b3e97eb00f1a6c310bb659c280078d",
@@ -42,7 +49,10 @@
     ]
   },
   "images": {
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/images.db.gz",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/images.db.gz",
+    "mirrors": [
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/images.db.gz"
+    ],
     "size": 76591104,
     "sha256": "0c59c8b79f64fd097cda48df8d85ccb67bda4cb6122224134ad55e81c1494a93",
     "gz": true
