@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-08T18:04:21.906Z",
+  "publishedAt": "2026-11-08T18:15:59.072Z",
   "app": {
-    "version": "0.1.33",
-    "versionCode": 34,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/shangan-0.1.33-release.apk",
-    "size": 141949609,
-    "sha256": "62cdd8f83265c3ede9075a6f73ea41c85c9e8026458b32bcc04f4a11c945c59e",
+    "version": "0.1.34",
+    "versionCode": 35,
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/shangan-0.1.34-release.apk",
+    "size": 141949036,
+    "sha256": "a6d76c3ba225d3b5617bdb7dc54dcaf3b389407877184adf270098fba795865d",
     "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/shangan-0.1.33-release.apk"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/shangan-0.1.34-release.apk"
     ]
   },
   "tiku": {
@@ -19,11 +19,11 @@
       "mirrors": [
         "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/tiku_app.db.gz"
       ],
-      "size": 88057598,
-      "sha256": "99a3c577292456588859480042921dc3e3680204dc1439c9411ed71307f3af1f",
-      "gzSha256": "5fe7fee85cebee5e335785c14c4b9eb91852b6f0b5a943ff073ae2169515e8ff",
+      "size": 88182368,
+      "sha256": "e970d742f1aba7098357a4523774fd6cbcac7f43cd7c9267fd9018a0ddf695f2",
+      "gzSha256": "eee63cd8a626a64d2fcb9b42c4c6d686bbc3a7cf953518484346a67dacc2e86d",
       "gz": true,
-      "rawSize": 335081472
+      "rawSize": 336769024
     },
     "delta": [
       {
@@ -54,7 +54,7 @@
       "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/images.db.gz"
     ],
     "size": 76591104,
-    "sha256": "0c59c8b79f64fd097cda48df8d85ccb67bda4cb6122224134ad55e81c1494a93",
+    "sha256": "d935c646c880b32b764af8db8e35dded0e62fbf2ca97009d062112c5e69ec1bd",
     "gz": true
   },
   "mirrors": [],

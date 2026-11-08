@@ -48,7 +48,7 @@ db.exec(`ATTACH DATABASE ${JSON.stringify(DB_FILES.tiku)} AS tiku`);
 db.exec(`ATTACH DATABASE ${JSON.stringify(DB_FILES.practice)} AS practice`);
 db.exec(`ATTACH DATABASE ${JSON.stringify(DB_FILES.materials)} AS materials`);
 
-// papers：去掉前端/查询不用的 exerciseId、crawledAt、time
+// papers：必须与 tiku.db 列集合完全一致，否则增量包的 INSERT OR REPLACE 会报 no column named xxx
 db.exec(`
   CREATE TABLE papers (
     id INTEGER PRIMARY KEY,
@@ -57,11 +57,14 @@ db.exec(`
     category TEXT NOT NULL,
     name TEXT NOT NULL,
     questionCount INTEGER,
+    time TEXT,
     difficulty REAL,
-    chapters TEXT
+    exerciseId INTEGER,
+    chapters TEXT,
+    crawledAt TEXT
   );
-  INSERT INTO papers (id, subject, subjectName, category, name, questionCount, difficulty, chapters)
-    SELECT id, subject, subjectName, category, name, questionCount, difficulty, chapters FROM tiku.papers;
+  INSERT INTO papers (id, subject, subjectName, category, name, questionCount, time, difficulty, exerciseId, chapters, crawledAt)
+    SELECT id, subject, subjectName, category, name, questionCount, time, difficulty, exerciseId, chapters, crawledAt FROM tiku.papers;
   CREATE INDEX idx_papers_subject ON papers(subjectName, category);
 `);
 // questions：去掉全空列 source 与前端不用的 questionType/optionType/material/hasVideo
@@ -73,17 +76,22 @@ db.exec(`
     paperId INTEGER NOT NULL,
     chapter TEXT,
     type INTEGER,
+    questionType TEXT,
     content TEXT NOT NULL,
     contentHtml TEXT,
+    material TEXT,
     options TEXT,
+    optionType TEXT,
     answer TEXT,
     answerIndex INTEGER,
     difficulty INTEGER,
+    source TEXT,
     analysis TEXT,
-    analysisHtml TEXT
+    analysisHtml TEXT,
+    hasVideo INTEGER
   );
-  INSERT INTO questions (id, questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml)
-    SELECT id, questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml FROM tiku.questions;
+  INSERT INTO questions (id, questionId, paperId, chapter, type, questionType, content, contentHtml, material, options, optionType, answer, answerIndex, difficulty, source, analysis, analysisHtml, hasVideo)
+    SELECT id, questionId, paperId, chapter, type, questionType, content, contentHtml, material, options, optionType, answer, answerIndex, difficulty, source, analysis, analysisHtml, hasVideo FROM tiku.questions;
   CREATE INDEX idx_questions_qid ON questions(questionId);
   CREATE INDEX idx_questions_paper ON questions(paperId);
   CREATE INDEX idx_questions_chapter ON questions(chapter);
