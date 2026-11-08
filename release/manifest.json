@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-08T17:52:16.683Z",
+  "publishedAt": "2026-11-08T18:04:21.906Z",
   "app": {
     "version": "0.1.33",
     "versionCode": 34,
@@ -29,9 +29,9 @@
       {
         "from": "0.5.0-20261108-1955",
         "to": "0.5.2-20261109-0130",
-        "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
         "mirrors": [
-          "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
+          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz",
           "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.2-20261109-0130/delta-0.5.0-20261108-1955-0.5.2-20261109-0130.json.gz"
         ],
         "size": 2465886,

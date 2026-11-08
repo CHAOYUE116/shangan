@@ -125,8 +125,8 @@ for (const f of fs.readdirSync(OUT)) {
     tiku.delta.push({
       from: m.from,
       to: m.to,
-      url: JSDELIVR(file),
-      mirrors: [PROXY(`${BASE}/${file}`), `${BASE}/${file}`],
+      url: PROXY(`${BASE}/${file}`),
+      mirrors: [JSDELIVR(file), `${BASE}/${file}`],
       size: m.size,
       sha256: sha256(rawBuf),
       gzSha256: m.sha256,
