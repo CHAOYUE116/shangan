@@ -108,7 +108,8 @@ function loadAgents(defaults) {
       merged.base_url = d.base_url;
       merged.model = d.model;
     }
-    if (merged.base_url === 'https://api.deepseek.com/v1' && merged.model === 'deepseek-chat') merged.model = d.model;
+    // deepseek-flash 不是合法模型名（官方只有 deepseek-chat / deepseek-reasoner），存量配置自动纠正
+    if (merged.model === 'deepseek-flash') merged.model = 'deepseek-chat';
     return merged;
   });
 }

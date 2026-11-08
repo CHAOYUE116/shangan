@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.35';
+const APP_VERSION = '0.1.36';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1196,9 +1196,14 @@ function checkUpdate() {
     box.innerHTML = `<div class="card-sub">${line}</div>
       <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
       <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
-      ${s.newAppAvailable ? `<div class="card-sub" style="margin-top:6px;color:var(--amber,#9a6700)">发现新版 App ${esc(s.newAppVersion)}，需手动安装</div>` : ''}
+      ${s.newAppAvailable ? `<div class="card" style="margin-top:12px;border-color:var(--amber,#e3b341)"><div class="card-sub" style="margin:0 0 8px">发现新版 App ${esc(s.newAppVersion)}${s.newAppState === 'downloading' ? ` · 下载中 ${Number(s.newAppProgress) || 0}%` : ''}</div><button class="btn btn-primary btn-block" id="upd-app">${s.newAppState === 'downloading' ? '下载中…' : '下载并安装'}</button></div>` : ''}
       ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
       ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+    const ab = $('#upd-app');
+    if (ab) ab.onclick = () => {
+      if (s.newAppState === 'downloading') return;
+      try { AppUpdate.downloadApp(); toast('正在下载新版 App…'); } catch (e) { toast('下载失败：' + e.message); }
+    };
     const ap = $('#upd-apply');
     if (ap) ap.onclick = () => {
       const r = AppUpdate.applyPending();
@@ -2129,6 +2134,7 @@ document.addEventListener('click', (e) => {
       S.aiOb.key = ($('#ai-ob-key')?.value || '').trim() || S.aiOb.key;
       S.aiOb.gw = i;
       S.aiOb.model = AI_GATEWAYS[i].model || '';
+      S.aiOb.base = AI_GATEWAYS[i].url || '';
       renderAiOnboard();
       return;
     }
@@ -2187,7 +2193,7 @@ async function maybeAiOnboard() {
 }
 
 function openAiOnboard() {
-  S.aiOb = { step: 0, gw: 0, key: '', model: AI_GATEWAYS[0].model, state: 'idle', msg: '' };
+  S.aiOb = { step: 0, gw: 0, key: '', model: AI_GATEWAYS[0].model, base: AI_GATEWAYS[0].url, state: 'idle', msg: '' };
   renderAiOnboard();
 }
 
@@ -2221,8 +2227,11 @@ function renderAiOnboard() {
       ${g.signup ? `<div class="ob-hint">还没有？去 <a href="${esc(g.signup)}" target="_blank" class="link">${esc(g.label)} 控制台</a> 建一个。</div>` : ''}
       <div class="ob-label">模型</div>
       <input class="field" id="ai-ob-model" value="${esc(ob.model)}" placeholder="例如 deepseek-chat">
+      <div class="ob-label">接口地址（一般不用改）</div>
+      <input class="field" id="ai-ob-base" value="${esc(ob.base || g.url)}" placeholder="https://api.deepseek.com/v1">
+      <div class="ob-hint">默认填好的是 ${esc(g.label)} 官方地址；用中转/代理时改成你自己的。</div>
     </div>
-    <div class="ob-foot"><button class="btn btn-ghost" data-ai-ob-back>上一步</button><button class="btn btn-primary" data-ai-ob-test>保存并测试</button></div>`;
+    <div class="ob-foot"><button class="btn btn-ghost" data-ai-ob-skip>跳过</button><button class="btn btn-ghost" data-ai-ob-back>上一步</button><button class="btn btn-primary" data-ai-ob-test>保存并测试</button></div>`;
   } else {
     const ok = ob.state === 'ok';
     const testing = ob.state === 'testing';
@@ -2235,7 +2244,7 @@ function renderAiOnboard() {
       ${ok && ob.reply ? `<div class="card"><div class="card-sub" style="margin:0">模型回复：${esc(ob.reply)}</div></div>` : ''}
       ${ok ? `<div class="card"><div class="card-sub" style="margin:0">想换模型或改 Key，随时到「我的 → AI 设置」。</div></div>` : ''}
     </div>
-    <div class="ob-foot">${ok ? '<button class="btn btn-primary btn-block" data-ai-ob-done>开始使用</button>' : testing ? '<span></span>' : '<button class="btn btn-ghost" data-ai-ob-back>返回修改</button><button class="btn btn-primary" data-ai-ob-test>再试一次</button>'}</div>`;
+    <div class="ob-foot">${ok ? '<button class="btn btn-primary btn-block" data-ai-ob-done>开始使用</button>' : testing ? '<span></span>' : '<button class="btn btn-ghost" data-ai-ob-skip>先跳过</button><button class="btn btn-ghost" data-ai-ob-back>返回修改</button><button class="btn btn-primary" data-ai-ob-test>再试一次</button>'}</div>`;
   }
 }
 
@@ -2256,17 +2265,21 @@ async function aiOnboardTest() {
   if (!ob) return;
   const keyEl = $('#ai-ob-key');
   const modelEl = $('#ai-ob-model');
+  const baseEl = $('#ai-ob-base');
   if (keyEl) ob.key = keyEl.value.trim();
   if (modelEl) ob.model = modelEl.value.trim();
+  if (baseEl) ob.base = baseEl.value.trim();
   const g = AI_GATEWAYS[ob.gw];
+  const baseUrl = (ob.base || g.url || '').replace(/\/+$/, '');
   if (!ob.key) { toast('先填 API Key'); return; }
   if (!ob.model) { toast('先填模型名'); return; }
+  if (!/^https?:\/\//i.test(baseUrl)) { toast('接口地址要以 http(s):// 开头'); return; }
   ob.step = 2; ob.state = 'testing'; ob.msg = '';
   renderAiOnboard();
   try {
     const agent = (S.agents || [])[0] || {};
     const id = agent.id || 1;
-    await api(`/api/ai/agents/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base_url: g.url, model: ob.model, api_key: ob.key }) });
+    await api(`/api/ai/agents/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base_url: baseUrl, model: ob.model, api_key: ob.key }) });
     const r = await api(`/api/ai/agents/${id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '只回复两个字：可用' }) });
     if (r && r.ok && r.content) { ob.state = 'ok'; ob.reply = String(r.content).slice(0, 120); localStorage.setItem(AI_OB_KEY, 'done'); }
     else { ob.state = 'fail'; ob.msg = (r && r.error) || '模型没有返回内容'; }

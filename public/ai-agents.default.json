@@ -8,7 +8,7 @@
     "skill": "gongkao-huasheng13",
     "base_url": "https://api.deepseek.com/v1",
     "api_key": "",
-    "model": "deepseek-flash",
+    "model": "deepseek-chat",
     "temperature": 0.3,
     "max_tokens": 12000,
     "enabled": 0
@@ -22,7 +22,7 @@
     "skill": "shenlun-master",
     "base_url": "https://api.deepseek.com/v1",
     "api_key": "",
-    "model": "deepseek-flash",
+    "model": "deepseek-chat",
     "temperature": 0.4,
     "max_tokens": 12000,
     "enabled": 0
