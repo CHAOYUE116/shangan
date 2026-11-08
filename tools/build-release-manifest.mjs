@@ -43,6 +43,11 @@ const flag = (n) => argv.includes('--' + n);
 const BASE = arg('base', '').replace(/\/$/, '');
 const APK = arg('apk', '');
 const NOTE = arg('note', '');
+// github.com / objects.githubusercontent.com 在国内多数网络不可达（模拟器实测 connect timeout），
+// Release 直链只能当兜底；主地址一律走 gh-proxy 或 jsDelivr。
+const PROXY = (u) => `https://gh-proxy.com/${u}`;
+// jsDelivr 只服务仓库内文件：delta 体积小、已提交到 release/ 目录，走它最稳
+const JSDELIVR = (f) => `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/${f}`;
 const OUT = path.resolve(ROOT, arg('out', '../dist/release'));
 const ASSETS = path.resolve(ROOT, 'app-assets');
 
@@ -93,7 +98,8 @@ const tiku = {
   dbVersion,
   questions,
   full: {
-    url: `${BASE}/${gzName}`,
+    url: PROXY(`${BASE}/${gzName}`),
+    mirrors: [`${BASE}/${gzName}`],
     size: fs.statSync(gzPath).size,
     // 同理：App 对 .gz 解压后校验 → 给 raw db 的 sha256
     sha256: dbHash,
@@ -119,7 +125,8 @@ for (const f of fs.readdirSync(OUT)) {
     tiku.delta.push({
       from: m.from,
       to: m.to,
-      url: `${BASE}/${file}`,
+      url: JSDELIVR(file),
+      mirrors: [PROXY(`${BASE}/${file}`), `${BASE}/${file}`],
       size: m.size,
       sha256: sha256(rawBuf),
       gzSha256: m.sha256,
@@ -135,7 +142,7 @@ if (tiku.delta.length) console.log(`  共 ${tiku.delta.length} 个增量包可�
 let images = null;
 if (fs.existsSync(imgPath)) {
   const b = fs.readFileSync(imgPath);
-  images = { url: `${BASE}/images.db.gz`, size: b.length, sha256: sha256(b), gz: true };
+  images = { url: PROXY(`${BASE}/images.db.gz`), mirrors: [`${BASE}/images.db.gz`], size: b.length, sha256: sha256(b), gz: true };
 }
 
 // ---------- APK ----------
