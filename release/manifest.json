@@ -22,7 +22,7 @@
       {
         "from": "0.4.4-20261108-1915",
         "to": "0.5.0-20261108-1955",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.0-20261108-1955/delta-0.4.4-20261108-1915-0.5.0-20261108-1955.json.gz",
+        "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.4.4-20261108-1915-0.5.0-20261108-1955.json.gz",
         "size": 712998,
         "sha256": "2962f5801e8bcddeab5026fd0620b13da74f083de468e304f94a502048a7aef7",
         "rawSize": 3207569,
@@ -32,7 +32,10 @@
           "questionsAdded": 898,
           "questionsChanged": 464,
           "questionsDeleted": 0
-        }
+        },
+        "mirrors": [
+          "https://raw.githubusercontent.com/CHAOYUE116/shangan/main/release/delta-0.4.4-20261108-1915-0.5.0-20261108-1955.json.gz"
+        ]
       }
     ]
   },
@@ -41,6 +44,8 @@
     "size": 76042240,
     "sha256": "71bef27855fa9d774c4541002ec15f3731708c54b9696ce3cd2877d17d999d17"
   },
-  "mirrors": [],
-  "note": "题库 0.5.0：职测 6338 题，新增 8 省真题 898 道，回填解析 4693 题"
+  "mirrors": [
+    "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release"
+  ],
+  "note": "题库 0.5.0：职测 6338 题，新增 8 省真题 898 道，回填解析 4693 条"
 }

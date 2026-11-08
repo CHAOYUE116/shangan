@@ -136,6 +136,7 @@ research-fenbi-raw/
 
 # 更新清单本身要进仓库（App 从 raw/jsDelivr 读它），大文件仍走 Release
 !release/manifest.json
+!release/delta-*.json.gz
 !dist/release/manifest.json
 
 # 题库图片（从 images.db 动态加载，仓库里不需要）
