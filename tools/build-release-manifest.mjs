@@ -130,7 +130,7 @@ if (tiku.delta.length) console.log(`  共 ${tiku.delta.length} 个增量包可�
 let images = null;
 if (fs.existsSync(imgPath)) {
   const b = fs.readFileSync(imgPath);
-  images = { url: `${BASE}/images.db`, size: b.length, sha256: sha256(b) };
+  images = { url: `${BASE}/images.db.gz`, size: b.length, sha256: sha256(b), gz: true };
 }
 
 // ---------- APK ----------
