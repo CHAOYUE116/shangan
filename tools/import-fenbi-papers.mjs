@@ -45,6 +45,27 @@ const normImg = (h) => String(h || '')
 /** 选项/解析里是否含公式图或真图 */
 const hasImg = (h) => /<img\b/i.test(String(h || ''));
 
+/**
+ * 事业单位联考 B/C/D/E 类有自己的一套模块名，FENBI_TREE 里没有，
+ * 不归树就会在「按方向练习」里漏掉（2026-11 实测漏 133 题）。
+ * 这里统一映射到树内 group，原模块名保留在 question_categories.sub。
+ */
+const TREE_GROUPS = new Set(['政治理论', '常识判断', '言语理解与表达', '数量关系', '判断推理', '资料分析']);
+const GROUP_ALIAS = {
+  策略选择: '判断推理',   // D/E 类
+  综合分析: '资料分析',   // B/C 类
+  数量分析: '数量关系',   // B/C/D/E 类
+  数学运算: '数量关系',   // 子考点被误当模块
+  综合知识: '常识判断',   // 江苏专技岗
+  专业知识: '常识判断',   // 江苏专技岗
+};
+const toTreeGroup = (ch) => {
+  const name = String(ch || '').trim();
+  if (!name) return '未分类';
+  if (TREE_GROUPS.has(name)) return name;
+  return GROUP_ALIAS[name] || name;
+};
+
 if (!fs.existsSync(DIR)) { console.error('没有采集数据:', DIR); process.exit(1); }
 
 // ---------- 读源（按试卷名去重） ----------
@@ -130,10 +151,11 @@ for (const [name, j] of papers) {
     seqSet.add(qid);
     const optHtml = opts.map((o) => normImg(o));
     const optText = opts.map((o) => strip(o));
+    const rawChapter = modOf.get(s.globalId) || kp2mod.get(s.keypoints?.[0]?.name) || (s.keypoints?.[0]?.name) || '未分类';
     rows.push({
       questionId: qid,
-      chapter: modOf.get(s.globalId) || kp2mod.get(s.keypoints?.[0]?.name) || (s.keypoints?.[0]?.name) || '未分类',
-      sub: s.keypoints?.[0]?.name || '',
+      chapter: toTreeGroup(rawChapter),
+      sub: s.keypoints?.[0]?.name || rawChapter,
       type: s.type === 1 ? 1 : (opts.length ? 1 : 26),
       content,
       contentHtml: hasImg(s.content) ? normImg(s.content) : null,
