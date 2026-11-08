@@ -95,7 +95,9 @@ const tiku = {
   full: {
     url: `${BASE}/${gzName}`,
     size: fs.statSync(gzPath).size,
-    sha256: sha256(fs.readFileSync(gzPath)),
+    // 同理：App 对 .gz 解压后校验 → 给 raw db 的 sha256
+    sha256: dbHash,
+    gzSha256: sha256(fs.readFileSync(gzPath)),
     gz: true,
     rawSize: dbBuf.length,
   },
@@ -112,12 +114,15 @@ for (const f of fs.readdirSync(OUT)) {
     if (!m.to || m.to !== dbVersion) continue;   // 只登记指向当前版本的增量
     const file = f.replace(/\.meta\.json$/, '.json.gz');
     if (!fs.existsSync(path.join(OUT, file))) continue;
+    // App 端 download() 对 .gz 会自动解压，校验的是解压后的内容 → 这里必须给 raw 的 sha256
+    const rawBuf = zlib.gunzipSync(fs.readFileSync(path.join(OUT, file)));
     tiku.delta.push({
       from: m.from,
       to: m.to,
       url: `${BASE}/${file}`,
       size: m.size,
-      sha256: m.sha256,
+      sha256: sha256(rawBuf),
+      gzSha256: m.sha256,
       rawSize: m.rawSize,
       counts: m.counts,
     });
