@@ -1,0 +1,26 @@
+{
+    "name": "kaogong-quiz",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "考公刷题全栈应用（零依赖 Node 后端 + Web/Android + AI 解析）",
+    "engines": {
+        "node": ">=22.5"
+    },
+    "scripts": {
+        "start": "node server.mjs 3000",
+        "dev": "node server.mjs 3000",
+        "dev:check": "node tools/dev-check.mjs",
+        "dev:eval": "node tools/dev-eval.mjs",
+        "dev:query": "node tools/dev-query.mjs",
+        "sync": "node tools/sync-webapp.mjs",
+        "sync:check": "node tools/sync-webapp.mjs --check",
+        "test": "node --test test-custom-parser.mjs test-local-api.mjs test-local-queries.mjs test-random-practice-count.mjs test-local-ai.mjs test-local-handler.mjs test-local-fixes.mjs test-native-engine.mjs test-custom-practice.mjs test-custom-practice-e2e.mjs test-custom-bank-group.mjs test-user-skills.mjs test-backup.mjs"
+    },
+    "dependencies": {
+        "sharp": "^0.35.3"
+    },
+    "devDependencies": {
+        "playwright-core": "^1.62.1"
+    }
+}

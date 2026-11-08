@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "publishedAt": "2026-11-08T11:56:06.623Z",
+  "app": {
+    "version": "0.1.31",
+    "versionCode": 32,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.0-20261108-1955/shangan-0.1.31-release.apk",
+    "size": 141951809,
+    "sha256": "5d9f33dca37a32bc63e9befd47f8faeaaa0462664be8b82364a6ebe28c9f7b3e"
+  },
+  "tiku": {
+    "dbVersion": "0.5.0-20261108-1955",
+    "questions": 61131,
+    "full": {
+      "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.0-20261108-1955/tiku_app.db.gz",
+      "size": 87614055,
+      "sha256": "1c9ef86bbaa9402fe69c66afa62a4f391162b50230a729172e01c741fa81ff54",
+      "gz": true,
+      "rawSize": 332603392
+    },
+    "delta": [
+      {
+        "from": "0.4.4-20261108-1915",
+        "to": "0.5.0-20261108-1955",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.0-20261108-1955/delta-0.4.4-20261108-1915-0.5.0-20261108-1955.json.gz",
+        "size": 712998,
+        "sha256": "2962f5801e8bcddeab5026fd0620b13da74f083de468e304f94a502048a7aef7",
+        "rawSize": 3207569,
+        "counts": {
+          "papersAdded": 17,
+          "papersChanged": 0,
+          "questionsAdded": 898,
+          "questionsChanged": 464,
+          "questionsDeleted": 0
+        }
+      }
+    ]
+  },
+  "images": {
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.0-20261108-1955/images.db",
+    "size": 76042240,
+    "sha256": "71bef27855fa9d774c4541002ec15f3731708c54b9696ce3cd2877d17d999d17"
+  },
+  "mirrors": [],
+  "note": "题库 0.5.0：职测 6338 题，新增 8 省真题 898 道，回填解析 4693 题"
+}

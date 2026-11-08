@@ -1,0 +1,142 @@
+# ===== 依赖 =====
+node_modules/
+
+# ===== 生成产物（可从源码重建）=====
+out/
+app/android/**/build/
+app/android/.gradle/
+app/android/app/.cxx/
+app/android/local.properties
+app/android/app/src/main/assets/
+*.apk
+*.aab
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+*.pdf
+
+# ===== 浏览器测试 / 临时目录 =====
+.chrome*/
+.edge*/
+tmp-*
+
+# ===== 日志与旧备份 =====
+*.log
+crawl-log-*.txt
+*.bak*
+_auth-rollback-backup/
+
+# ===== 数据文件（体积大或可从爬虫重建，不进 git）=====
+*.db
+*.db-wal
+*.db-shm
+*.db.gz
+*.db.jar
+*.sqlite
+app-assets/
+backup/
+粉笔/
+# 题库与材料已获授权随仓库分发（tiku.db 以 tiku.db.part-* 分卷形式入库，不匹配 *.db）
+!materials.db
+!tiku-index.db
+
+# ===== 敏感文件（切勿提交！）=====
+cookie*.txt
+keystore-pass.txt
+ai-config.db
+*.key
+*.jks
+*.p12
+*.keystore
+.env
+.env.*
+!.env.example
+
+# ===== 本地工具状态 / 数据目录（不上传）=====
+.workbuddy/
+.zcode/
+parsed/
+pdf-src/
+pdf-work/
+solutions-progress.json
+backup-placeholder-questions.json
+
+# ===== 脑库 vault（Obsidian 端）：已是独立 git 仓库，单独发布，勿并入本仓库 =====
+workbench/vault/
+workbench/vault-yy/
+
+# ===== 脑库工作数据 / 分发产物（本地，体积大；范围口径文件单独放行）=====
+# 注意：必须写 workbench/data/* 而非 workbench/data/，否则父目录被排除后 ! 放行会失效
+workbench/data/*
+!workbench/data/scope-manifest.json
+workbench/dist-upload/
+
+# ===== 行测真题原题副本（由 tiku.db 生成，体积大 ~200MB，可随时重建）=====
+# 重建: node workbench/scripts/export-raw-questions.mjs
+行测真题/
+
+# ===== 技能包 zip 构建产物与本地技能安装状态（不上传）=====
+skills/*.zip
+skills/.redskill-*
+skills/**/.redskill-installed
+
+# ===== 爬虫与数据采集脚本（仅本地保留，不随仓库分发）=====
+crawl.js
+crawl-all.js
+crawl-syzc.mjs
+crawl-exercise.mjs
+nav-fenbi.mjs
+fetch-solutions.mjs
+fetch-materials.mjs
+pdf-backfill.mjs
+slow-backfill.mjs
+resume-backfill.mjs
+monitor-progress.mjs
+scan-download.mjs
+check-cookies.mjs
+cdp-verify.mjs
+cdp-shot.mjs
+cdp-front.mjs
+import-to-sqlite.mjs
+verify-db.mjs
+e2e-check.mjs
+fix-answer-index.mjs
+clean-placeholders.mjs
+build-category-index.mjs
+recommend-pdf.mjs
+extract-materials.py
+config.js
+start-chrome2.ps1
+start-chrome3.ps1
+start-chrome4.ps1
+lib/api.js
+lib/encrypt.js
+lib/extract-cookie.mjs
+lib/cdp-sniff.mjs
+lib/essay-classifier.mjs
+lib/xingce-classifier.mjs
+lib/xingce-sub-classify.mjs
+lib/xingce-sub-changshi.mjs
+lib/xingce-sub-panduan.mjs
+lib/xingce-sub-shuliang.mjs
+lib/xingce-sub-yanyu.mjs
+lib/xingce-sub-zhengzhi.mjs
+lib/xingce-sub-ziliao.mjs
+
+# ===== 内部文档（仅本地保留，不随仓库分发）=====
+HANDOFF.md
+ai-key-security.md
+
+交接文档-2026-08-21.md
+
+# 粉笔采集器 Cookie（本机凭证，不提交）
+cookie.txt
+research-fenbi-raw/
+
+# 更新清单本身要进仓库（App 从 raw/jsDelivr 读它），大文件仍走 Release
+!release/manifest.json
+!dist/release/manifest.json
+
+# 题库图片（从 images.db 动态加载，仓库里不需要）
+public/tarzan-img/

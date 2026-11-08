@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F5F6F8">
+<title>上岸</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <main id="view"></main>
+  <nav id="tabbar" aria-label="主导航">
+    <button class="tab active" data-tab="home" aria-label="首页">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+      <span>首页</span>
+    </button>
+    <button class="tab" data-tab="library" aria-label="题库">
+      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="6" height="18" rx="1.5"/><rect x="14" y="3" width="6" height="18" rx="1.5"/></svg>
+      <span>题库</span>
+    </button>
+    <button class="tab" data-tab="review" aria-label="回顾">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+      <span>回顾</span>
+    </button>
+    <button class="tab" data-tab="exam" aria-label="考试">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M9 2h6"/></svg>
+      <span>考试</span>
+    </button>
+    <button class="tab" data-tab="me" aria-label="我的">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      <span>我的</span>
+    </button>
+  </nav>
+</div>
+
+<section id="practice" class="practice" hidden>
+  <header class="p-top">
+    <button class="icon-btn" id="p-close" aria-label="退出练习">
+      <svg viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>
+    </button>
+    <div class="p-progress">
+      <div class="p-count" id="p-count">1 / 15</div>
+      <div class="p-bar"><i id="p-bar"></i></div>
+    </div>
+    <div class="p-timer" id="p-timer">02:31</div>
+    <button class="icon-btn" id="p-card-btn" aria-label="答题卡">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+    </button>
+  </header>
+  <main class="p-body" id="p-body"></main>
+  <footer class="p-actions" id="p-actions"></footer>
+</section>
+
+<div id="onboard" class="onboard" hidden></div>
+<div id="sheet" class="sheet-wrap" hidden></div>
+<div id="toast" class="toast"></div>
+
+<script src="../local-bootstrap.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
