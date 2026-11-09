@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.47';
+const APP_VERSION = '0.1.48';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1388,10 +1388,13 @@ const UPDATE_MANIFEST_URLS = (() => {
 
 function checkUpdate(mode) {
   if (!window.AppUpdate) { toast('在线更新只在 App 内可用'); return; }
-  // 题库和 App 是两条独立的更新链，各自检查、各自提示，不混在一个弹层里
+  // 题库和 App 是两条独立的更新链：各查各的，各说各的。
+  // 之前 App 弹层第一行显示的是题库的 message（「已是最新题库 0.5.x」），
+  // 用户扫一眼就以为没检测到新版 App —— 现在彻底分开。
   const onlyApp = mode === 'app';
+  const mb = (n) => { const v = Number(n) || 0; return v > 0 ? (v / 1048576).toFixed(1) + ' MB' : '大小未知'; };
   sheet(`<div class="sheet-head"><b>${onlyApp ? 'App 更新' : '题库更新'}</b><button class="sheet-close">✕</button></div>
-    <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">正在检查更新…</div>
+    <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">${onlyApp ? '正在检查 App 新版本…' : '正在检查题库更新…'}</div>
     <div class="p-bar" style="margin-top:12px"><i id="upd-bar" style="width:0%"></i></div></div>`);
   AppUpdate.reset();
   AppUpdate.start(JSON.stringify(UPDATE_MANIFEST_URLS));
@@ -1408,41 +1411,59 @@ function checkUpdate(mode) {
     const canApply = s.state === 'done' && s.hasPending;
     const finished = s.state === 'done' && !s.hasPending;
     const stuck = s.state === 'checking' && Date.now() - t0 > 45000;
-    const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
-    let line = esc(s.message || '处理中…');
-    if (stuck) line = '检查超时 —— 换个网络或点下面重试';
+    const curVer = s.currentVersionName || APP_VERSION;
 
-    const tikuBlock = onlyApp ? '' : `
-      <div class="card-sub">${line}</div>
-      <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
-      <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
-      ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
-      ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+    let body;
 
-    const appBlock = `
-      <div class="${onlyApp ? '' : 'card'}" style="${onlyApp ? '' : 'margin-top:12px;border-color:var(--amber,#e3b341)'}">
-        <div class="card-sub" style="margin:0 0 6px">当前 App 版本 v${esc(s.currentVersionName || APP_VERSION)}</div>
-        ${s.newAppAvailable
-          ? (() => {
-              const pct = Number(s.newAppProgress) || 0;
-              const dl = Number(s.newAppDownloaded) || 0;
-              const tt = Number(s.newAppTotal) || Number(s.newAppSize) || 0;
-              const mb = (n) => (n / 1048576).toFixed(1);
-              const appErr = s.newAppState === 'error';
-              const dling = s.newAppState === 'downloading';
-              const done = s.newAppState === 'done';
-              return `<div class="card-sub" style="margin:0 0 10px">发现新版本 v${esc(s.newAppVersion)}（${mb(Number(s.newAppSize) || 0)} MB）</div>
-             ${dling ? `<div class="upd-prog"><div class="upd-prog-bar"><i style="width:${Math.max(2, pct)}%"></i></div>
-               <div class="upd-prog-meta"><span>正在下载 ${pct}%</span><span>${mb(dl)} / ${mb(tt)} MB</span></div></div>` : ''}
-             ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成，正在打开安装器…</div>' : ''}
-             ${appErr ? `<div class="card-sub" style="margin:0 0 10px;color:var(--red,#c62828)">${esc(s.message || '下载失败')}</div>` : ''}
-             <button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${pct}%` : (done ? '重新下载' : (appErr ? '重试下载' : '下载并安装'))}</button>`;
-            })()
-          : `<div class="card-sub" style="margin:0">已是最新版本</div>`}
-        ${onlyApp && (s.state === 'error' || stuck) ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}
-      </div>`;
+    if (onlyApp) {
+      const appPct = Number(s.newAppProgress) || 0;
+      const dl = Number(s.newAppDownloaded) || 0;
+      const tt = Number(s.newAppTotal) || Number(s.newAppSize) || 0;
+      const appErr = s.newAppState === 'error';
+      const dling = s.newAppState === 'downloading';
+      const done = s.newAppState === 'done';
 
-    box.innerHTML = (onlyApp ? line + appBlock : tikuBlock + appBlock);
+      let head, sub;
+      if (stuck) {
+        head = '没查到更新源';
+        sub = '网络不通或更新源被挡，点下面重新检查';
+      } else if (s.newAppAvailable) {
+        head = `v${esc(curVer)} → <b style="color:var(--primary,#3D6FE0)">v${esc(s.newAppVersion)}</b>`;
+        sub = `新版本 ${mb(s.newAppSize)}`;
+      } else if (s.state === 'error') {
+        head = '检查失败';
+        sub = esc(s.message || '更新源不可达');
+      } else if (s.state === 'checking') {
+        head = '正在检查…';
+        sub = `当前 v${esc(curVer)}，读更新清单中`;
+      } else {
+        head = `已是最新版 v${esc(curVer)}`;
+        sub = '更新清单里没有更高的版本号';
+      }
+
+      body = `
+        <div style="font-size:20px;font-weight:600;line-height:1.35;margin:2px 0 6px">${head}</div>
+        <div class="card-sub" style="margin:0 0 12px">${sub}</div>
+        ${dling ? `<div class="upd-prog"><div class="upd-prog-bar"><i style="width:${Math.max(2, appPct)}%"></i></div>
+          <div class="upd-prog-meta"><span>正在下载 ${appPct}%</span><span>${(dl / 1048576).toFixed(1)} / ${(tt / 1048576).toFixed(1)} MB</span></div></div>` : ''}
+        ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成，正在打开安装器…</div>' : ''}
+        ${appErr && s.newAppAvailable ? `<div class="card-sub" style="margin:0 0 10px;color:var(--red,#c62828)">${esc(s.message || '下载失败')}</div>` : ''}
+        ${s.newAppAvailable ? `<button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${appPct}%` : (done ? '重新下载' : (appErr ? '重试下载' : '下载并安装'))}</button>` : ''}
+        ${(stuck || s.state === 'error') ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重新检查</button>' : ''}`;
+    } else {
+      const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
+      let line = esc(s.message || '处理中…');
+      if (stuck) line = '检查超时 —— 换个网络或点下面重试';
+      body = `
+        <div class="card-sub">${line}</div>
+        <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
+        <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
+        ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
+        ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+    }
+
+    box.innerHTML = body;
+
     const ab = $('#upd-app');
     if (ab) ab.onclick = () => {
       if (s.newAppState === 'downloading') return;
@@ -1457,7 +1478,8 @@ function checkUpdate(mode) {
     };
     const rt = $('#upd-retry');
     if (rt) rt.onclick = () => { closeSheet(); checkUpdate(mode); };
-    // 题库更新落地后自动重载一次，用户不用自己杀进程（App 更新走系统安装器，不重载）
+
+    // 题库更新落地后自动重载一次（App 更新走系统安装器，不重载）
     if (finished && !onlyApp && !reloading) {
       reloading = true;
       clearInterval(checkUpdate._t);
