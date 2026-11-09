@@ -1056,3 +1056,27 @@ html[data-fs="l"] { --q-fs: 17.5px; --q-lh: 1.8; }
 .pol-q[data-done="1"] .pol-fb { color: #2FA36B; }
 html[data-theme="dark"] .pol-opt.right { background: #16241C; border-color: #2F7A55; }
 html[data-theme="dark"] .pol-opt.wrong { background: #2A1A19; border-color: #8A3730; }
+
+/* ===== 0.2.4 复盘分组 + 成绩趋势 ===== */
+.rv-filters { margin: 0 0 12px; }
+.rv-group { margin-bottom: 16px; }
+.rv-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 2px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+.rv-name { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.rv-meta { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+.rv-head .chip { flex: none; font-size: 12px; padding: 6px 10px; }
+.tag.flag { color: var(--amber); background: var(--amber-soft); }
+
+.trend-card { padding: 14px 14px 10px; }
+.trend-label { font-size: 12px; color: var(--text-3); letter-spacing: .02em; margin-bottom: 8px; }
+.trend-bars { display: flex; align-items: flex-end; gap: 8px; height: 92px; padding: 2px 0 0; }
+.trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+.trend-col-v { font-size: 11px; font-weight: 650; color: var(--text-2); }
+.trend-col-bar { width: 100%; max-width: 34px; border-radius: 4px 4px 2px 2px; background: linear-gradient(180deg, #5B8DEF, #3D6FE0); }
+.trend-col-k { font-size: 10.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+html[data-theme="dark"] .trend-col-bar { background: linear-gradient(180deg, #6E9BF5, #4B7BE5); }
+html[data-theme="dark"] .tag.flag { color: #E0B36A; background: #2A2620; }

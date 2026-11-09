@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.3';
+const APP_VERSION = '0.2.4';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -985,10 +985,62 @@ function renderExam() {
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
   <section class="training-card" style="cursor:pointer" data-act="papers-entry"><div class="training-title">真题整卷模考</div><div class="training-sub">3,090 套真题卷 · 按卷计时 · 交卷出成绩单</div><button class="btn btn-ghost btn-block" data-act="papers-entry">选一份卷子</button></section>
   ${hist.length ? `<div class="section-head"><h2 class="section-title">模考成绩单</h2><button class="section-more" data-act="exam-history">全部 ${hist.length} 次 ›</button></div>` + `<div class="card list-card">${hist.slice(-3).reverse().map((r) => { const sc = Math.round((r.right / (r.total || 1)) * 1000) / 10; const d = new Date(r.ts); return `<div class="hist-row"><div class="hist-main"><div class="hist-title">${esc(r.title || '模考')}</div><div class="hist-sub">${d.getMonth() + 1}/${d.getDate()} · ${esc(r.kind || '随机')} · ${r.total} 题</div></div><div class="hist-score"><b>${sc}</b><span>${r.right}/${r.total}</span></div></div>`; }).join('')}</div>` : ''}
+  ${trendCard(hist)}
   <button class="home-alt" data-act="plan" style="margin-top:14px"><span>没有计划？让 AI 排一个<b>四阶段备考计划</b></span><span class="home-alt-r">去生成 ›</span></button>
   ${last7.length ? `<div class="section-head"><h2 class="section-title">近 7 天</h2></div><div class="card list-card">${last7.map((d) => `<div class="exam-row"><div class="subject-ico">${iconFor('')}</div><div class="subject-main"><div class="subject-title">${d.d}</div><div class="subject-sub">做题 ${Number(d.c) || 0} · 答对 ${Number(d.ok) || 0}</div></div><div class="weak-pct">${d.c ? Math.round(((Number(d.ok) || 0) / Number(d.c)) * 100) : 0}%</div></div>`).join('')}</div>` : ''}`;
 }
 
+
+/** 按年份 / 按省份聚合整卷成绩（只有 kind='整卷' 且带 year/region 的才算） */
+function trendStats(hist, key) {
+  const m = new Map();
+  for (const r of hist) {
+    const k = r && r[key];
+    if (!k) continue;
+    if (r.kind && r.kind !== '整卷') continue;
+    const e = m.get(k) || { k, n: 0, right: 0, total: 0 };
+    e.n++;
+    e.right += r.right || 0;
+    e.total += r.total || 0;
+    m.set(k, e);
+  }
+  return [...m.values()]
+    .map((x) => ({ ...x, score: x.total ? Math.round((x.right / x.total) * 1000) / 10 : 0 }))
+    .sort((a, b) => (key === 'year' ? a.k - b.k : b.n - a.n || b.score - a.score));
+}
+
+function trendBars(list, key, max) {
+  if (!list.length) return '<div class="card-sub">还没有可对比的整卷成绩</div>';
+  const top = Math.max(1, ...list.map((x) => x.score));
+  return '<div class="trend-bars">' + list.slice(0, max).map((x) => `<div class="trend-col" title="${esc(String(x.k))} · ${x.n} 场 · 平均 ${x.score} 分">
+    <div class="trend-col-v">${Math.round(x.score)}</div>
+    <div class="trend-col-bar" style="height:${Math.max(6, Math.round((x.score / top) * 56))}px"></div>
+    <div class="trend-col-k">${esc(String(x.k).slice(key === 'year' ? 2 : 0))}</div>
+  </div>`).join('') + '</div>';
+}
+
+function trendCard(hist) {
+  const ys = trendStats(hist, 'year');
+  const rs = trendStats(hist, 'region');
+  if (!ys.length && !rs.length) return '';
+  return `<div class="section-head"><h2 class="section-title">成绩趋势</h2><button class="section-more" data-act="exam-trend">按年份 / 省份 ›</button></div>
+  <div class="card trend-card">
+    <div class="trend-label">按年份 · 平均分</div>${trendBars(ys, 'year', 6)}
+    <div class="trend-label" style="margin-top:14px">按省份 · 平均分</div>${trendBars(rs, 'region', 6)}
+  </div>`;
+}
+
+function openExamTrend() {
+  const hist = loadExamHistory();
+  const ys = trendStats(hist, 'year');
+  const rs = trendStats(hist, 'region');
+  const row = (x, key) => `<div class="hist-row"><div class="hist-main"><div class="hist-title">${esc(String(x.k))}${key === 'year' ? ' 年' : ''}</div><div class="hist-sub">${x.n} 场 · 累计 ${x.total} 题 · 答对 ${x.right}</div></div><div class="hist-score"><b>${Math.round(x.score)}</b><span>平均分</span></div></div>`;
+  sheet(`<div class="sheet-head"><b>成绩趋势</b><button class="sheet-close">✕</button></div>
+    <div class="trend-label">按年份</div>
+    <div style="max-height:32vh;overflow-y:auto">${ys.map((x) => row(x, 'year')).join('') || '<div class="card-sub">暂无</div>'}</div>
+    <div class="trend-label" style="margin-top:12px">按省份</div>
+    <div style="max-height:32vh;overflow-y:auto">${rs.map((x) => row(x, 'region')).join('') || '<div class="card-sub">暂无</div>'}</div>`);
+}
 
 function renderExamResult() {
   const R = S.examResult;
@@ -1017,9 +1069,27 @@ function renderExamResult() {
     d: d.d, rate: d.c ? Math.round(((Number(d.ok) || 0) / Number(d.c)) * 100) : 0, n: Number(d.c) || 0,
   }));
   const trendMax = Math.max(1, ...trend.map((t) => t.n));
-  const items = R.items.map(({ q, a }, i) => {
+  // ---- 复盘：按模块分组，可只看错题 / 只看待定 ----
+  const fgSet = new Set(R.flagged || []);
+  const isBlank = (a) => !a || a.selected == null;
+  const isWrong = (a) => !isBlank(a) && !a?.feedback?.ok;
+  const pass = (it, i) => (reviewFilter === 'wrong' ? (isWrong(it.a) || isBlank(it.a)) : reviewFilter === 'flag' ? fgSet.has(i) : true);
+  const wrongN = R.items.filter((it) => isWrong(it.a) || isBlank(it.a)).length;
+  const groups = new Map();
+  R.items.forEach((it, i) => {
+    if (!pass(it, i)) return;
+    const k = it.q.chapter || '未分类';
+    const g = groups.get(k) || { name: k, list: [], right: 0, total: 0 };
+    g.list.push({ it, i });
+    g.total++;
+    if (it.a?.feedback?.ok) g.right++;
+    groups.set(k, g);
+  });
+  const gList = [...groups.values()].sort((x, y) => (x.right / x.total) - (y.right / y.total));
+  const rowOf = ({ it, i }) => {
+    const { q, a } = it;
     const fb = a?.feedback;
-    const status = a?.selected == null ? '未答' : fb?.ok ? '正确' : '错误';
+    const status = isBlank(a) ? '未答' : fb?.ok ? '正确' : '错误';
     const color = status === '正确' ? 'var(--green)' : status === '错误' ? 'var(--red)' : 'var(--text-3)';
     const costTxt = costs[i] ? fmtTime(Math.round(costs[i] / 1000)) : '—';
     const opts = (q.options || []).map((o, j) => {
@@ -1028,11 +1098,18 @@ function renderExamResult() {
       const cls = correct ? 'correct' : picked ? 'wrong' : '';
       return `<div class="result-opt ${cls}"><b>${'ABCDEFGH'[j]}</b> ${renderOption(o)}${picked ? ' · 你的选择' : ''}${correct ? ' · 正确答案' : ''}</div>`;
     }).join('');
-    return `<details class="card result-q" style="margin-bottom:10px">
-      <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span><span class="tag">${esc(q.chapter || '未分类')}</span><span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
+    return `<details class="card result-q" style="margin-bottom:8px">
+      <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
       <div class="q-stem" style="margin-top:12px">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
     </details>`;
-  }).join('');
+  };
+  const reviewHtml = gList.length ? gList.map((g) => `<section class="rv-group">
+      <div class="rv-head">
+        <div><div class="rv-name">${esc(g.name)}</div><div class="rv-meta">${g.total} 题 · 答对 ${g.right} · ${Math.round((g.right / g.total) * 100)}%</div></div>
+        <button class="chip" data-act="review-kp" data-chapter="${esc(g.name)}">练这个考点</button>
+      </div>
+      ${g.list.map(rowOf).join('')}
+    </section>`).join('') : '<div class="empty-state">这个筛选下没有题目</div>';
   return `<div class="subpage-head"><button class="icon-btn" data-act="exam-result-back">‹</button><div class="subpage-title">考试报告</div><span style="width:38px"></span></div>
   <div class="card-sub" style="margin:-6px 0 14px">${esc(R.title)} · 用时 ${fmtTime(R.used)} · 平均每题 ${fmtTime(avgSec)}</div>
   <div class="card" style="text-align:center;padding:20px 16px 16px">
@@ -1048,8 +1125,13 @@ function renderExamResult() {
     const histTxt = h && h.c ? ` · 历史 ${Math.round(((Number(h.ok) || 0) / Number(h.c)) * 100)}%` : '';
     return `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(m.name)}</div><div class="subject-sub">答对 ${m.right} / ${m.total} · 用时 ${m.cost ? fmtTime(Math.round(m.cost / 1000)) : '—'}${histTxt}${m.total > m.answered ? ` · 未答 ${m.total - m.answered}` : ''}</div></div><div class="weak-pct">${Math.round((m.right / m.total) * 100)}%</div></div>`;
   }).join('') || '<div class="empty-state">暂无数据</div>'}</div>
-  <div class="section-head"><h2 class="section-title">逐题解析</h2></div>
-  ${items}
+  <div class="section-head"><h2 class="section-title">复盘</h2><span class="section-more">${gList.length} 个模块</span></div>
+  <div class="chips rv-filters">
+    <button class="chip ${reviewFilter === 'all' ? 'active' : ''}" data-act="review-filter" data-f="all">全部 ${R.total}</button>
+    <button class="chip ${reviewFilter === 'wrong' ? 'active' : ''}" data-act="review-filter" data-f="wrong">错题 ${wrongN}</button>
+    <button class="chip ${reviewFilter === 'flag' ? 'active' : ''}" data-act="review-filter" data-f="flag">待定 ${fgSet.size}</button>
+  </div>
+  ${reviewHtml}
   ${R.items.some(({ a }) => a?.selected != null && !a.feedback?.ok) ? `<button class="btn btn-primary btn-block" style="margin-top:14px" data-act="retry-wrong">错题再练</button>` : ''}`;
 }
 
@@ -2051,6 +2133,7 @@ document.addEventListener('click', (e) => {
       return;
     }
     if (a === 'exam-history') { openExamHistory(); return; }
+  if (a === 'exam-trend') { openExamTrend(); return; }
   if (a === 'group') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&group=${encodeURIComponent(act.dataset.group)}&sub=${encodeURIComponent(act.dataset.sub)}&n=15&mock=0&year=10&difficulty=random`, act.dataset.group, S.lib.subject); return; }
   if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=15&mock=0&year=10&difficulty=random`, '随机练习', S.lib.subject); return; }
   if (a === 'library-exam') { startExam(10, '模考'); return; }
@@ -2068,6 +2151,14 @@ document.addEventListener('click', (e) => {
   if (a === 'exam-submit') { closeSheet(); requestSubmitExam(); return; }
   if (a === 'exam-submit-confirm') { closeSheet(); submitExam(); return; }
   if (a === 'exam-review') { closeSheet(); S.tab = 'exam'; go('exam'); return; }
+  if (a === 'review-filter') { reviewFilter = act.dataset.f || 'all'; go('exam'); return; }
+  if (a === 'review-kp') {
+    const ch = act.dataset.chapter || '';
+    const subj = (S.examResult && S.examResult.subject) || S.lib.subject;
+    closeSheet();
+    startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(subj)}&chapter=${encodeURIComponent(ch)}&n=10&mock=0&year=10&difficulty=balanced`, '考点 · ' + ch, subj, 'random');
+    return;
+  }
   if (a === 'exam-result-back') { S.examResult = null; goBackSmart('exam'); return; }
   if (a === 'extra-practice') {
     const subject = dailySubject();
@@ -2439,7 +2530,17 @@ async function submitExam() {
   const used = Math.max(0, (P.limitSec || 0) - P.remaining);
   const wrong = P.qs.length - right;
   const answered = P.qs.filter((q, i) => P.answers[i]?.selected != null).length;
-  S.examResult = { title: P.title, subject: P.subject, right, total: P.qs.length, used, costs: P.qs.map((_, i) => Number((P.qCost || {})[i]) || 0), items: P.qs.map((q, i) => ({ q, a: P.answers[i] || null })) };
+  const flaggedIdx = Object.keys(P.flagged || {}).filter((k) => P.flagged[k]).map(Number).sort((a, b) => a - b);
+  S.examResult = {
+    title: P.title, subject: P.subject, right, total: P.qs.length, used,
+    kind: P.paperId ? '整卷' : '随机',
+    year: P.paperYear || 0,
+    region: P.paperRegion || '',
+    flagged: flaggedIdx,
+    costs: P.qs.map((_, i) => Number((P.qCost || {})[i]) || 0),
+    items: P.qs.map((q, i) => ({ q, a: P.answers[i] || null })),
+  };
+  reviewFilter = wrong > 0 ? 'wrong' : 'all';
   saveExamHistory({
     ts: Date.now(),
     title: P.title,
@@ -2448,6 +2549,8 @@ async function submitExam() {
     total: P.qs.length,
     used,
     kind: P.paperId ? '整卷' : '随机',
+    year: P.paperYear || 0,
+    region: P.paperRegion || '',
     mods: [...new Map(P.qs.map((q, i) => {
       const k = q.chapter || '未分类';
       const m = { name: k, total: 0, right: 0 };
@@ -2489,6 +2592,8 @@ async function resumeSession() {
 }
 /* ---------- 模考历史（本地存档） ---------- */
 const EXAM_HIST_KEY = 'sg_exam_history_v1';
+// 交卷后复盘页的筛选：all=全部 / wrong=错题（含未答）/ flag=待定
+let reviewFilter = 'all';
 function loadExamHistory() {
   try {
     const a = JSON.parse(localStorage.getItem(EXAM_HIST_KEY) || '[]');
@@ -2533,6 +2638,10 @@ async function startPaperExam(paperId, name, subject) {
     const P = S.practice;
     P.exam = true;
     P.paperId = Number(paperId) || 0;
+    // 年份/地区记下来，交卷后进成绩单，用来做「按年份 / 按省份」的趋势对比
+    const ym = String(p.name || name || '').match(/20\d{2}/);
+    P.paperYear = ym ? Number(ym[0]) : 0;
+    P.paperRegion = String(p.category || '').trim();
     P.limitSec = Math.max(600, qs.length * 55);   // 行测约 55 秒/题，最少 10 分钟
     P.remaining = P.limitSec;
     renderPractice();
