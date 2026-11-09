@@ -29,22 +29,28 @@
       {
         "from": "0.5.2-20261109-0130",
         "to": "0.5.3-20261109-1019",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz",
-        "mirrors": [
-          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz",
-          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz"
-        ],
         "size": 2378365,
         "sha256": "df4400779808fd4f711b7d59ff059ffc0f808457f089bf0eba425255e78fa672",
         "gzSha256": "366c05461ae7dd9de4ea6677a0463c1b2527b681a9e6c3119a32c93c026f8af3",
         "rawSize": 9368045,
-        "counts": {
-          "papersAdded": 0,
-          "papersChanged": 0,
-          "questionsAdded": 0,
-          "questionsChanged": 4233,
-          "questionsDeleted": 0
-        }
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz",
+        "mirrors": [
+          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz",
+          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.2-20261109-0130-0.5.3-20261109-1019.json.gz"
+        ]
+      },
+      {
+        "from": "0.5.0-20261108-1955",
+        "to": "0.5.3-20261109-1019",
+        "size": 4929063,
+        "sha256": "b374e0349f9b0ffbad2e9123690ac82f6cffeae2ee87f8e5a7412520ed4c4c8a",
+        "gzSha256": "18b84806745fd2b1028bc9f7000fd3563a259034bb03f209d055391d30ee5875",
+        "rawSize": 19122979,
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.0-20261108-1955-0.5.3-20261109-1019.json.gz",
+        "mirrors": [
+          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.0-20261108-1955-0.5.3-20261109-1019.json.gz",
+          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/delta-0.5.0-20261108-1955-0.5.3-20261109-1019.json.gz"
+        ]
       }
     ]
   },
