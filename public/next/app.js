@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.41';
+const APP_VERSION = '0.1.42';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -338,6 +338,28 @@ function renderDeepBlock(d) {
     <div class="ana-deep-body">${rows.map(([k, v]) => `<div class="deep-row"><b>${k}</b><span>${v}</span></div>`).join('')}</div>
   </details>`;
 }
+/**
+ * 把库里的 answer 统一转成字母（如 "2" → "C"，"0,2" → "AC"）。
+ *
+ * 库里 88.6% 的题 answer 存的是选项索引数字，不是字母。原来这里直接
+ * String(q.answer).replace(/[^A-H]/g,'') —— 数字被抹成空串，于是回退到「见解析」，
+ * 导致回顾页、错题详情里根本看不到正确答案是什么（答题时有 fb.correct 兜底才正常）。
+ */
+function answerToLetters(q) {
+  const raw = q && q.answer;
+  if (raw == null) return '';
+  const s = String(raw).trim();
+  if (!s) return '';
+  // 已经是字母
+  if (/^[A-Ha-h]+$/.test(s)) return s.toUpperCase();
+  // 索引："0" / "2,3" / "[0,2]" / "[[0,2]]"
+  const cleaned = s.replace(/[\[\]]/g, '');
+  if (/^\d+(\s*,\s*\d+)*$/.test(cleaned)) {
+    return cleaned.split(',').map((n) => 'ABCDEFGH'[Number(n.trim())] || '').join('');
+  }
+  return '';
+}
+
 function renderAnalysisBlock(q, fb, extraBtns) {
   const raw = String(q.analysis || '').trim();
   const rich = q.analysisHtml;
@@ -356,7 +378,7 @@ function renderAnalysisBlock(q, fb, extraBtns) {
   if (!blocks) {
     return `<div class="ana-card">${head}<div class="ana-line" style="white-space:pre-wrap">${renderRichText(rich || raw)}</div></div>`;
   }
-  const ansTxt = correctLetters || String(q.answer || '').replace(/[^A-H]/g, '') || '见解析';
+  const ansTxt = correctLetters || answerToLetters(q) || '见解析';
   const ansBlock = blocks.find((b) => b.letter === ansTxt[0]) || blocks.find((b) => !b.ok);
   const pickedBlock = pickedLetters ? blocks.find((b) => b.letter === pickedLetters[0]) : null;
   const isNeg = /错误的是|不属于|不包括|不符合|不正确|不能/.test(String(q.content || ''));
