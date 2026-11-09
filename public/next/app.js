@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.49';
+const APP_VERSION = '0.1.50';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1871,6 +1871,9 @@ document.addEventListener('click', (e) => {
       go(t); return;
     }
     if (t === 'me' || t === 'review' || t === 'home') {
+      // 点底部 tab 是「回到这个栏目」，不是「回到上次那一页」：
+      // 之前从首页点进学习报告，返回后再点「我的」，还停在报告页 —— 很别扭。
+      if (t === 'me') S.meView = 'main';
       refreshStats().then(() => { go(t); if (t === 'review') loadReview(S.review.tab); }).catch(() => go(t));
       return;
     }
