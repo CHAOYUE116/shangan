@@ -108,8 +108,8 @@ function loadAgents(defaults) {
       merged.base_url = d.base_url;
       merged.model = d.model;
     }
-    // deepseek-flash 不是合法模型名（官方只有 deepseek-chat / deepseek-reasoner），存量配置自动纠正
-    if (merged.model === 'deepseek-flash') merged.model = 'deepseek-chat';
+    // DeepSeek 2026 起只有 deepseek-flash / deepseek-v4-pro，已下线的旧名一律拉回 flash
+    if (['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash'].includes(merged.model)) merged.model = 'deepseek-flash';
     return merged;
   });
 }

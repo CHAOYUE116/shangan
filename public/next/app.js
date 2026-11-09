@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.36';
+const APP_VERSION = '0.1.37';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -923,7 +923,7 @@ function renderPlan() {
 
 /* ---------- AI 设置 ---------- */
 const AI_GATEWAYS = [
-  { label: 'DeepSeek', url: 'https://api.deepseek.com/v1', model: 'deepseek-chat', signup: 'https://platform.deepseek.com/api_keys', tip: '便宜、中文好，新号有免费额度' },
+  { label: 'DeepSeek', url: 'https://api.deepseek.com', model: 'deepseek-flash', signup: 'https://platform.deepseek.com/api_keys', tip: '便宜、中文好，新号有免费额度' },
   { label: '智谱 BigModel', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', signup: 'https://open.bigmodel.cn/usercenter/apikeys', tip: 'glm-4-flash 免费额度大' },
   { label: '商汤 SenseNova', url: 'https://token.sensenova.cn/v1', model: 'SenseChat-5', signup: 'https://platform.sensenova.cn', tip: '有免费额度' },
   { label: 'Open Code', url: 'https://opencode.ai/zen/v1', model: '', signup: '', tip: '' },
