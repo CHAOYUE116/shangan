@@ -48,6 +48,15 @@ const NOTE = arg('note', '');
 const PROXY = (u) => `https://gh-proxy.com/${u}`;
 // jsDelivr 只服务仓库内文件：delta 体积小、已提交到 release/ 目录，走它最稳
 const JSDELIVR = (f) => `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/${f}`;
+
+// 候选下载源。App 端（0.1.53+）会并发测速后挑最快的那个，不是死用第一个。
+// 实测差异极大：同一台机器、同一个文件，直连 release-assets.githubusercontent.com
+// 能跑 8.8 MB/s，gh-proxy 在 0.15~4.8 MB/s 之间抖（公共反代，看它机房当时忙不忙）。
+// 所以 url 字段保留给老版本 App 兜底，新版本看 sources。
+const SOURCES = (file) => [
+  { url: `${BASE}/${file}`, kind: 'github' },
+  { url: PROXY(`${BASE}/${file}`), kind: 'gh-proxy' },
+];
 const OUT = path.resolve(ROOT, arg('out', '../dist/release'));
 const ASSETS = path.resolve(ROOT, 'app-assets');
 
@@ -100,6 +109,7 @@ const tiku = {
   full: {
     url: PROXY(`${BASE}/${gzName}`),
     mirrors: [`${BASE}/${gzName}`],
+    sources: SOURCES(gzName),
     size: fs.statSync(gzPath).size,
     // 同理：App 对 .gz 解压后校验 → 给 raw db 的 sha256
     sha256: dbHash,
@@ -127,6 +137,7 @@ for (const f of fs.readdirSync(OUT)) {
       to: m.to,
       url: PROXY(`${BASE}/${file}`),
       mirrors: [JSDELIVR(file), `${BASE}/${file}`],
+      sources: [{ url: JSDELIVR(file), kind: 'jsdelivr' }, ...SOURCES(file)],
       size: m.size,
       sha256: sha256(rawBuf),
       gzSha256: m.sha256,
@@ -142,7 +153,7 @@ if (tiku.delta.length) console.log(`  共 ${tiku.delta.length} 个增量包可�
 let images = null;
 if (fs.existsSync(imgPath)) {
   const b = fs.readFileSync(imgPath);
-  images = { url: PROXY(`${BASE}/images.db.gz`), mirrors: [`${BASE}/images.db.gz`], size: b.length, sha256: sha256(b), gz: true };
+  images = { url: PROXY(`${BASE}/images.db.gz`), mirrors: [`${BASE}/images.db.gz`], sources: SOURCES('images.db.gz'), size: b.length, sha256: sha256(b), gz: true };
 }
 
 // ---------- APK ----------
@@ -152,7 +163,8 @@ if (APK && fs.existsSync(APK)) {
   const gradle = fs.readFileSync(path.join(ROOT, '..', 'app-shangan', 'android', 'app', 'build.gradle'), 'utf8');
   const vc = Number((gradle.match(/versionCode\s+(\d+)/) || [])[1] || 0);
   const vn = (gradle.match(/versionName\s+"([^"]+)"/) || [])[1] || '';
-  app = { version: vn, versionCode: vc, url: `${BASE}/${path.basename(APK)}`, size: b.length, sha256: sha256(b) };
+  const apkName = path.basename(APK);
+  app = { version: vn, versionCode: vc, url: `${BASE}/${apkName}`, sources: SOURCES(apkName), size: b.length, sha256: sha256(b) };
   console.log(`\nAPK：${path.basename(APK)}  v${vn}(${vc})  ${mb(b.length)}`);
 }
 
