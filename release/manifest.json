@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-09T07:46:40.214Z",
+  "publishedAt": "2026-11-09T08:56:48.281Z",
   "app": {
-    "version": "0.1.51",
-    "versionCode": 52,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.7-20261109-1520/shangan-0.1.51-release.apk",
-    "size": 142101931,
-    "sha256": "2d04bab845f7bb37d433828852c855ed4e335ac604315b1cbee760b5cd33b10a"
+    "version": "0.1.52",
+    "versionCode": 53,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.7-20261109-1520/shangan-0.1.52-release.apk",
+    "size": 142104402,
+    "sha256": "e61ebd7a7736d276e6a7ad8b6e794ae028f210b44e8704b86652b9042cb8d403"
   },
   "tiku": {
     "dbVersion": "0.5.7-20261109-1520",
