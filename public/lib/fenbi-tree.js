@@ -165,12 +165,20 @@ export const SHENLUN_TREE = [
 
 // 事业编公基（种子题库：源自行测政治理论/常识判断精选）
 // 注意：这棵树的 group 名必须和 question_categories.category 的实际值一致。
-// 早期细分过「法律常识 / 经济常识 / 科技常识 …」，但后来 fix-sub-as-chapter 把子考点
+// 0.1.58 之前细分过「法律常识 / 经济常识 / 科技常识 …」，但 fix-sub-as-chapter 把子考点
 // 统一归成了「常识判断」，树没跟着改 → 2,368 道公基题一个模块都落不进去，
-// 题库页只显示 354（政治理论），用户看到的就是「题变少了」。
+// 题库页只显示 354（政治理论），用户看到的就是「题变少了」，当时把树收窄成 2 组救急。
+// 0.2.2 起 tools/classify-gongji.mjs 按题干关键词重新分类写回 category，
+// 数据重新有 7 个可区分的组，所以树恢复成 8 组。**改树之前必须先跑分类脚本**。
 export const GONGJI_TREE = [
   { group: '政治理论', subs: [{ name: '全部', leaves: [] }] },
-  { group: '常识判断', subs: [{ name: '全部', leaves: [] }] },
+  { group: '法律常识', subs: [{ name: '全部', leaves: [] }] },
+  { group: '经济常识', subs: [{ name: '全部', leaves: [] }] },
+  { group: '科技常识', subs: [{ name: '全部', leaves: [] }] },
+  { group: '人文常识', subs: [{ name: '全部', leaves: [] }] },
+  { group: '地理国情', subs: [{ name: '全部', leaves: [] }] },
+  { group: '公文写作', subs: [{ name: '全部', leaves: [] }] },
+  { group: '综合常识', subs: [{ name: '全部', leaves: [] }] },
 ];
 
 /** 公基组名白名单（分类脚本与 chapters 组装共用） */

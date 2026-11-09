@@ -1379,7 +1379,8 @@ const server = http.createServer(async (req, res) => {
                    COUNT(DISTINCT tq.questionId) AS questions
             FROM tiku.papers tp
             LEFT JOIN tiku.questions tq ON tq.paperId = tp.id
-            WHERE CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
+            WHERE (tp.subjectName = '事业编·公基'
+           OR CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO})
             GROUP BY tp.subjectName
           `).all());
         }
@@ -1395,7 +1396,8 @@ const server = http.createServer(async (req, res) => {
           FROM tiku.papers tp
           JOIN tiku.questions tq ON tq.paperId = tp.id
           JOIN practice_records r ON r.question_id = tq.questionId AND r.is_correct = 1
-          WHERE CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
+          WHERE (tp.subjectName = '事业编·公基'
+           OR CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO})
           GROUP BY tp.subjectName
         `).all();
         const doneMap = new Map(doneRows.map((r) => [r.subjectName, Number(r.done || 0)]));

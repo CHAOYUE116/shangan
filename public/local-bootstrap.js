@@ -65,7 +65,10 @@ if (isLocalMode()) {
     const { initLocalApiBrowser } = await import('./local-api.js');
     // 原生桥按 SQL 内容自动路由 tiku_app.db / images.db，可直接复用为图片引擎（公式图可用）
     const api = await initLocalApiBrowser({ tiku, images: nativeMode ? tiku : null });
-    if (nativeMode) {
+    // 公式图落 IndexedDB 只对 sql.js 兜底路径有意义（那边没有原生桥，只能从 IDB 取 blob）。
+    // 原生模式下 createImagesApi 直接走 images.get() 查 images.db，这条链路纯属白搬
+    // 5.2 万行 / 54MB blob（base64 过桥 + 逐行 atob），首启要白等十几秒，所以直接跳过。
+    if (!nativeMode) {
       try {
         await engine.importImagesFromNative(tiku);
       } catch (e) {

@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.2.3';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1359,6 +1359,36 @@ async function openPolitics() {
   }
 }
 
+/** 时政文章末尾的「模拟演练」做成可点的题卡（2026-11 起采集脚本会把题目解析进 practice[]） */
+function renderPolPractice(it, idx) {
+  const qs = (it && it.practice) || [];
+  if (!qs.length) return '';
+  const saved = (S.polQuiz && S.polQuiz[it.id]) || {};
+  const cards = qs.map((q, qi) => {
+    const picked = saved[q.no != null ? q.no : qi];
+    const ans = String(q.answer || '').trim();
+    const opts = (q.options || []).map((t, oi) => {
+      const key = String.fromCharCode(65 + oi);
+      const cls = picked
+        ? (key === ans ? ' pol-opt right' : (key === picked ? ' pol-opt wrong' : ' pol-opt locked'))
+        : ' pol-opt';
+      return `<button class="${cls.trim()}" data-act="pol-opt" data-idx="${idx}" data-o="${key}" data-q="${q.no != null ? q.no : qi}"${picked ? ' disabled' : ''}><i>${key}</i><span>${esc(t)}</span></button>`;
+    }).join('');
+    const fb = picked
+      ? (String(picked) === ans ? '✓ 答对了' : '✗ 正确答案 ' + (ans || '—'))
+      : '';
+    return `<div class="pol-q" data-ans="${esc(ans)}">
+      <div class="pol-q-stem"><b>${qi + 1}.</b> ${esc(q.stem || '')}</div>
+      <div class="pol-opts">${opts}</div>
+      <div class="pol-fb">${fb}</div>
+    </div>`;
+  }).join('');
+  return `<div class="pol-practice">
+    <div class="pol-practice-head">练一练<span>${qs.length} 题 · 点选项看答案</span></div>
+    ${cards}
+  </div>`;
+}
+
 function openPoliticsDetail(idx) {
   const it = (S.politicsList || [])[idx];
   if (!it) return;
@@ -1384,7 +1414,7 @@ function openPoliticsDetail(idx) {
 
   sheet(`<div class="sheet-head"><b>${esc(polTitle(it.title))}</b><button class="sheet-close">✕</button></div>
     <div class="pol-detail-meta"><span>${esc(it.date || '')}</span><span>${Number(it.chars) || 0} 字</span></div>
-    <div class="pol-body">${blocks.join('')}</div>
+    <div class="pol-body">${blocks.join('')}${renderPolPractice(it, idx)}</div>
     <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="close-sheet">关闭</button>`);
 }
 
@@ -2135,6 +2165,31 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'politics') { openPolitics(); return; }
   if (a === 'politics-open') { openPoliticsDetail(Number(act.dataset.idx)); return; }
+    if (a === 'pol-opt') {
+      const card = act.closest('.pol-q');
+      if (!card || card.dataset.done === '1') return;
+      const ans = String(card.dataset.ans || '');
+      const pick = String(act.dataset.o || '');
+      card.dataset.done = '1';
+      card.querySelectorAll('.pol-opt').forEach((b) => {
+        const k = String(b.dataset.o || '');
+        b.disabled = true;
+        if (k === ans) b.classList.add('right');
+        else if (k === pick) b.classList.add('wrong');
+        else b.classList.add('locked');
+      });
+      const fb = card.querySelector('.pol-fb');
+      if (fb) fb.textContent = pick === ans ? '✓ 答对了' : '✗ 正确答案 ' + (ans || '—');
+      // 记住选择，重开这篇文章时还显示
+      const i = Number(act.dataset.idx);
+      const art = (S.politicsList || [])[i];
+      if (art) {
+        S.polQuiz = S.polQuiz || {};
+        S.polQuiz[art.id] = S.polQuiz[art.id] || {};
+        S.polQuiz[art.id][act.dataset.q] = pick;
+      }
+      return;
+    }
   if (a === 'me-back') { goBackSmart('me'); return; }
   if (a === 'ai-edit') { editAgent(act.dataset.id); return; }
   if (a === 'ai-toggle') {
@@ -2956,6 +3011,10 @@ function bindAndroidBack() {
 }
 
 (async function boot() {
+  const T0 = performance.now();
+  // 启动耗时打点：logcat 里 grep "boot" 就能看到每一段花了多久
+  const mark = (k) => { try { console.log('[boot]', k, Math.round(performance.now() - T0) + 'ms'); } catch { /* ignore */ } };
+  mark('start');
   const saved = localStorage.getItem('theme');
   document.documentElement.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   S.plan = loadPlan();
@@ -2968,11 +3027,13 @@ function bindAndroidBack() {
   if (window.__LOCAL_API_PROMISE__) {
     try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ }
   }
+  mark('bridge-ready');
 
   // 首屏只等最少的数据。错题回填和摊平都能挪到后台，
   // 它们要读几百条记录，卡在前面会让白屏多两三秒。
   // loadHome 成功才切首页；失败就留着骨架，别渲染出一片白。
   try { await loadHome(); go('home'); } catch (e) { toast(e.message); }
+  mark('home-rendered');
 
   // 首屏渲染完了，可以撤掉原生启动图了；浏览器里没有这个桥，忽略即可
   try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ }

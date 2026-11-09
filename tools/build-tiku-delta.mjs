@@ -156,7 +156,7 @@ console.log(`\nmanifest 里这样写：`);
 console.log(JSON.stringify({
   from: FROM,
   to: TO,
-  url: `https://github.com/ERRRC/kaogong-shuati/releases/download/tiku-${TO}/${path.basename(file)}`,
+  url: `https://github.com/CHAOYUE116/shangan/releases/download/tiku-${TO}/${path.basename(file)}`,
   size: gz.length,
   sha256,
   rawSize: raw.length,

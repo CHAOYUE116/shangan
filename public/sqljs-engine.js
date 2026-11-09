@@ -68,22 +68,27 @@ export function loadNativeEngine() {
 
 /** 原生桥版本：images.db 公式图 → IndexedDB（b64 解码后与 sql.js 导入结果一致） */
 export async function importImagesFromNative(images) {
+  // 先看 IndexedDB 里是不是已经有了。旧写法是「先 SELECT 全量 5.2 万行 54MB blob 再判断」，
+  // 于是每次冷启都白搬一次 72MB base64 字符串 + 逐字节 atob，白赔 1~2 秒。
+  const db = await openImagesIdb();
+  const already = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGES_STORE, 'readonly');
+    const req = tx.objectStore(IMAGES_STORE).count();
+    req.onsuccess = () => resolve(req.result || 0);
+    req.onerror = () => reject(req.error);
+  });
+  if (already > 0) return;
+
   const rows = images.all('SELECT key, mime, blob FROM images');
   if (!rows.length) return;
-  const db = await openImagesIdb();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(IMAGES_STORE, 'readwrite');
     const store = tx.objectStore(IMAGES_STORE);
-    const countReq = store.count();
-    countReq.onsuccess = () => {
-      if (countReq.result > 0) return resolve(); // 已导入过
-      for (const row of rows) {
-        store.put({ mime: row.mime || 'image/png', blob: new Blob([row.blob], { type: row.mime || 'image/png' }) }, row.key);
-      }
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    };
-    countReq.onerror = () => reject(countReq.error);
+    for (const row of rows) {
+      store.put({ mime: row.mime || 'image/png', blob: new Blob([row.blob], { type: row.mime || 'image/png' }) }, row.key);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
   console.log(`公式图已就绪：${rows.length} 张（IndexedDB，原生桥）`);
 }
