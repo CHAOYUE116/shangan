@@ -915,3 +915,108 @@ html[data-theme="dark"] .home-week-slot{background:#232733}
 html[data-theme="dark"] .q-material { background: #191C22; border-color: #2A2F38; }
 html[data-theme="dark"] .q-material-head { background: #20242C; border-color: #2A2F38; }
 html[data-theme="dark"] .q-material.tall .q-material-body { mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent 100%); }
+
+
+/* ===== 0.2.1 新组件 ===== */
+/* 答题卡：三态（已答 / 未答 / 待定） */
+.ag-legend {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.ag-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ag-dot {
+  width: 9px; height: 9px; border-radius: 3px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  display: inline-block;
+}
+.ag-dot.done { background: var(--primary); border-color: var(--primary); }
+.ag-dot.flag { background: var(--amber); border-color: var(--amber); }
+.ag-cell.flag {
+  background: var(--amber-soft);
+  border-color: var(--amber);
+  color: #8a5b00;
+  font-weight: 700;
+}
+.ag-cell.flag.done { background: var(--primary); border-color: var(--amber); color: #fff; }
+[data-theme="dark"] .ag-cell.flag { color: var(--amber); }
+
+/* 交卷确认里的未答 / 待定题号 */
+.submit-blank {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+  background: var(--soft-2);
+  border-radius: 10px;
+  padding: 8px 11px;
+  margin-top: 8px;
+  word-break: break-all;
+}
+.submit-blank.flag { background: var(--amber-soft); color: #8a5b00; }
+[data-theme="dark"] .submit-blank.flag { color: var(--amber); }
+
+/* 模考成绩单 */
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.hist-row:last-child { border-bottom: none; }
+.hist-main { flex: 1; min-width: 0; }
+.hist-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hist-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+.hist-score { text-align: right; flex: none; }
+.hist-score b { font-size: 19px; font-weight: 750; letter-spacing: -.02em; color: var(--primary); }
+.hist-score span { display: block; font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+/* 我的页：偏好行 */
+.opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+.opt-label { font-size: 13.5px; color: var(--text); line-height: 1.4; }
+.opt-hint { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.opt-row .chips { display: flex; gap: 6px; }
+.switch {
+  width: 44px; height: 26px; border-radius: 13px;
+  background: var(--soft); border: 1px solid var(--line);
+  position: relative; flex: none; cursor: pointer;
+  transition: background .18s;
+}
+.switch i {
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .18s;
+}
+.switch.on { background: var(--primary); border-color: var(--primary); }
+.switch.on i { transform: translateX(18px); }
+
+/* 字号三档：只放大正文，不动按钮和标题，避免版面塌 */
+html[data-fs="s"] { --q-fs: 14px; --q-lh: 1.62; }
+html[data-fs="m"] { --q-fs: 15.5px; --q-lh: 1.72; }
+html[data-fs="l"] { --q-fs: 17.5px; --q-lh: 1.8; }
+.q-stem { font-size: var(--q-fs, 15.5px) !important; line-height: var(--q-lh, 1.72) !important; }
+.q-material-body { font-size: calc(var(--q-fs, 15.5px) - 2px) !important; }
+.option .txt { font-size: calc(var(--q-fs, 15.5px) - .5px) !important; }
+.explain p, .explain li { font-size: calc(var(--q-fs, 15.5px) - 1px) !important; }
+
+/* 顶栏「标记待定」按下态 */
+.icon-btn.on { color: var(--amber); background: var(--amber-soft); }
+
+/* 交卷确认里的题号：包一层 inline-block，避免「15、1 / 6」把 16 拆成两行 */
+.nb { display: inline-block; }
