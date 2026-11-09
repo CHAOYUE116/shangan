@@ -87,10 +87,24 @@ function diffTable(name, keyCol, hashFields) {
 }
 
 console.time('diff');
-const q = diffTable('questions', 'questionId', Q_HASH_FIELDS);
+/**
+ * questions 必须按主键 id 做行键，不能按 questionId。
+ * 同一道真题被多份卷收录时 questionId 重复（全库 105,293 行只对应 65,198 个 questionId），
+ * 按 questionId 建 Map 会让重复行只剩最后一条，增量包里就漏掉其余副本 ——
+ * 设备上 questions 行数永远补不齐（实测差 628 行）。
+ */
+const q = diffTable('questions', 'id', Q_HASH_FIELDS);
 let p = { added: [], changed: [], deleted: [], cols: [] };
 try { p = diffTable('papers', 'id', P_HASH_FIELDS); } catch { /* 表结构不同就跳过 */ }
 console.timeEnd('diff');
+
+// 删除仍按 questionId：一道题的所有卷副本要一起删，不能只删某一行
+let qDeleted = [];
+try {
+  const oldIds = new Set(oldDb.prepare('SELECT DISTINCT questionId v FROM questions').all().map((r) => r.v));
+  for (const r of newDb.prepare('SELECT DISTINCT questionId v FROM questions').all()) oldIds.delete(r.v);
+  qDeleted = [...oldIds];
+} catch { /* ignore */ }
 
 /**
  * 分类索引全量。这张表不在 tiku.db 里，没法做行级 diff，只能整表下发。
@@ -117,7 +131,7 @@ const payload = {
   generatedAt: new Date().toISOString(),
   papers: [...p.added, ...p.changed],
   questions: [...q.added, ...q.changed],
-  deleted: { questions: q.deleted, papers: p.deleted },
+  deleted: { questions: qDeleted, papers: p.deleted },
   question_categories: qc,
 };
 
@@ -133,7 +147,7 @@ const sha256 = crypto.createHash('sha256').update(gz).digest('hex');
 
 console.log(`\n题库增量: ${FROM} → ${TO}`);
 console.log(`  papers    新增 ${p.added.length} / 改动 ${p.changed.length} / 删除 ${p.deleted.length}`);
-console.log(`  questions 新增 ${q.added.length} / 改动 ${q.changed.length} / 删除 ${q.deleted.length}`);
+console.log(`  questions 新增 ${q.added.length} / 改动 ${q.changed.length} / 删除题号 ${qDeleted.length}`);
 console.log(`  question_categories ${qc.length} 行（全量）`);
 console.log(`  原始 ${(raw.length / 1048576).toFixed(2)} MB → 压缩 ${(gz.length / 1048576).toFixed(2)} MB`);
 console.log(`  输出 ${file}`);
@@ -153,7 +167,7 @@ fs.writeFileSync(file.replace(/\.json\.gz$/, '.meta.json'), JSON.stringify({
   counts: {
     papersAdded: p.added.length, papersChanged: p.changed.length,
     questionsAdded: q.added.length, questionsChanged: q.changed.length,
-    questionsDeleted: q.deleted.length,
+    questionsDeleted: qDeleted.length,
     questionCategories: qc.length,
   },
 }, null, 2), 'utf8');
