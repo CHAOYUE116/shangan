@@ -14,7 +14,7 @@
 
 export const FORMAT = 'kaogong-backup';
 export const FORMAT_VERSION = 1;
-export const APP_VERSION = '1.40';
+export const APP_VERSION = '0.2.5';
 
 const DATA_STORES = ['records', 'favorites', 'notes', 'custom_batches', 'custom_questions'];
 const PREF_KEYS = ['theme', 'custom_practice_cfg'];
@@ -229,7 +229,7 @@ export async function buildPayload(store, opts = {}) {
 
 export async function validatePayload(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('备份文件内容为空或格式错误');
-  if (payload.format !== FORMAT) throw new Error('这不是「没钱考什么公」的备份文件');
+  if (payload.format !== FORMAT) throw new Error('这不是上岸的备份文件');
   const ver = Number(payload.formatVersion);
   if (!Number.isFinite(ver) || ver < 1) throw new Error('备份文件版本号无效');
   if (ver > FORMAT_VERSION) throw new Error(`备份版本 ${ver} 高于当前 App 支持的 ${FORMAT_VERSION}，请先升级 App`);

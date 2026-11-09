@@ -170,9 +170,9 @@ AI 那一步可以直接「跳过」，之后随时在「我的 → AI 设置」
 
 AI 只做三件事：讲错题、批改申论、生成计划。
 
-1. 我的 → AI 设置
-2. 选服务商（默认 DeepSeek），填 Key
-3. 点「保存并测试」，看到「接通了」就行
+1. 我的 → AI 助手
+2. 点一个配置，选服务商（默认 DeepSeek），填 Key
+3. 点「试一句」，看到它答上来就行
 
 默认参数如下，用中转或自建网关时改「接口地址」即可：
 
@@ -379,6 +379,22 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 | 公基无难度标签 | 100% | 源数据无此字段，已改为不显示 |
 | 答案-解析矛盾 | 43 条 | 待人工核对 |
 | 题干重复 | 10,841 组 | 真题被多省卷重复收录；抽题按 `questionId` 去重，不会重复出现 |
+
+---
+
+## 设计参考
+
+界面上的几处交互不是凭空想出来的，看过这些项目：
+
+| 参考 | 借了什么 |
+| --- | --- |
+| [xuexiangjys/XUpdate](https://github.com/xuexiangjys/XUpdate)、[azhon/AppUpdate](https://github.com/azhon/AppUpdate)、[MZCretin/AutoUpdateProject](https://github.com/MZCretin/AutoUpdateProject) | App 内更新的分层（检查 / 解析 / 提示 / 下载）与几个必须处理的坑：Android 10+ 后台不能直接起安装器要发通知、Android 13 通知权限、下载完成复用已下好的包、断点续传 |
+| [AnkiDroid](https://github.com/ankidroid/Anki-Android) | 三计数（待复习 / 已排期 / 已掌握）的错题债务表达 |
+| [Learn-N-Mobile](https://github.com/learnn/Learn-N-Mobile) | 卡片式刷题、左右滑动判对错的手势位 |
+| 粉笔题库 | 数据源；题目页的「考点 / 秒杀 / 陷阱」三段结构 |
+| 若干个人开发者开源的考公 App | AI 配置页与数据备份页的**信息项**（要填哪些字段、备份要包含哪些数据、导入前要不要预览）参考过它们的组织方式；界面已按本 App 的设计语言重做 |
+
+原则是借信息架构，不搬界面：所有页面按本项目的排版体系（圆角卡、`.opt-row`、底部 sheet）重新画过，字号、间距、配色、文案都另起。
 
 ---
 

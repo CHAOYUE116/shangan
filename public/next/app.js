@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.4';
+const APP_VERSION = '0.2.5';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1182,40 +1182,91 @@ async function openAi() {
   } catch (e) { toast(e.message); }
   go('me');
 }
+/* ---------- AI 助手（设置） ---------- */
+function hostOf(url) {
+  return String(url || '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+}
 function renderAiSettings() {
   const agents = S.agents || [];
   const skills = S.skills || [];
-  return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">AI 设置</div><span style="width:38px"></span></div>
-  <div class="card-sub" style="margin:-6px 0 14px">Key 只存在本机；改完立即生效</div>
-  <div class="card" style="margin-bottom:12px"><div class="subject-title">解析缓存</div><div class="card-sub" style="margin:6px 0 10px">同一题、同一作答再次解析会命中缓存；首次解析必然未命中，追问和更换选项也会重新调用。</div><button class="btn btn-ghost btn-block" data-act="ai-clear-cache">清除解析缓存</button></div>
-  ${agents.map((a) => `<div class="card" style="margin-bottom:12px">
-    <div class="profile"><div class="subject-main"><div class="subject-title">${esc(a.name || ('AI ' + a.id))} <span class="tag ${a.enabled ? 'ok' : ''}">${a.enabled ? '已启用' : '未启用'}</span></div><div class="subject-sub">${esc(a.role || '')} · ${esc(a.model || '未配置模型')}</div><div class="subject-sub">${esc(a.base_url || '未配置 Base URL')}</div></div><button class="btn ${a.enabled ? 'btn-ghost' : 'btn-primary'} btn-sm" data-act="ai-toggle" data-id="${a.id}">${a.enabled ? '停用' : '启用'}</button></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ghost" style="flex:1" data-act="ai-edit" data-id="${a.id}">编辑配置</button><button class="btn btn-ghost" style="flex:1" data-act="ai-test" data-id="${a.id}">测试</button></div>
-  </div>`).join('')}
-  <div class="card"><div class="profile"><div class="subject-main"><div class="subject-title">技能库 <span class="tag">${skills.length}</span></div><div class="subject-sub">SKILL.md / 参考资料，挂到解析 AI 上自动注入</div></div></div>
-    <div style="margin-top:8px">${skills.length ? skills.map((s) => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)"><div class="subject-main"><div class="subject-title">${esc(s.name)}</div><div class="subject-sub">${s.inUse && s.inUse.length ? `使用中：${esc(s.inUse.join('、'))}` : '未使用'}${s.description ? ' · ' + esc(s.description) : ''}</div></div><button class="btn btn-ghost btn-sm" data-act="ai-skill-del" data-name="${esc(s.name)}">删除</button></div>`).join('') : '<div class="empty-state">还没有导入技能</div>'}</div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ghost" style="flex:1" data-act="ai-skill-builtin">导入内置技能</button><button class="btn btn-ghost" style="flex:1" data-act="ai-skill-import">导入技能</button></div>
-  </div>`;
+  const live = agents.filter((a) => a.enabled);
+  const cur = live[0];
+  const rows = agents.map((a) => `
+    <div class="ai-row${a.enabled ? ' on' : ''}" data-act="ai-edit" data-id="${a.id}">
+      <div class="ai-ava">${esc(String(a.name || 'AI').trim().slice(0, 1).toUpperCase())}</div>
+      <div class="ai-row-main">
+        <div class="ai-row-t">${esc(a.name || ('AI ' + a.id))}${a.enabled ? '<i class="ai-live"></i>' : ''}</div>
+        <div class="ai-row-s">${esc(a.model || '还没选模型')} · ${esc(hostOf(a.base_url) || '还没填地址')}</div>
+      </div>
+      <button class="ai-sw${a.enabled ? ' on' : ''}" data-act="ai-toggle" data-id="${a.id}">${a.enabled ? '已启用' : '启用'}</button>
+    </div>`).join('');
+  const skillRows = skills.length
+    ? skills.map((s) => `
+      <div class="ai-skill">
+        <div class="ai-skill-main">
+          <div class="ai-skill-t">${esc(s.name)}</div>
+          <div class="ai-skill-s">${s.inUse && s.inUse.length ? '被 ' + esc(s.inUse.join('、')) + ' 使用' : '还没挂到任何模型上'}${s.description ? ' · ' + esc(s.description) : ''}</div>
+        </div>
+        <button class="chip" data-act="ai-skill-del" data-name="${esc(s.name)}">移除</button>
+      </div>`).join('')
+    : '<div class="ai-empty">还没放技能包。技能包是给 AI 的参考资料，解析时会一起带过去。</div>';
+
+  return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">AI 助手</div><span style="width:38px"></span></div>
+
+  <div class="ai-hero">
+    <div class="ai-hero-k">${cur ? '正在用' : '当前状态'}</div>
+    <div class="ai-hero-v">${cur ? esc(cur.model || '还没选模型') : '还没启用模型'}</div>
+    <div class="ai-hero-s">${cur
+      ? esc(cur.name || ('AI ' + cur.id)) + ' · ' + esc(hostOf(cur.base_url) || '还没填地址')
+      : '填好地址和 Key 之后，讲题、批改、排计划才会真的跑起来'}</div>
+    <div class="ai-hero-tags"><span class="tag">${agents.length} 个配置</span><span class="tag">${live.length} 个在用</span><span class="tag">${skills.length} 套技能</span></div>
+  </div>
+
+  <div class="sec-head"><h2>模型配置</h2><span class="sec-hint">Key 只存这台手机</span></div>
+  <div class="card ai-list">${rows || '<div class="ai-empty">还没有配置。</div>'}</div>
+
+  <div class="sec-head"><h2>解析缓存</h2></div>
+  <div class="card">
+    <div class="opt-row">
+      <span class="opt-label">清空已缓存的解析<div class="opt-hint">同一道题重复问会直接用上次结果；清掉之后重新算</div></span>
+      <button class="chip" data-act="ai-clear-cache">清空</button>
+    </div>
+  </div>
+
+  <div class="sec-head"><h2>技能包</h2><span class="sec-hint">${skills.length} 套</span></div>
+  <div class="card">${skillRows}
+    <div class="btn-row"><button class="btn btn-ghost" data-act="ai-skill-builtin">装内置技能</button><button class="btn btn-ghost" data-act="ai-skill-import">从文本导入</button></div>
+  </div>
+
+  <p class="ai-foot">所有请求从这台手机直接发到你填的地址，不经过我们的服务器。</p>`;
 }
 function editAgent(id) {
   const a = (S.agents || []).find((x) => String(x.id) === String(id));
   if (!a) return;
   const presets = AI_GATEWAYS.map((g) => `<option value="${esc(g.url)}" ${a.base_url === g.url ? 'selected' : ''}>${esc(g.label)} · ${esc(g.url)}</option>`).join('');
   const skills = S.skills || [];
-  sheet(`<div class="sheet-head"><b>${esc(a.name || 'AI 设置')}</b><button class="sheet-close">✕</button></div>
-    <div class="filter-label">Base URL</div>
-    <select class="field" id="ai-base-preset"><option value="">选择常用网关…</option>${presets}<option value="__custom__">自定义…</option></select>
-    <input class="field" id="ai-base" value="${esc(a.base_url || '')}" placeholder="https://api.deepseek.com/v1">
-    <div class="filter-label">API Key（留空不变）</div><input class="field" id="ai-key" type="password" placeholder="${esc(a.api_key_masked || '未配置')}">
-    <div class="filter-label">模型</div><input class="field" id="ai-model" value="${esc(a.model || '')}" placeholder="deepseek-flash">
-    <button class="btn btn-ghost btn-block" style="margin-top:8px" data-act="ai-models" data-id="${a.id}">获取该 URL 的模型列表</button>
-    <div style="display:flex;gap:10px"><div style="flex:1"><div class="filter-label">温度 0~1</div><input class="field" id="ai-temp" type="number" step="0.1" min="0" max="1" value="${a.temperature ?? 0.5}"></div><div style="flex:1"><div class="filter-label">最大 tokens</div><input class="field" id="ai-maxtok" type="number" step="100" min="100" value="${a.max_tokens ?? 4000}"></div></div>
-    <div class="filter-label">技能包 / 能力说明</div><input class="field" id="ai-skill" list="ai-skill-list" value="${esc(a.skill || '')}" placeholder="gongkao-huasheng13"><datalist id="ai-skill-list">${skills.map((s) => `<option value="${esc(s.name)}">`).join('')}</datalist>
-    <div class="filter-label">System Prompt</div><textarea class="field" id="ai-prompt" rows="7">${esc(a.system_prompt || '')}</textarea>
-    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-primary" style="flex:1" data-act="ai-save" data-id="${a.id}">保存</button><button class="btn btn-ghost" style="flex:1" data-act="ai-test" data-id="${a.id}">保存并测试</button></div>
-    <button class="btn btn-ghost btn-block" style="margin-top:8px" data-act="ai-history" data-id="${a.id}">查看历史版本</button>
+  sheet(`<div class="sheet-head"><b>${esc(a.name || '模型配置')}</b><button class="sheet-close">✕</button></div>
+    <div class="ai-form">
+      <div class="ai-form-sec">连接</div>
+      <label class="ai-field"><span>常用地址</span><select class="field" id="ai-base-preset"><option value="">选一个网关，或自己填</option>${presets}<option value="__custom__">自定义…</option></select></label>
+      <label class="ai-field"><span>Base URL</span><input class="field" id="ai-base" value="${esc(a.base_url || '')}" placeholder="https://api.deepseek.com/v1"></label>
+      <label class="ai-field"><span>API Key</span><input class="field" id="ai-key" type="password" placeholder="${esc(a.api_key_masked || '还没填')}"><em>留空表示不改</em></label>
+      <label class="ai-field"><span>模型</span><input class="field" id="ai-model" value="${esc(a.model || '')}" placeholder="deepseek-chat"></label>
+      <button class="btn btn-ghost btn-block" data-act="ai-models" data-id="${a.id}">拉一下这个地址有哪些模型</button>
+      <div class="ai-form-sec">生成参数</div>
+      <div class="ai-two">
+        <label class="ai-field"><span>温度</span><input class="field" id="ai-temp" type="number" step="0.1" min="0" max="1" value="${a.temperature ?? 0.5}"></label>
+        <label class="ai-field"><span>最大 tokens</span><input class="field" id="ai-maxtok" type="number" step="100" min="100" value="${a.max_tokens ?? 4000}"></label>
+      </div>
+      <label class="ai-field"><span>挂哪套技能</span><input class="field" id="ai-skill" list="ai-skill-list" value="${esc(a.skill || '')}" placeholder="不挂也行"><datalist id="ai-skill-list">${skills.map((s) => `<option value="${esc(s.name)}">`).join('')}</datalist></label>
+      <div class="ai-form-sec">人设</div>
+      <textarea class="field" id="ai-prompt" rows="7" placeholder="告诉它该怎么讲题">${esc(a.system_prompt || '')}</textarea>
+    </div>
+    <button class="btn btn-primary btn-block" data-act="ai-save" data-id="${a.id}">保存</button>
+    <div class="btn-row"><button class="btn btn-ghost" data-act="ai-test" data-id="${a.id}">试一句</button><button class="btn btn-ghost" data-act="ai-history" data-id="${a.id}">历史版本</button></div>
     <div id="ai-extra" style="margin-top:10px"></div>`);
 }
+
 function agentFields() {
   const f = {
     base_url: ($('#ai-base')?.value || '').trim(),
@@ -1300,20 +1351,238 @@ function openSkillImport() {
 
 
 /* ---------- 数据与备份 ---------- */
-function renderBackupPageWrap() {
+/* ---------- 数据与备份 ---------- */
+function renderDataPage() {
   setTimeout(async () => {
     const host = $('#bk-host');
     if (!host) return;
-    if (!window.__LOCAL_STORE__) {
-      host.innerHTML = `<div class="empty-state">数据与备份仅在 App 本地模式可用<br><span class="muted">网页/服务器模式的数据在 practice.db</span></div>`;
+    const store = window.__LOCAL_STORE__;
+    if (!store) {
+      host.innerHTML = '<div class="empty-state">这一页只在 App 里能用。<br>网页版的数据存在服务器上。</div>';
       return;
     }
-    try {
-      const mod = await import('../backup.js');
-      const mkEl = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-      const mkIco = (name, size = 16) => iconSvg(name, size);
-      await mod.renderBackupPage({ view: host, el: mkEl, ico: mkIco, esc, toast });
-    } catch (e) { host.innerHTML = `<div class="empty-state">备份模块加载失败：${esc(e.message)}</div>`; }
+    let mod;
+    try { mod = await import('../backup.js'); }
+    catch (e) { host.innerHTML = `<div class="empty-state">备份模块没加载起来：${esc(e.message)}</div>`; return; }
+
+    let d;
+    try { d = await mod.collectData(store, { includeImages: true, includeKeys: false }); }
+    catch (e) { host.innerHTML = `<div class="empty-state">读不到本地数据：${esc(e.message)}</div>`; return; }
+
+    const wrongN = d.records.filter((r) => r.is_correct === 0).length;
+    const imgN = mod.countImages(d.customQuestions);
+    const autoOn = mod.autoBackupEnabled();
+    const lastT = mod.lastAutoBackupTime();
+    const canUndo = await mod.hasUndoSnapshot();
+    const p2 = (n) => String(n).padStart(2, '0');
+    const fmt = (ms) => {
+      if (!ms) return '还没有';
+      const t = new Date(Number(ms));
+      if (isNaN(t.getTime())) return '还没有';
+      return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
+    };
+    const gz = async (bytes) => {
+      if (typeof CompressionStream === 'undefined') return null;
+      try {
+        const s = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+        return new Uint8Array(await new Response(s).arrayBuffer());
+      } catch { return null; }
+    };
+    const dl = (bytes, name) => {
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    };
+
+    host.innerHTML = `
+      <div class="data-hero">
+        <div class="data-hero-k">这台手机上的数据</div>
+        <div class="data-grid">
+          <div class="data-m"><b>${d.records.length}</b><span>做题记录</span></div>
+          <div class="data-m"><b>${wrongN}</b><span>错题</span></div>
+          <div class="data-m"><b>${d.favorites.length + d.notes.length}</b><span>收藏与笔记</span></div>
+        </div>
+        <div class="data-hero-f">自定义题库 ${d.customBatches.length} 批 · ${d.customQuestions.length} 题${imgN ? ` · 图片 ${imgN} 张` : ''} · 技能 ${d.skills.length} 套</div>
+      </div>
+
+      <div class="btn-row data-main-btns">
+        <button class="btn btn-primary" id="bk-export">导出备份</button>
+        <button class="btn btn-ghost" id="bk-import">导入备份</button>
+      </div>
+
+      <div class="card">
+        <div class="opt-row">
+          <span class="opt-label">每周自动备份<div class="opt-hint">存在应用私有目录，能救误删；卸载会被清掉</div></span>
+          <button class="switch${autoOn ? ' on' : ''}" id="bk-auto"><i></i></button>
+        </div>
+        <div class="data-last">上次备份：${fmt(lastT)}</div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="bk-now">现在就备份一次</button>
+          <button class="btn btn-ghost" id="bk-history">历史备份</button>
+        </div>
+        ${canUndo ? '<button class="btn btn-ghost btn-block" id="bk-undo" style="margin-top:10px;color:var(--red)">撤销上次导入</button>' : ''}
+        <p class="data-note">备份里只有你自己的东西：做题记录、错题、收藏、笔记、自定义题库、AI 配置。题库本体和图片缓存不进去——那些随时能重新下。</p>
+      </div>`;
+
+    // ---- 导出 ----
+    const exportSheet = () => {
+      sheet(`<div class="sheet-head"><b>导出备份</b><button class="sheet-close">✕</button></div>
+        <div class="data-chk">
+          <label><input type="checkbox" id="bk-opt-records" checked><span>记录 / 错题 / 收藏 / 笔记</span></label>
+          <label><input type="checkbox" id="bk-opt-custom" checked><span>自定义题库（含图片）</span></label>
+          <label><input type="checkbox" id="bk-opt-skills" checked><span>技能包</span></label>
+          <label><input type="checkbox" id="bk-opt-keys"><span>AI Key（明文，导出前想一下）</span></label>
+        </div>
+        <button class="btn btn-primary btn-block" id="bk-export-go">生成文件</button>
+        <p class="data-note">文件里有你的作答和笔记，只发给自己。</p>`);
+      const go = $('#bk-export-go');
+      if (!go) return;
+      go.onclick = async () => {
+        const rOn = $('#bk-opt-records').checked;
+        const cOn = $('#bk-opt-custom').checked;
+        const sOn = $('#bk-opt-skills').checked;
+        const kOn = $('#bk-opt-keys').checked;
+        if (!rOn && !cOn && !sOn) { toast('至少选一项'); return; }
+        go.disabled = true; go.textContent = '正在打包…';
+        try {
+          const full = await mod.collectData(store, { includeImages: true, includeKeys: false });
+          const picked = {
+            records: rOn ? full.records : [],
+            favorites: rOn ? full.favorites : [],
+            notes: rOn ? full.notes : [],
+            customBatches: cOn ? full.customBatches : [],
+            customQuestions: cOn ? full.customQuestions : [],
+            skills: sOn ? full.skills : [],
+            agents: full.agents,
+            prefs: rOn ? full.prefs : {},
+          };
+          const payload = await mod.buildPayloadFromData(picked, { includeImages: cOn, includeKeys: kOn });
+          let bytes = new TextEncoder().encode(JSON.stringify(payload));
+          let name = `kaogong-backup-${mod.stamp()}.json`;
+          if (bytes.length > 8 * 1024 * 1024) {
+            const z = await gz(bytes);
+            if (z) { bytes = z; name += '.gz'; }
+          }
+          const FS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+          const Share = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Share;
+          if (FS) {
+            const path = `exports/${name}`;
+            await FS.mkdir({ path: 'exports', directory: 'CACHE', recursive: true }).catch(() => {});
+            await FS.writeFile({ path, data: mod.bytesToBase64(bytes), directory: 'CACHE' });
+            const uriRes = await FS.getUri({ path, directory: 'CACHE' });
+            if (Share && uriRes && uriRes.uri) {
+              await Share.share({ title: '上岸 · 数据备份', files: [uriRes.uri], dialogTitle: '保存或发送备份文件' });
+            }
+            toast(`已生成 ${name}（${(bytes.length / 1048576).toFixed(1)} MB）`);
+          } else {
+            dl(bytes, name);
+            toast('开始下载');
+          }
+          closeSheet();
+        } catch (e) {
+          toast('导出失败：' + e.message);
+          go.disabled = false; go.textContent = '生成文件';
+        }
+      };
+    };
+
+    // ---- 导入预览 ----
+    const openPreview = async (payload, filename) => {
+      let plan;
+      try { plan = await mod.planImport(store, payload.data, 'merge'); }
+      catch (e) { toast('读不了这个文件：' + e.message); return; }
+      const add = (o) => (o && o.add) || 0;
+      const skip = (o) => (o && o.skip) || 0;
+      sheet(`<div class="sheet-head"><b>导入预览</b><button class="sheet-close">✕</button></div>
+        <div class="data-file">${esc(filename || '备份文件')}<em>${esc(fmt(payload.exportedAt))} · v${esc(payload.appVersion || '—')}</em></div>
+        <div class="data-plan">
+          <div><span>做题记录</span><b>+${add(plan.records)}</b>${skip(plan.records) ? `<em>已有 ${skip(plan.records)}</em>` : ''}</div>
+          <div><span>收藏</span><b>+${add(plan.favorites)}</b>${skip(plan.favorites) ? `<em>已有 ${skip(plan.favorites)}</em>` : ''}</div>
+          <div><span>笔记</span><b>+${add(plan.notes)}</b>${(plan.notes && plan.notes.update) ? `<em>更新 ${plan.notes.update}</em>` : ''}</div>
+          <div><span>自定义题库</span><b>+${add(plan.batches)} 批 / +${add(plan.questions)} 题</b></div>
+          <div><span>技能包</span><b>+${add(plan.skills)}</b></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="bk-do-merge">合并进来</button>
+        <button class="btn btn-ghost btn-block" id="bk-do-replace" style="margin-top:10px;color:var(--red)">清空本地再导入</button>
+        <p class="data-note">导入前会自动存一份当前数据的快照，导错了能撤销。</p>`);
+      const run = async (btn, mode) => {
+        if (mode === 'replace' && !confirm('会先清空本机的记录、收藏、笔记和自定义题库，确定？')) return;
+        btn.disabled = true; btn.textContent = '正在导入…';
+        try {
+          const r = await mod.applyImport(store, payload, mode);
+          closeSheet();
+          toast(`导入完成：记录 ${r.records} / 收藏 ${r.favorites} / 笔记 ${r.notes} / 自定义题 ${r.customQuestions}`);
+          setTimeout(() => location.reload(), 1200);
+        } catch (e) {
+          toast('导入失败：' + e.message);
+          btn.disabled = false; btn.textContent = mode === 'replace' ? '清空本地再导入' : '合并进来';
+        }
+      };
+      const a1 = $('#bk-do-merge'); if (a1) a1.onclick = () => run(a1, 'merge');
+      const a2 = $('#bk-do-replace'); if (a2) a2.onclick = () => run(a2, 'replace');
+    };
+
+    // ---- 历史备份 ----
+    const openHistory = async () => {
+      let files = [];
+      try { files = await mod.listAutoBackups(); } catch { files = []; }
+      if (!files.length) { toast('还没有自动备份'); return; }
+      sheet(`<div class="sheet-head"><b>历史备份</b><button class="sheet-close">✕</button></div>
+        <div class="data-plan" id="bk-hist">${files.map((n) => `<div data-name="${esc(n)}"><span>${esc(n.replace(/^auto-/, '').replace(/\.json(\.gz)?$/, ''))}</span><b>${n.endsWith('.gz') ? '压缩' : '原始'}</b></div>`).join('')}</div>
+        <p class="data-note">点一条就能恢复到那个时间点。</p>`);
+      const list = $('#bk-hist');
+      if (!list) return;
+      list.querySelectorAll('[data-name]').forEach((row) => {
+        row.style.cursor = 'pointer';
+        row.onclick = async () => {
+          try {
+            const payload = await mod.readAutoBackup(row.dataset.name);
+            closeSheet();
+            await openPreview(payload, row.dataset.name);
+          } catch (e) { toast('读不出来：' + e.message); }
+        };
+      });
+    };
+
+    const btnExport = $('#bk-export'); if (btnExport) btnExport.onclick = exportSheet;
+    const btnImport = $('#bk-import');
+    if (btnImport) btnImport.onclick = async () => {
+      let file;
+      try { file = await mod.pickBackupFile(); } catch { return; }
+      if (!file) return;
+      try {
+        const payload = await mod.readBackupFile(file);
+        await openPreview(payload, file.name);
+      } catch (e) { toast(e.message); }
+    };
+    const sw = $('#bk-auto');
+    if (sw) sw.onclick = () => {
+      const on = !sw.classList.contains('on');
+      mod.setAutoBackupEnabled(on);
+      sw.classList.toggle('on', on);
+      toast(on ? '已开启每周自动备份' : '已关闭自动备份');
+    };
+    const btnNow = $('#bk-now');
+    if (btnNow) btnNow.onclick = async () => {
+      btnNow.disabled = true; btnNow.textContent = '正在备份…';
+      try {
+        const r = await mod.maybeAutoBackup(store, { force: true });
+        toast(r ? '备份好了' : '当前环境不支持自动备份');
+      } catch (e) { toast('备份失败：' + e.message); }
+      btnNow.disabled = false; btnNow.textContent = '现在就备份一次';
+    };
+    const btnHist = $('#bk-history'); if (btnHist) btnHist.onclick = openHistory;
+    const btnUndo = $('#bk-undo');
+    if (btnUndo) btnUndo.onclick = async () => {
+      if (!confirm('撤销上次导入，恢复到导入前的数据？')) return;
+      try {
+        await mod.undoLastImport(store);
+        toast('已撤销');
+        setTimeout(() => location.reload(), 900);
+      } catch (e) { toast('撤销失败：' + e.message); }
+    };
   }, 0);
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">数据与备份</div><span style="width:38px"></span></div><div id="bk-host"><div class="spinner"></div></div>`;
 }
@@ -1714,7 +1983,7 @@ function renderWeeklyReport() {
 /* ---------- 我的 ---------- */
 function renderMe() {
   if (S.meView === 'ai') return renderAiSettings();
-  if (S.meView === 'backup') return renderBackupPageWrap();
+  if (S.meView === 'backup') return renderDataPage();
   if (S.meView === 'stats') return renderStatsPage();
   if (S.meView === 'report') return renderWeeklyReport();
   const theme = document.documentElement.getAttribute('data-theme') || 'light';
@@ -1746,7 +2015,7 @@ function renderMe() {
   </div>
   <div class="section-head"><h2 class="section-title">数据与维护</h2></div>
   <div class="card menu-card">
-    <div class="menu-row" data-act="backup"><div class="menu-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('database')}</div><div class="subject-main"><div class="subject-title">数据与备份</div><div class="subject-sub">导出 / 导入 / 自动备份</div></div><span class="chev">›</span></div>
+    <div class="menu-row" data-act="backup"><div class="menu-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('database')}</div><div class="subject-main"><div class="subject-title">数据与备份</div><div class="subject-sub">导出到文件 · 换机迁移 · 每周自动存档</div></div><span class="chev">›</span></div>
     ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">只更新题库数据，不动 App</div></div><span class="chev">›</span></div>` : ''}
     ${window.AppUpdate ? `<div class="menu-row" data-act="app-update"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查 App 新版本</div><div class="subject-sub">当前 v${APP_VERSION}${window.__NEW_APP_VER ? ` · 有新版本 ${esc(window.__NEW_APP_VER)}` : ''}</div></div><span class="chev">›</span></div>` : ''}
     <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v${APP_VERSION} · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
