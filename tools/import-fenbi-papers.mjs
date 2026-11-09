@@ -52,6 +52,7 @@ const hasImg = (h) => /<img\b/i.test(String(h || ''));
  */
 const TREE_GROUPS = new Set(['政治理论', '常识判断', '言语理解与表达', '数量关系', '判断推理', '资料分析']);
 const GROUP_ALIAS = {
+  规则解读: '判断推理', 计划编排: '判断推理',
   策略选择: '判断推理',   // D/E 类
   综合分析: '资料分析',   // B/C 类
   数量分析: '数量关系',   // B/C/D/E 类
