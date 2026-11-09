@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.48';
+const APP_VERSION = '0.1.49';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -572,27 +572,74 @@ function renderHome() {
     </button>
   </div>
   ${resume ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
-  <button class="home-ai" data-act="ai-teach">
+  <button class="home-ai" data-act="plan">
     <span class="home-ai-ico">${iconSvg('bot', 20)}</span>
     <span class="home-ai-main">
-      <span class="home-ai-t">AI 讲题</span>
-      <span class="home-ai-s">${aiReady() ? '这道题换个说法讲一遍 · 错题点一下就行' : '接上你自己的大模型 Key，讲一道题几厘钱'}</span>
+      <span class="home-ai-t">AI 刷题班</span>
+      <span class="home-ai-s">${esc(planHint())}</span>
     </span>
     <span style="color:#93A8DB">›</span>
   </button>
   ${(() => {
     const w = weekSummary();
+    const got = new Map(((S.stats && S.stats.last7) || [])
+      .filter((x) => x && x.d)
+      .map((x) => [String(x.d).slice(0, 10), x]));
+    const arr = [];
+    for (let i = 6; i >= 0; i--) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() - i);
+      const k = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      arr.push(got.get(k) || { d: k, c: 0, ok: 0 });
+    }
+    const maxC = Math.max(1, ...arr.map((x) => Number(x.c) || 0));
+    const bars = `<div class="home-week-bars">${arr.map((x) => {
+      const c = Number(x.c) || 0;
+      const h = c ? Math.max(6, Math.round((c / maxC) * 40)) : 3;
+      return `<div><span class="home-week-slot"><span class="home-week-bar" style="height:${h}px"></span></span><i>${esc(String(x.d).slice(5))}</i></div>`;
+    }).join('')}</div>`;
     return `<div class="home-week">
-      <div class="home-week-head"><span class="home-week-title">本周</span><button class="home-week-more" data-act="stats" style="border:0;background:transparent;cursor:pointer">详细统计 ›</button></div>
+      <div class="home-week-head"><span class="home-week-title">本周学习报告</span><button class="home-week-more" data-act="report" style="border:0;background:transparent;cursor:pointer">完整报告 ›</button></div>
       <div class="home-week-nums">
         <div class="home-week-num"><b>${w.n}</b><span>做题</span></div>
         <div class="home-week-num"><b>${w.rate}%</b><span>正确率</span></div>
         <div class="home-week-num"><b>${w.days}</b><span>活跃天数</span></div>
       </div>
+      ${bars}
       <div class="home-week-advice">${esc(w.advice)}</div>
+      <div class="home-week-foot">
+        <button data-act="stats">学习统计 ›</button>
+        <button data-act="report">学习报告 ›</button>
+      </div>
     </div>`;
   })()}
   ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}`;
+}
+
+/** 首页 AI 刷题班那行的副标题：有计划就报当前阶段进度，没有就写清楚它干什么 */
+function planStageNow(p) {
+  if (!p || !Array.isArray(p.stages) || !p.stages.length) return null;
+  const used = Math.floor((Date.now() - (Number(p.createdAt) || Date.now())) / 86400000);
+  let acc = 0;
+  for (const st of p.stages) {
+    acc += Number(st.days) || 0;
+    if (used < acc) return st;
+  }
+  return p.stages[p.stages.length - 1];
+}
+
+function planHint() {
+  const p = S.plan;
+  if (!p || !Array.isArray(p.stages) || !p.stages.length) {
+    return '按目标分和每天投入时间，排四阶段计划';
+  }
+  const st = planStageNow(p);
+  const left = daysLeft();
+  const parts = [];
+  if (st) parts.push(st.name);
+  parts.push(`目标 ${p.target} 分`);
+  if (left > 0) parts.push(`剩 ${left} 天`);
+  return parts.join(' · ');
 }
 
 /** AI 是否已经能用（至少一个智能体填了 key） */

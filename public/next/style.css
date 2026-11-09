@@ -864,3 +864,18 @@ html[data-theme="dark"] .home-ai-ico { background: #263049; color: #9DB8FF; }
 html[data-theme="dark"] .upd-prog-bar { background: #2A2E36; }
 html[data-theme="dark"] .upd-prog-meta { color: #8B9199; }
 .btn[disabled] { opacity: .62; }
+
+
+/* 首页本周学习报告：7 天迷你柱 + 底部两个入口 */
+.home-week-bars{display:flex;align-items:flex-end;gap:5px;height:56px;margin:14px 2px 0}
+.home-week-bars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.home-week-slot{display:flex;align-items:flex-end;width:56%;height:40px;background:#F1F3F7;border-radius:4px;overflow:hidden}
+.home-week-bar{display:block;width:100%;background:var(--primary);border-radius:4px 4px 0 0}
+.home-week-bars i{display:block;font-size:9.5px;color:var(--text-3);margin-top:5px;font-style:normal;letter-spacing:-0.2px}
+.home-week-foot{display:flex;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line,#ECEEF2)}
+.home-week-foot>button{flex:1;border:0;background:transparent;color:var(--text-2);font-size:12.5px;padding:2px 0;cursor:pointer;font-family:inherit}
+.home-week-foot>button:active{opacity:.6}
+html[data-theme="dark"] .home-week-foot{border-top-color:#2A2E38}
+html[data-theme="dark"] .home-week-slot{background:#232733}
+
+.home-ai-s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45}
