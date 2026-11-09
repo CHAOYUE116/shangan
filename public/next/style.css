@@ -836,3 +836,31 @@ html[data-theme="dark"] .home-ai { background: #1B2233; }
 html[data-theme="dark"] .home-ai-t { color: #B9CBFF; }
 html[data-theme="dark"] .home-ai-s { color: #8296C9; }
 html[data-theme="dark"] .home-ai-ico { background: #263049; color: #9DB8FF; }
+
+
+/* ---------- App 下载进度 ---------- */
+.upd-prog { margin: 0 0 12px; }
+.upd-prog-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line, #E6E8EC);
+  overflow: hidden;
+}
+.upd-prog-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #5B8DEF, #3D6FE0);
+  transition: width .25s ease;
+}
+.upd-prog-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-3, #8A8F98);
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="dark"] .upd-prog-bar { background: #2A2E36; }
+html[data-theme="dark"] .upd-prog-meta { color: #8B9199; }
+.btn[disabled] { opacity: .62; }

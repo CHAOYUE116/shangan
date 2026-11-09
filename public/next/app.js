@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.45';
+const APP_VERSION = '0.1.46';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1423,8 +1423,21 @@ function checkUpdate(mode) {
       <div class="${onlyApp ? '' : 'card'}" style="${onlyApp ? '' : 'margin-top:12px;border-color:var(--amber,#e3b341)'}">
         <div class="card-sub" style="margin:0 0 6px">当前 App 版本 v${esc(s.currentVersionName || APP_VERSION)}</div>
         ${s.newAppAvailable
-          ? `<div class="card-sub" style="margin:0 0 10px">发现新版本 v${esc(s.newAppVersion)}（${((Number(s.newAppSize) || 0) / 1048576).toFixed(1)} MB）</div>
-             <button class="btn btn-primary btn-block" id="upd-app">${s.newAppState === 'downloading' ? `下载中 ${Number(s.newAppProgress) || 0}%` : '下载并安装'}</button>`
+          ? (() => {
+              const pct = Number(s.newAppProgress) || 0;
+              const dl = Number(s.newAppDownloaded) || 0;
+              const tt = Number(s.newAppTotal) || Number(s.newAppSize) || 0;
+              const mb = (n) => (n / 1048576).toFixed(1);
+              const appErr = s.newAppState === 'error';
+              const dling = s.newAppState === 'downloading';
+              const done = s.newAppState === 'done';
+              return `<div class="card-sub" style="margin:0 0 10px">发现新版本 v${esc(s.newAppVersion)}（${mb(Number(s.newAppSize) || 0)} MB）</div>
+             ${dling ? `<div class="upd-prog"><div class="upd-prog-bar"><i style="width:${Math.max(2, pct)}%"></i></div>
+               <div class="upd-prog-meta"><span>正在下载 ${pct}%</span><span>${mb(dl)} / ${mb(tt)} MB</span></div></div>` : ''}
+             ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成，正在打开安装器…</div>' : ''}
+             ${appErr ? `<div class="card-sub" style="margin:0 0 10px;color:var(--red,#c62828)">${esc(s.message || '下载失败')}</div>` : ''}
+             <button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${pct}%` : (done ? '重新下载' : (appErr ? '重试下载' : '下载并安装'))}</button>`;
+            })()
           : `<div class="card-sub" style="margin:0">已是最新版本</div>`}
         ${onlyApp && (s.state === 'error' || stuck) ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}
       </div>`;
@@ -1450,7 +1463,7 @@ function checkUpdate(mode) {
       clearInterval(checkUpdate._t);
       setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
     }
-    if (['error', 'uptodate'].includes(s.state)) clearInterval(checkUpdate._t);
+    if (['error', 'uptodate'].includes(s.state) && s.newAppState !== 'downloading') clearInterval(checkUpdate._t);
   }, 600);
 }
 
@@ -2666,12 +2679,16 @@ function bindAndroidBack() {
   // loadHome 成功才切首页；失败就留着骨架，别渲染出一片白。
   try { await loadHome(); go('home'); } catch (e) { toast(e.message); }
 
+  // 首屏渲染完了，可以撤掉原生启动图了；浏览器里没有这个桥，忽略即可
+  try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ }
+
   // 下面两件是历史数据迁移，用户看不见，放到下一帧慢慢做
   setTimeout(async () => {
     try { await ensureReviewBackfill(); } catch { /* ignore */ }
     try { spreadLegacyReviews(15); } catch { /* ignore */ }
   }, 0);
 
+  setTimeout(() => { try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ } }, 2500);
   bindAndroidBack();
   if (!localStorage.getItem('sg_profile')) openOnboarding();
   else setTimeout(maybeAiOnboard, 900);
