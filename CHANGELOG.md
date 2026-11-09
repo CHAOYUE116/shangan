@@ -65,6 +65,20 @@ App 版本与题库版本分开记：App 版本（0.1.x）跟着 APK 走，题�
 
 ---
 
+## 0.1.37 — 2026-11-09
+
+**DeepSeek 默认值按官方文档校正**
+
+查了 `api-docs.deepseek.com`，现在的模型叫 `deepseek-flash`，base url 是 `https://api.deepseek.com`（`/v1` 只是兼容写法）。`deepseek-chat` 和 `deepseek-reasoner` 已经下线，填这两个名字会返回 400。
+
+之前默认值写错了一轮：把 `deepseek-flash` 改成了 `deepseek-chat`，越改越连不上。现在改回来，并且迁移逻辑反过来——碰到存量配置里还是 `deepseek-chat` / `deepseek-reasoner` / `deepseek-v4-flash` 的，自动纠正成 `deepseek-flash`。
+
+**接口地址可改，且真的会存**
+
+引导页和设置页的「接口地址」输入框会随 `PUT /api/ai/agents/{id}` 一路写进本机数据库，不是只改界面上的显示。用中转或自建网关填自己的地址即可。
+
+---
+
 ## 0.1.36 — 2026-11-09
 
 **App 自更新**

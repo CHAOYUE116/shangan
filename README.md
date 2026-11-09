@@ -322,13 +322,19 @@ node tools/build-release-manifest.mjs \
 # 6. 同步 manifest 并提交
 cp ../dist/release/manifest.json release/manifest.json
 
-# 7. 补 CHANGELOG.md
+# 7. 补 CHANGELOG.md —— 写清「改了什么」和「为什么」
+#    每条都要带根因，别只写结论。例如不要写「修复了更新失败」，
+#    要写「sha256 对不上：App 解压后算哈希，manifest 给的却是 .gz 的哈希」
+
+# 8. 把 CHANGELOG 的内容同步到 Release 页面
+GH_TOKEN=<token> node tools/update-release-notes.mjs
 ```
 
-两个容易漏的点：
+三个容易漏的点：
 
 - `app-assets/db-version.txt` **必须手动写**。`build-app-assets.mjs` 不生成它，但 `build-release-manifest.mjs` 靠它取 `dbVersion`。
 - commit 前必须把 `dist/release/manifest.json` 拷回 `release/manifest.json`，否则仓库里还是旧地址，白等 CDN 刷新。
+- **第 8 步别省**。Release 页面默认只有一堆文件名，用户点进来不知道这次改了什么。`update-release-notes.mjs` 会从 `CHANGELOG.md` 里按版本号切出对应段落，拼上下载说明和安装步骤，写进 Release 的 body。可以先 `--dry` 预览。
 
 ---
 
