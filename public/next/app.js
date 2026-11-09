@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.53';
+const APP_VERSION = '0.1.56';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1493,9 +1493,13 @@ function checkUpdate(mode) {
         <div class="card-sub" style="margin:0 0 12px">${sub}</div>
         ${dling ? `<div class="upd-prog"><div class="upd-prog-bar"><i style="width:${Math.max(2, appPct)}%"></i></div>
           <div class="upd-prog-meta"><span>正在下载 ${appPct}%</span><span>${(dl / 1048576).toFixed(1)} / ${(tt / 1048576).toFixed(1)} MB</span></div></div>` : ''}
-        ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成，正在打开安装器…</div>' : ''}
+        ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成。点下面按钮安装（安装时 App 会关闭）</div>' : ''}
+        ${s.newAppState === 'needPermission' ? '<div class="card-sub" style="margin:0 0 10px;color:var(--orange,#b26a00)">要先允许「安装未知应用」。已帮你打开系统设置，打开开关后回来点安装。</div>' : ''}
         ${appErr && s.newAppAvailable ? `<div class="card-sub" style="margin:0 0 10px;color:var(--red,#c62828)">${esc(s.message || '下载失败')}</div>` : ''}
-        ${s.newAppAvailable ? `<button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${appPct}%` : (done ? '重新下载' : (appErr ? '重试下载' : '下载并安装'))}</button>` : ''}
+        ${(done || s.newAppState === 'needPermission') && s.newAppAvailable
+          ? `<button class="btn btn-primary btn-block" id="upd-install">立即安装</button>
+             <button class="btn btn-ghost btn-block" style="margin-top:10px" id="upd-app">重新下载</button>`
+          : (s.newAppAvailable ? `<button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${appPct}%` : (appErr ? '重试下载' : '下载并安装')}</button>` : '')}
         ${(stuck || s.state === 'error') ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重新检查</button>' : ''}`;
     } else {
       const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
@@ -1511,6 +1515,15 @@ function checkUpdate(mode) {
 
     box.innerHTML = body;
 
+    const ai = $('#upd-install');
+    if (ai) ai.onclick = () => {
+      try {
+        const r = AppUpdate.installApp();
+        if (r === 'ok') { toast('已打开安装器'); closeSheet(); }
+        else if (r === 'needPermission') toast('请在系统设置里允许「安装未知应用」');
+        else toast(String(r || '安装失败'));
+      } catch (e) { toast('安装失败：' + e.message); }
+    };
     const ab = $('#upd-app');
     if (ab) ab.onclick = () => {
       if (s.newAppState === 'downloading') return;
@@ -1532,7 +1545,10 @@ function checkUpdate(mode) {
       clearInterval(checkUpdate._t);
       setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
     }
-    if (['error', 'uptodate'].includes(s.state) && s.newAppState !== 'downloading') clearInterval(checkUpdate._t);
+    if (['error', 'uptodate'].includes(s.state)
+        && !['downloading'].includes(s.newAppState)) clearInterval(checkUpdate._t);
+    // 下载完成后轮询没意义了，App 更新这一支可以停（题库那支还要继续）
+    if (onlyApp && ['done', 'needPermission', 'error'].includes(s.newAppState)) clearInterval(checkUpdate._t);
   }, 600);
 }
 

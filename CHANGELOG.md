@@ -4,6 +4,43 @@ App 版本与题库版本分开记：App 版本（0.1.x）跟着 APK 走，题�
 
 ---
 
+## 0.1.56
+
+对着 XUpdate、AppUpdate、AutoUpdateProject 三个主流更新库的 README 重写了一遍检查更新，修掉八个问题。按严重程度排：
+
+**1. 后台下完装不上（最严重）**
+Android 10 起禁止后台启动 Activity。我们是后台下载，下完那一刻 App 多半在后台，`startActivity` 被系统静默拒绝 —— 用户看到的就是「下载完了但什么都没发生」。三个库的处理方式一致：**落一条通知，用户点了才装**。
+现在下载完成只发通知（通道 `shangan_install`，标题「新版本 X 已就绪」），同时弹层里给一个「立即安装」按钮 —— 用户主动点，不受后台限制。
+
+**2. 前台服务启动即崩（这版自己引入又自己修的）**
+为了让「同一个包下过就别再下」这条捷径走通，一开始把前台服务起在 `downloadApp()` 开头。结果命中捷径时任务瞬间结束，`stopSelf()` 早于 `startForeground()`，系统判定「你起了前台服务却没启动它」，抛 `ForegroundServiceDidNotStartInTimeException` **直接把整个进程干掉**。
+修法两层：①前台服务挪到「确定要真下载」之后才起；②`DownloadService` 加 `starting` / `stopWhenStarted` 两个标记，服务还在启动路上时 `stop()` 只记账，等 `onStartCommand` 里 `startForeground` 之后再自我了断。
+
+**3. 检查更新最坏要等 225 秒**
+三个 manifest 源串行拉，每个 connect 15s + read 60s。改成**并发拉取 + 12 秒整体封顶**，manifest 专用超时降到 8s/10s。哪个源先回用哪个。
+
+**4. 每次点都重下 135 MB**
+加 `shangan-update.ok` 标记文件，内容是这个包的 sha256。再次点击先比对标记，命中就直接进「已下载，点安装」。
+
+**5. 没有安装权限引导**
+`REQUEST_INSTALL_PACKAGES` 只是声明。新增 `canRequestPackageInstalls()` 检测，没权限时自动打开 `ACTION_MANAGE_UNKNOWN_APP_SOURCES` 那一页，并提示「打开开关后回来点安装」。
+
+**6. 弹层卡在「下载完成，正在打开安装器…」**
+这句是假设安装器一定会弹。现在改成「下载完成。点下面按钮安装（安装时 App 会关闭）」，配「立即安装」+「重新下载」两个按钮。
+
+**7. 轮询空转**
+App 更新到 `done` / `needPermission` / `error` 之后停掉轮询，不再每 600ms 读一次 status。
+
+**8. 没有手动安装入口**
+新增 JS 接口 `AppUpdate.installApp()`，返回 `ok` / `needPermission` / `error: ...`，用户点按钮就能重试。
+
+验证（模拟器，本地 mock 源 + 5 MB 假包走完整链路）：
+- 下载完成 → `appState=done`、`message=下载完成，点安装`
+- 通知栏出现 `新版本 0.9.9-test 已就绪`（`dumpsys notification` 确认 id=10202、channel=shangan_install）
+- `cacheDir` 落下 `shangan-update.apk` + `shangan-update.ok`（内容是 sha256）
+- 点「立即安装」→ `installApp()` 返回 `needPermission` → 自动跳到「安装未知应用」设置页
+- 再次点下载 → 秒命中复用分支，`message=新版本已经下载过了，直接装`，进程存活
+
 ## 0.1.52
 
 **后台下载：切出去不再中断**
