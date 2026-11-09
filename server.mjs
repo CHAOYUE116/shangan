@@ -400,14 +400,17 @@ function mockCond(mock) {
 // ============ 题库精简（2026-08）：只保留近十年试卷（年份取试卷名前缀，如 "2024年..."） ============
 // 无年份名称（如 "天津市2"）substr 得非数字 → 自然排除；按分类刷试卷(/api/papers)不受影响
 const NOW_YEAR = new Date().getFullYear();
-const YEAR_FROM = NOW_YEAR - 12; // 近十二年下限（2026 年即 2014）
+const YEAR_FROM = NOW_YEAR - 18; // 近十八年下限（2026 年即 2008）
 const YEAR_TO = NOW_YEAR + 1; // 覆盖下一年考试（如 2026 年备考 2027 国考）
+// 卷名年份：找第一个 "20" 再取 4 位，兼容「天津市选调2018年…」「2026下半年/2027上半年…」这类
+// 旧的 substr(p.name,1,4) 只认「年份开头」的卷名，会把 1.2 万道题当成无年份丢掉
+const YEAR_OF = "CAST(substr(p.name, MAX(1, instr(p.name, '20')), 4) AS INTEGER)";
 // year: 'all'=不限（自定义刷题可选） | '3'/'5'/'10'=近 N 年 | 缺省=近十年（精简口径）
 function yearCond(year) {
   if (year === 'all' || year == null || year === '') return '';
   const y = parseInt(year, 10);
   const n = Number.isInteger(y) && y >= 3 ? y : 10;
-  return ` AND substr(p.name, 1, 4) BETWEEN '${NOW_YEAR - n + 1}' AND '${NOW_YEAR}'`;
+  return ` AND ${YEAR_OF} BETWEEN ${NOW_YEAR - n + 1} AND ${NOW_YEAR}`;
 }
 // 难度过滤（自定义刷题/组卷共用口径，粉笔 difficulty 1-9）：random/缺省不限难度（含未标注）
 function diffCond(difficulty) {
@@ -840,7 +843,7 @@ function getPaperPool() {
            q.difficulty diff, q.type type, p.category pcat, p.subjectName psub, q.chapter chapter
     FROM question_categories qc
     JOIN tiku.questions q ON q.questionId = qc.question_id
-    JOIN tiku.papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+    JOIN tiku.papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
   `).all()) {
     const key = `${r.subj}|${r.cat}|${r.sub}`;
     let arr = byKey.get(key);
@@ -852,7 +855,7 @@ function getPaperPool() {
            q.difficulty diff, q.type type, p.category pcat, p.subjectName psub, q.chapter chapter, q.id seq
     FROM q_material_map mm
     JOIN tiku.questions q ON q.questionId = mm.question_id
-    JOIN tiku.papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+    JOIN tiku.papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
     WHERE mm.material_id IS NOT NULL
     ORDER BY q.id
   `).all()) {
@@ -1384,7 +1387,7 @@ const server = http.createServer(async (req, res) => {
         // 综应只保留 A 类：主界面题目数按分类树口径（question_categories），与专项练习一致
         const zongyingN = pdb.prepare(`SELECT COUNT(DISTINCT qc.question_id) AS n FROM question_categories qc
           JOIN tiku.questions q ON q.questionId = qc.question_id
-          JOIN tiku.papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+          JOIN tiku.papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
           WHERE qc.subject = '事业编·综应'`).get().n;
         // 动态部分：已做对的去重题数（随做题记录变化，不缓存；subject 以题库为准）
         const doneRows = pdb.prepare(`
@@ -1409,7 +1412,7 @@ const server = http.createServer(async (req, res) => {
         if (!chapterCache.has(catKey)) {
           // 综应只保留 A 类（用户要求）：过滤联考B/C/D类试卷分类
           const rows = db.prepare(
-            `SELECT p.category, COUNT(DISTINCT p.id) AS papers, COUNT(DISTINCT q.questionId) AS questions FROM papers p LEFT JOIN questions q ON q.paperId = p.id WHERE p.subjectName = ? AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}' GROUP BY p.category ORDER BY papers DESC, category`
+            `SELECT p.category, COUNT(DISTINCT p.id) AS papers, COUNT(DISTINCT q.questionId) AS questions FROM papers p LEFT JOIN questions q ON q.paperId = p.id WHERE p.subjectName = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO} GROUP BY p.category ORDER BY papers DESC, category`
           ).all(subject);
           const filtered = subject === '事业编·综应' ? rows.filter((r) => !['联考B类', '联考C类', '联考D类'].includes(r.category)) : rows;
           chapterCache.set(catKey, filtered);
@@ -1663,7 +1666,7 @@ const server = http.createServer(async (req, res) => {
             chapterCache.set(idxKey, pdb.prepare(`
               SELECT qc.category, qc.sub, COUNT(DISTINCT qc.question_id) c FROM question_categories qc
               JOIN tiku.questions q ON q.questionId = qc.question_id
-              JOIN tiku.papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+              JOIN tiku.papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
               WHERE qc.subject = ?
               GROUP BY qc.category, qc.sub
             `).all(subject));
@@ -1733,7 +1736,7 @@ const server = http.createServer(async (req, res) => {
                      COUNT(DISTINCT CASE WHEN r.is_correct = 1 THEN qc.question_id END) ok
               FROM question_categories qc
               JOIN tiku.questions q ON q.questionId = qc.question_id
-              JOIN tiku.papers p ON p.id = q.paperId AND substr(p.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+              JOIN tiku.papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
               LEFT JOIN practice_records r ON r.question_id = qc.question_id
               WHERE qc.subject = ?
               GROUP BY qc.category, qc.sub
