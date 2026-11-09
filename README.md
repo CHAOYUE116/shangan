@@ -338,11 +338,37 @@ GH_TOKEN=<token> node tools/update-release-notes.mjs
 
 ---
 
-## 数据
+## 数据来源
 
-- 真题与解析：粉笔公开题库
-- 公基题目：公开整理版本
-- 考点体系：自建，46,531 条映射
+**[粉笔题库](https://tiku.fenbi.com)** — 主体
+
+行测、职测、申论、综应的真题与解析，绝大部分来自这里。粉笔的网页端没有做请求签名，带着自己的登录 Cookie 就能取到试卷列表和题目；解析要先提交一次练习，再从 `/combine/static/solution` 取回。采集脚本用 Playwright 驱动真实 Chrome 走这个流程——直接 curl 会被 WAF 返回 453。
+
+入库的 61,768 题里，明确标记 `source='fenbi'` 的是通过这个流程新采的，其余是早期导入、未标记来源的历史数据。
+
+**[linfukai186-arch/gongkao-tiku](https://github.com/linfukai186-arch/gongkao-tiku)** — 公基
+
+作者把事业单位真题整理成静态 JSON 挂在 GitHub Pages 上，结构很干净：
+
+```
+data/<模块>/index.json     条目清单（key 形如 "2026·xxx考试"，count=题数）
+data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
+```
+
+字段 `t`=模块/题型、`s`=材料、`q`=题干、`o`=选项数组、`a`=答案、`e`=解析。导入 2,722 题，构成了「事业编·公基」的全部内容。
+
+这个源没有难度字段，所以公基 100% 没有难度标签——App 里遇到这种情况直接不显示，而不是显示「难度 0」。
+
+**考点体系**：自建，46,531 条映射。
+
+## 依赖
+
+| 项目 | 用途 |
+| --- | --- |
+| [Capacitor](https://capacitorjs.com/) | Android 壳，负责 WebView 容器和原生插件桥接 |
+| [Playwright](https://playwright.dev/) | 驱动 Chrome 采集真题，绕不过 WAF 时的唯一办法 |
+| [sharp](https://sharp.pixelplumbing.com/) | 公式图片压缩，73 MB 图片库靠它压下来 |
+| [SQLite](https://sqlite.org/) | 两套数据库的底座；Node 侧用内置的 `node:sqlite`，不引第三方驱动 |
 
 **已知缺口**
 
