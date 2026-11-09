@@ -4,6 +4,8 @@
 
 > 题库数据来自公开真题与网络解析，仅供个人学习使用。
 
+**下载**：[最新版 APK](https://github.com/CHAOYUE116/shangan/releases) · **更新记录**：[CHANGELOG.md](CHANGELOG.md)
+
 ---
 
 ## 它解决什么问题
@@ -217,6 +219,43 @@ App 按顺序试三个镜像，第一个成功的就用：
 ```
 
 > jsDelivr 对 `@main` 分支别名整体缓存约 12 小时，加 `?t=` 时间戳也绕不过去，所以只能放最后兜底。
+
+**两套版本号，各自独立**
+
+| | 格式 | 举例 | 什么时候变 |
+| --- | --- | --- | --- |
+| App 版本 | `0.1.x(N)` | `0.1.41(42)` | 前端代码或原生代码改了，要重装 APK |
+| 题库版本 | `0.5.x-日期-时刻` | `0.5.2-20261109-0130` | 只加了题 / 改了题，走增量包 |
+
+题库更新不会动 App 版本，App 更新也不会重下题库。两个都改了才需要同时发。
+
+**发一次版的完整流程**
+
+```bash
+# 1. 采集 + 入库
+node tools/fenbi-fetch-solutions.mjs --course syzc --cat 江苏 --limit 15 --pages 3
+node tools/import-fenbi-papers.mjs --apply
+node tools/normalize-categories.mjs --apply
+
+# 2. 打增量包
+node tools/build-tiku-delta.mjs --old tiku.db.bak --new tiku.db \
+  --from 0.5.2-20261109-0130 --to 0.5.3-<新时间> --out ../dist/release
+
+# 3. 重建 App 内置资源
+node build-app-assets.mjs app-assets
+echo -n '0.5.3-<新时间>' > app-assets/db-version.txt
+
+# 4. 生成 manifest
+node tools/build-release-manifest.mjs --base https://github.com/CHAOYUE116/shangan/releases/download/tiku-<tag> --apk ../dist/shangan-<ver>-release.apk
+
+# 5. 上传 Release（gh-proxy + --ssl-no-revoke）
+# 6. 把 manifest 同步进仓库并提交
+cp ../dist/release/manifest.json release/manifest.json
+
+# 7. 补 CHANGELOG.md
+```
+
+`app-assets/db-version.txt` 必须手动写 —— `build-app-assets.mjs` 不生成它，但 `build-release-manifest.mjs` 靠它取 `dbVersion`。
 
 ---
 
