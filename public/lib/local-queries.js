@@ -646,7 +646,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
                COUNT(DISTINCT tq.questionId) AS questions
         FROM papers tp
         LEFT JOIN questions tq ON tq.paperId = tp.id
-        WHERE substr(tp.name, 1, 4) BETWEEN '${YEAR_FROM}' AND '${YEAR_TO}'
+        WHERE CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
         GROUP BY tp.subjectName
       `);
       // 综应只保留 A 类：主界面题目数按分类树口径（question_categories），与专项练习一致

@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.58';
+const APP_VERSION = '0.1.59';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1025,7 +1025,7 @@ function renderExamResult() {
     }).join('');
     return `<details class="card result-q" style="margin-bottom:10px">
       <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span><span class="tag">${esc(q.chapter || '未分类')}</span><span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
-      <div class="q-stem" style="margin-top:12px">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${q.material ? `<div class="explain" style="margin-bottom:12px"><h4>材料</h4><div class="ab-body">${safeHtml(q.material)}</div></div>` : ''}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
+      <div class="q-stem" style="margin-top:12px">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
     </details>`;
   }).join('');
   return `<div class="subpage-head"><button class="icon-btn" data-act="exam-result-back">‹</button><div class="subpage-title">考试报告</div><span style="width:38px"></span></div>
@@ -1734,6 +1734,20 @@ function prevBtn() {
   return `<button class="btn btn-ghost" data-prev${dis}>上一题</button>`;
 }
 
+// 资料分析的材料动辄两三屏（三段文字 + 一张表），直接铺在题干下面会把选项挤到屏幕外，
+// 做一题要上下滚三四次。这里限高 + 内部滚动：短材料原样显示，长材料在框里滚。
+// 标题上标字数和是否可滚，用户一眼知道「还有内容」。
+function renderMaterial(q) {
+  if (!q || !q.material) return '';
+  const plain = String(q.material).replace(/<[^>]+>/g, '');
+  const chars = plain.length;
+  const tall = chars > 420;
+  return `<div class="q-material${tall ? ' tall' : ''}">
+    <div class="q-material-head">给定材料<span class="q-material-meta">${chars} 字${tall ? ' · 框内可滚动' : ''}</span></div>
+    <div class="q-material-body">${safeHtml(q.material)}</div>
+  </div>`;
+}
+
 function renderQuestionBlock(q, fb) {
   const P = S.practice;
   const options = Array.isArray(q.options) ? q.options : [];
@@ -1743,7 +1757,7 @@ function renderQuestionBlock(q, fb) {
     const cls = correct ? 'correct' : picked ? 'wrong' : '';
     return `<div class="option static ${cls}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span>${correct ? '<span class="opt-note">正确答案</span>' : picked ? '<span class="opt-note">你的选择</span>' : ''}</div>`;
   }).join('');
-  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${q.material ? `<div class="explain" style="margin-bottom:12px"><h4>给定材料</h4><div class="ab-body">${safeHtml(q.material)}</div></div>` : ''}${opts}`;
+  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}`;
 }
 function renderPractice() {
   const P = S.practice; const q = currentQ(); if (!q) return;
@@ -1755,7 +1769,7 @@ function renderPractice() {
   const body = $('#p-body'); const acts = $('#p-actions');
   const options = Array.isArray(q.options) ? q.options : [];
   if (P.exam || !P.confirmed) {
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${q.material ? `<div class="explain" style="margin-bottom:12px"><h4>给定材料</h4><div class="ab-body">${safeHtml(q.material)}</div></div>` : ''}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${P.selected == null ? 'disabled style="opacity:.45"' : ''}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-show-answer>查看参考答案</button>`;
@@ -1772,7 +1786,7 @@ function renderPractice() {
     </div>` : '';
     const aiCard = `<div class="ai-card"><div class="ai-head"><span class="ai-badge">AI 讲题</span>${P.aiCached ? '<span class="tag ok">缓存</span>' : ''}<span class="ai-sub">换个方式讲这道题</span><button class="btn btn-ghost btn-sm" data-act="ai-explain" ${P.aiLoading ? 'disabled' : ''}>${P.aiLoading ? '解析中…' : P.ai ? '重新讲' : '听一遍'}</button></div>${P.aiLoading ? `<div class="ai-loading"><span class="spinner ai-spinner"></span><span>AI 正在拆解题目…</span></div>` : ''}${P.ai ? `<div class="ai-sections">${renderAiStructured(P.ai)}</div>` : ''}${P.ai ? `<div class="ai-chat"><div class="ai-chat-title">继续追问</div>${P.aiChat.map((m) => `<div class="ai-chat-bubble ${m.role}">${m.role === 'assistant' ? aiRichText(m.content) : esc(m.content)}</div>`).join('')}${P.aiLoading ? `<div class="ai-chat-loading"><span class="spinner ai-spinner"></span> AI 正在回答…</div>` : ''}<div class="ai-chat-input"><input id="ai-chat-input" class="field" placeholder="还有哪里不懂？继续问"><button class="btn btn-primary btn-sm" data-act="ai-send">发送</button></div></div>` : ''}</div>`;
     body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b></div></div>${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
-    acts.innerHTML = `<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
+    acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
   }
 }
 async function confirmAnswer() {
@@ -2518,7 +2532,17 @@ const OB_DATES = {
   '事业编': [{ name: '2027 事业单位联考', date: '2027-03-15' }, { name: '2026 山东事业单位统考', date: '2026-12-06' }],
   '三支一扶': [{ name: '2027 三支一扶', date: '2027-05-15' }],
 };
-const PROVINCES = ['全国', '山东', '江苏', '浙江', '广东', '河南', '河北', '四川', '湖北', '湖南', '安徽', '福建'];
+// 题库里 31 个省都有卷（联考卷覆盖十几省，另有省属/市属单独招考），
+// 之前只列了 12 个，陕西、山西、江西、辽宁这些考生在引导页选不到自己的省份。
+const PROVINCES = [
+  '全国',
+  '北京', '天津', '上海', '重庆',
+  '河北', '山西', '辽宁', '吉林', '黑龙江',
+  '江苏', '浙江', '安徽', '福建', '江西', '山东',
+  '河南', '湖北', '湖南', '广东', '海南',
+  '四川', '贵州', '云南', '陕西', '甘肃', '青海',
+  '内蒙古', '广西', '西藏', '宁夏', '新疆',
+];
 function openOnboarding() {
   S.ob = { step: 0, draft: { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, targetScore: 70, minutes: 90 } };
   renderOnboarding();
