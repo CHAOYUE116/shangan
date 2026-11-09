@@ -31,6 +31,10 @@ const NEW = arg('new');
 const FROM = arg('from', 'unknown');
 const TO = arg('to', 'unknown');
 const OUT = arg('out', 'dist/release');
+// 分类索引表（question_categories）来自 practice.db，打包时被合并进 tiku_app.db。
+// 它不在 tiku.db 里，所以早期增量包从来没带过它 —— 新题在设备上「能搜到但进不了模块树」，
+// 题库页题数也不涨。这里从新版 app-assets/tiku_app.db 读全量，随包一起下发。
+const ASSETS = arg('assets', 'D:/Projects/上岸APP/kaogong-shuati/app-assets/tiku_app.db');
 
 if (!OLD || !NEW) {
   console.error('用法: --old <旧版 db> --new <新版 db> [--from V] [--to V] [--out DIR]');
@@ -88,6 +92,24 @@ let p = { added: [], changed: [], deleted: [], cols: [] };
 try { p = diffTable('papers', 'id', P_HASH_FIELDS); } catch { /* 表结构不同就跳过 */ }
 console.timeEnd('diff');
 
+/**
+ * 分类索引全量。这张表不在 tiku.db 里，没法做行级 diff，只能整表下发。
+ * 客户端先 DELETE 再批量 INSERT，所以是幂等的。
+ * 63,796 行 / 原始约 5 MB / gz 约 1 MB —— 这点体积换「新题能进模块树」，值。
+ */
+let qc = [];
+let qcCols = [];
+try {
+  const adb = new DatabaseSync(ASSETS, { readOnly: true });
+  qcCols = cols(adb, 'question_categories');
+  qc = adb.prepare(`SELECT ${qcCols.map((c) => `"${c}"`).join(', ')} FROM question_categories`).all();
+  adb.close();
+  console.log(`  question_categories 全量 ${qc.length} 行（${qcCols.join(' / ')}）`);
+} catch (e) {
+  console.warn(`  ! 读不到 ${ASSETS} 的 question_categories：${e.message}`);
+  console.warn('    增量包里不会带分类索引，新题将无法出现在模块树里。');
+}
+
 const payload = {
   schema: 1,
   from: FROM,
@@ -96,6 +118,7 @@ const payload = {
   papers: [...p.added, ...p.changed],
   questions: [...q.added, ...q.changed],
   deleted: { questions: q.deleted, papers: p.deleted },
+  question_categories: qc,
 };
 
 const raw = Buffer.from(JSON.stringify(payload), 'utf8');
@@ -111,6 +134,7 @@ const sha256 = crypto.createHash('sha256').update(gz).digest('hex');
 console.log(`\n题库增量: ${FROM} → ${TO}`);
 console.log(`  papers    新增 ${p.added.length} / 改动 ${p.changed.length} / 删除 ${p.deleted.length}`);
 console.log(`  questions 新增 ${q.added.length} / 改动 ${q.changed.length} / 删除 ${q.deleted.length}`);
+console.log(`  question_categories ${qc.length} 行（全量）`);
 console.log(`  原始 ${(raw.length / 1048576).toFixed(2)} MB → 压缩 ${(gz.length / 1048576).toFixed(2)} MB`);
 console.log(`  输出 ${file}`);
 console.log(`  sha256 ${sha256}`);
@@ -130,5 +154,6 @@ fs.writeFileSync(file.replace(/\.json\.gz$/, '.meta.json'), JSON.stringify({
     papersAdded: p.added.length, papersChanged: p.changed.length,
     questionsAdded: q.added.length, questionsChanged: q.changed.length,
     questionsDeleted: q.deleted.length,
+    questionCategories: qc.length,
   },
 }, null, 2), 'utf8');
