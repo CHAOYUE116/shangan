@@ -2,13 +2,13 @@
   "schema": 1,
   "publishedAt": "2026-11-09T02:20:28.688Z",
   "app": {
-    "versionCode": 44,
-    "versionName": "0.1.43",
-    "size": 141952191,
-    "sha256": "56ea724f4dbd4a3804e6fc792e4713cc6746bffc2162b6a688b9f07baebdbdba",
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/shangan-0.1.43-release.apk",
+    "versionCode": 45,
+    "versionName": "0.1.44",
+    "size": 141953334,
+    "sha256": "de4a39e80cdc28faac04e50f33fdd8d9d6d8c8d3401f1b0b5534467ac9c306c0",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/shangan-0.1.44-release.apk",
     "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/shangan-0.1.43-release.apk"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.3-20261109-1019/shangan-0.1.44-release.apk"
     ]
   },
   "tiku": {
