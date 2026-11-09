@@ -2,7 +2,7 @@
 
 > 一个把 61,768 道真题装进手机的考公刷题 App。断网能刷，没有广告，解析不用会员。
 
-**下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)
+**下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)
 
 ---
 
@@ -209,7 +209,7 @@ Key 只存本机 SQLite，请求由 App 直接发给服务商。
 数据工程  Node.js（采集、ETL、diff、打包）
 ```
 
-`kaogong-shuati/` 是源码与数据工程，`app-shangan/` 是 Android 壳。
+`kaogong-shuati/` 是源码与数据工程，[`app-shangan/`](https://github.com/CHAOYUE116/shangan-app) 是 Android 壳（单独一个仓库，见它自己的 README）。
 
 ```
 kaogong-shuati/
