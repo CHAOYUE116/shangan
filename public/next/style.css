@@ -687,3 +687,37 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .round-kp-bar { margin: 8px 0 6px; height: 6px; border-radius: 3px; background: rgba(16,24,40,.08); overflow: hidden; }
 .round-kp-bar i { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
 .kp-badge { margin-left: 6px; font-size: 11px; color: var(--primary); background: rgba(47,91,234,.1); padding: 1px 6px; border-radius: 6px; }
+
+/* ---------- 启动骨架（首页数据到位前先占位，避免白屏） ---------- */
+.boot-skel {
+  position: fixed; inset: 0; z-index: 5;
+  padding: 76px 18px 90px; overflow: hidden;
+  background: #F5F6F8;
+}
+.boot-skel .bs-line { height: 14px; border-radius: 7px; background: #E9EBEF; margin-bottom: 12px; }
+.boot-skel .bs-line.tall { height: 34px; border-radius: 10px; }
+.boot-skel .bs-line.w40 { width: 40%; }
+.boot-skel .bs-line.w45 { width: 45%; }
+.boot-skel .bs-line.w55 { width: 55%; }
+.boot-skel .bs-line.w70 { width: 70%; }
+.boot-skel .bs-hero {
+  background: #fff; border-radius: 18px; padding: 20px 18px; margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.boot-skel .bs-bar { height: 8px; border-radius: 4px; background: #EEF0F4; margin: 16px 0 18px; }
+.boot-skel .bs-btn { height: 52px; border-radius: 14px; background: #E4E9F5; }
+.boot-skel .bs-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.boot-skel .bs-tile {
+  flex: 1; height: 96px; border-radius: 16px; background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.boot-skel .bs-line, .boot-skel .bs-bar, .boot-skel .bs-btn, .boot-skel .bs-tile {
+  animation: bsPulse 1.4s ease-in-out infinite;
+}
+@keyframes bsPulse { 0%, 100% { opacity: 1 } 50% { opacity: .55 } }
+html[data-theme="dark"] .boot-skel .bs-line,
+html[data-theme="dark"] .boot-skel .bs-bar,
+html[data-theme="dark"] .boot-skel .bs-btn { background: #2A2E37; }
+html[data-theme="dark"] .boot-skel { background: #14161B; }
+html[data-theme="dark"] .boot-skel .bs-hero,
+html[data-theme="dark"] .boot-skel .bs-tile { background: #1C1F26; }

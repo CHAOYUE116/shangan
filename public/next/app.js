@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.43';
+const APP_VERSION = '0.1.44';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -301,8 +301,14 @@ async function loadHome() {
   S.subjects = subjects;
   S.stats = stats;
   S.wrongTotal = Number(wrong.total) || 0;
-  // 时政条数（用于首页快捷入口副标题），失败不影响主流程
-  try { const p = await loadPolitics(); S.politicsCount = (p.items || []).length; } catch { S.politicsCount = 0; }
+  // 时政不在首屏关键路径上：先放个占位，数据到了再补一次渲染
+  S.politicsCount = 0;
+  loadPolitics()
+    .then((p) => {
+      S.politicsCount = (p.items || []).length;
+      if (S.tab === 'home') render();
+    })
+    .catch(() => { /* ignore */ });
 }
 
 /* ---------- 首页 ---------- */
@@ -1191,9 +1197,11 @@ const UPDATE_MANIFEST_URLS = (() => {
   ];
 })();
 
-function checkUpdate() {
+function checkUpdate(mode) {
   if (!window.AppUpdate) { toast('在线更新只在 App 内可用'); return; }
-  sheet(`<div class="sheet-head"><b>题库更新</b><button class="sheet-close">✕</button></div>
+  // 题库和 App 是两条独立的更新链，各自检查、各自提示，不混在一个弹层里
+  const onlyApp = mode === 'app';
+  sheet(`<div class="sheet-head"><b>${onlyApp ? 'App 更新' : '题库更新'}</b><button class="sheet-close">✕</button></div>
     <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">正在检查更新…</div>
     <div class="p-bar" style="margin-top:12px"><i id="upd-bar" style="width:0%"></i></div></div>`);
   AppUpdate.reset();
@@ -1214,13 +1222,25 @@ function checkUpdate() {
     const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
     let line = esc(s.message || '处理中…');
     if (stuck) line = '检查超时 —— 换个网络或点下面重试';
-    if (finished && !reloading) line = `已更新到 ${esc(s.localVersion)}，正在重新加载…`;
-    box.innerHTML = `<div class="card-sub">${line}</div>
+
+    const tikuBlock = onlyApp ? '' : `
+      <div class="card-sub">${line}</div>
       <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
       <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
-      ${s.newAppAvailable ? `<div class="card" style="margin-top:12px;border-color:var(--amber,#e3b341)"><div class="card-sub" style="margin:0 0 8px">发现新版 App ${esc(s.newAppVersion)}${s.newAppState === 'downloading' ? ` · 下载中 ${Number(s.newAppProgress) || 0}%` : ''}</div><button class="btn btn-primary btn-block" id="upd-app">${s.newAppState === 'downloading' ? '下载中…' : '下载并安装'}</button></div>` : ''}
       ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
       ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+
+    const appBlock = `
+      <div class="${onlyApp ? '' : 'card'}" style="${onlyApp ? '' : 'margin-top:12px;border-color:var(--amber,#e3b341)'}">
+        <div class="card-sub" style="margin:0 0 6px">当前 App 版本 v${esc(s.currentVersionName || APP_VERSION)}</div>
+        ${s.newAppAvailable
+          ? `<div class="card-sub" style="margin:0 0 10px">发现新版本 v${esc(s.newAppVersion)}（${((Number(s.newAppSize) || 0) / 1048576).toFixed(1)} MB）</div>
+             <button class="btn btn-primary btn-block" id="upd-app">${s.newAppState === 'downloading' ? `下载中 ${Number(s.newAppProgress) || 0}%` : '下载并安装'}</button>`
+          : `<div class="card-sub" style="margin:0">已是最新版本</div>`}
+        ${onlyApp && (s.state === 'error' || stuck) ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}
+      </div>`;
+
+    box.innerHTML = (onlyApp ? line + appBlock : tikuBlock + appBlock);
     const ab = $('#upd-app');
     if (ab) ab.onclick = () => {
       if (s.newAppState === 'downloading') return;
@@ -1234,9 +1254,9 @@ function checkUpdate() {
       } else { toast(r); }
     };
     const rt = $('#upd-retry');
-    if (rt) rt.onclick = () => { closeSheet(); checkUpdate(); };
-    // 更新落地后自动重载一次，用户不用自己杀进程
-    if (finished && !reloading) {
+    if (rt) rt.onclick = () => { closeSheet(); checkUpdate(mode); };
+    // 题库更新落地后自动重载一次，用户不用自己杀进程（App 更新走系统安装器，不重载）
+    if (finished && !onlyApp && !reloading) {
       reloading = true;
       clearInterval(checkUpdate._t);
       setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
@@ -1323,7 +1343,8 @@ function renderMe() {
   <div class="section-head"><h2 class="section-title">数据与维护</h2></div>
   <div class="card menu-card">
     <div class="menu-row" data-act="backup"><div class="menu-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('database')}</div><div class="subject-main"><div class="subject-title">数据与备份</div><div class="subject-sub">导出 / 导入 / 自动备份</div></div><span class="chev">›</span></div>
-    ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">在线更新，不用重装 App</div></div><span class="chev">›</span></div>` : ''}
+    ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">只更新题库数据，不动 App</div></div><span class="chev">›</span></div>` : ''}
+    ${window.AppUpdate ? `<div class="menu-row" data-act="app-update"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查 App 新版本</div><div class="subject-sub">当前 v${APP_VERSION}${window.__NEW_APP_VER ? ` · 有新版本 ${esc(window.__NEW_APP_VER)}` : ''}</div></div><span class="chev">›</span></div>` : ''}
     <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v${APP_VERSION} · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
   </div>
   <div class="section-head"><h2 class="section-title">阅读外观</h2></div>
@@ -1735,7 +1756,8 @@ document.addEventListener('click', (e) => {
   if (a === 'backup') { S.meView = 'backup'; go('me'); return; }
   if (a === 'about') { sheet(`<div class="sheet-head"><b>关于上岸</b><button class="sheet-close">✕</button></div><div class="card-sub">上岸 v${APP_VERSION} · 本地离线题库<br>题库与解析来源：粉笔等公开整理，仅限个人学习使用，请勿传播或商用。<br>不提供公开商店分发。</div>`); return; }
   if (a === 'ai') { openAi(); return; }
-  if (a === 'update') { checkUpdate(); return; }
+  if (a === 'update') { checkUpdate('tiku'); return; }
+  if (a === 'app-update') { checkUpdate('app'); return; }
   if (a === 'feishu') {
     // 私有飞书知识库：App 内打开（有原生桥时），否则退回系统浏览器
     if (!openInApp(EXTERNAL_LINKS.feishu, '备考资料库')) openExternal(EXTERNAL_LINKS.feishu);
@@ -2419,10 +2441,25 @@ function bindAndroidBack() {
   const saved = localStorage.getItem('theme');
   document.documentElement.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   S.plan = loadPlan();
-  try { await ensureReviewBackfill(); } catch { /* ignore */ }
-  try { spreadLegacyReviews(15); } catch { /* ignore */ }
-  try { await loadHome(); } catch (e) { toast(e.message); }
-  go('home');
+
+  // 等 local-bootstrap 装好 fetch / NativeDB 桥再发请求。
+  // 不等的话第一轮 api() 会打空，Promise.all 直接 reject，
+  // renderHome 拿着空数据渲染出一片白，看起来就是「白屏三四秒」。
+  if (window.__LOCAL_API_PROMISE__) {
+    try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ }
+  }
+
+  // 首屏只等最少的数据。错题回填和摊平都能挪到后台，
+  // 它们要读几百条记录，卡在前面会让白屏多两三秒。
+  // loadHome 成功才切首页；失败就留着骨架，别渲染出一片白。
+  try { await loadHome(); go('home'); } catch (e) { toast(e.message); }
+
+  // 下面两件是历史数据迁移，用户看不见，放到下一帧慢慢做
+  setTimeout(async () => {
+    try { await ensureReviewBackfill(); } catch { /* ignore */ }
+    try { spreadLegacyReviews(15); } catch { /* ignore */ }
+  }, 0);
+
   bindAndroidBack();
   if (!localStorage.getItem('sg_profile')) openOnboarding();
   else setTimeout(maybeAiOnboard, 900);
