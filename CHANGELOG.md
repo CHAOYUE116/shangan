@@ -4,6 +4,61 @@ App 版本与题库版本分开记：App 版本（0.1.x）跟着 APK 走，题�
 
 ---
 
+## 0.1.43 — 2026-11-09
+
+**修：老库升级时增量应用失败**
+
+`applyDelta` 现在会先 `PRAGMA table_info` 列出实际列，缺的用 `ALTER TABLE ADD COLUMN` 补上再写数据。
+
+原因是早期打包为了省体积砍掉过 `papers.time / exerciseId / crawledAt` 和 `questions.questionType / material / optionType / source / hasVideo`，而增量包按完整结构写。老用户覆盖安装后库里还是旧结构，应用增量直接报 `table papers has no column named time`。
+
+真机日志（补列全部生效）：
+
+```
+NativeDB: 补列 papers.time
+NativeDB: 补列 papers.exerciseId
+NativeDB: 补列 papers.crawledAt
+NativeDB: 补列 questions.questionType
+NativeDB: 补列 questions.material
+NativeDB: 补列 questions.optionType
+NativeDB: 补列 questions.source
+NativeDB: 补列 questions.hasVideo
+```
+
+---
+
+## 0.1.42 — 2026-11-09
+
+**修：八成题目的「正确答案」显示不出来**
+
+`questions.answer` 存的是选项索引数字（89,957 道，占 88.6%），前端那行 `String(q.answer).replace(/[^A-H]/g,'')` 把数字抹成空串，于是回退到「见解析」。答题时有内存里的判定结果兜底看不出，回到回顾页/错题详情就是空的。
+
+加了 `answerToLetters()`：`"3"` → `"D"`，`"0,2"` → `"AC"`，已经是字母的原样返回。
+
+**修：3,536 道题题干里有裸的 `[materialid]186150[/materialid]`**
+
+粉笔用这个标记「这里引用了某段材料」，渲染时该替换成材料原文。材料从来没采过（题干引用 3,905 个 id，材料表只命中 11 个），补不回来，于是把标记清掉。清理后剩余 0。
+
+**修：2,420 道主观题的 options 是空壳**
+
+`[{"intOptionId":430,"optionDesc":null}]`，`optionDesc` 全 null。类型全是 21–26 的主观题，本来就不该有选项，重置为 `[]`。
+
+---
+
+## 题库 0.5.3 — 2026-11-09
+
+**数据清洗**（题数不变，只修质量问题）
+
+| 项 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 题干含 `[materialid]` 占位符 | 3,536 | 0 |
+| options 是空壳对象 | 2,420 | 0 |
+| 答案显示为「见解析」 | 89,957（88.6%） | 0（前端转换） |
+
+**增量链**：0.5.2 → 0.5.3（2.27 MB）、0.5.0 → 0.5.3（4.70 MB）。老版本不必下 84 MB 全量。
+
+---
+
 ## 题库 0.5.2 — 2026-11-09
 
 **采集**：新增 8 省真题（江苏 / 四川 / 湖南 / 湖北 / 安徽 / 山东 / 广东 / 云南），共 63 份卷。其中广东的本地特色卷（《基本能力测试》100 题 ×6、税务 / 水利 / 财政 / 海事专业卷）是全新内容。
