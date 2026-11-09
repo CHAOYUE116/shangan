@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.37';
+const APP_VERSION = '0.1.41';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -923,10 +923,10 @@ function renderPlan() {
 
 /* ---------- AI 设置 ---------- */
 const AI_GATEWAYS = [
-  { label: 'DeepSeek', url: 'https://api.deepseek.com', model: 'deepseek-flash', signup: 'https://platform.deepseek.com/api_keys', tip: '便宜、中文好，新号有免费额度' },
-  { label: '智谱 BigModel', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', signup: 'https://open.bigmodel.cn/usercenter/apikeys', tip: 'glm-4-flash 免费额度大' },
-  { label: '商汤 SenseNova', url: 'https://token.sensenova.cn/v1', model: 'SenseChat-5', signup: 'https://platform.sensenova.cn', tip: '有免费额度' },
-  { label: 'Open Code', url: 'https://opencode.ai/zen/v1', model: '', signup: '', tip: '' },
+  { label: 'DeepSeek', url: 'https://api.deepseek.com', model: 'deepseek-flash', agents: [1, 2], signup: 'https://platform.deepseek.com/api_keys', tip: '便宜、中文好，新号有免费额度' },
+  { label: '智谱 BigModel', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', agents: [4, 6], signup: 'https://open.bigmodel.cn/usercenter/apikeys', tip: 'glm-4-flash 免费额度大' },
+  { label: '商汤 SenseNova', url: 'https://token.sensenova.cn/v1', model: 'SenseChat-5', agents: [], signup: 'https://platform.sensenova.cn', tip: '有免费额度' },
+  { label: 'Open Code', url: 'https://opencode.ai/zen/v1', model: '', agents: [], signup: '', tip: '' },
 ];
 async function openAi() {
   S.meView = 'ai'; S.tab = 'me';
@@ -2240,7 +2240,7 @@ function renderAiOnboard() {
       <div class="ob-title">${testing ? '正在测试连接…' : ok ? '接通了' : '没连上'}</div>
       <div class="ob-sub">${testing ? '发一条最短的消息，看模型是否应答。' : ok ? `${esc(g.label)} · ${esc(ob.model)} 已经就绪。` : '检查 Key 是否正确、账户是否有余额、网络是否能访问这个服务。'}</div>
       ${testing ? '<div class="spinner"></div>' : ''}
-      ${ob.state === 'fail' ? `<div class="card" style="border-color:#e5484d"><div class="card-sub" style="margin:0">${esc(humanAiError(ob.msg))}</div></div>` : ''}
+      ${ob.state === 'fail' ? `<div class="card" style="border-color:#e5484d"><div class="card-sub" style="margin:0">${esc(humanAiError(ob.msg))}</div>${ob.msg && ob.msg !== humanAiError(ob.msg) ? `<div class="card-sub" style="margin:8px 0 0;opacity:.6;font-size:12px">原始信息：${esc(String(ob.msg).slice(0, 300))}</div>` : ''}</div>` : ''}
       ${ok && ob.reply ? `<div class="card"><div class="card-sub" style="margin:0">模型回复：${esc(ob.reply)}</div></div>` : ''}
       ${ok ? `<div class="card"><div class="card-sub" style="margin:0">想换模型或改 Key，随时到「我的 → AI 设置」。</div></div>` : ''}
     </div>
@@ -2277,10 +2277,33 @@ async function aiOnboardTest() {
   ob.step = 2; ob.state = 'testing'; ob.msg = '';
   renderAiOnboard();
   try {
-    const agent = (S.agents || [])[0] || {};
-    const id = agent.id || 1;
-    await api(`/api/ai/agents/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base_url: baseUrl, model: ob.model, api_key: ob.key }) });
-    const r = await api(`/api/ai/agents/${id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '只回复两个字：可用' }) });
+    // 等本地 API（含 CapacitorHttp 注入）就绪再发请求。
+    // 引导页在启动后 900ms 就弹出，此时 bootstrap 可能还没完成，
+    // 直接用原生 fetch 会被 WebView 的 CORS 拦掉，表现成「连不上」。
+    if (window.__LOCAL_API_PROMISE__) { try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ } }
+    // 关键：一个服务商的 Key 要写进「所有用这个服务商的智能体」。
+    // 之前取 S.agents[0]，顺序不保证是 id=1，可能把 DeepSeek 的 Key 写进了智谱的智能体，
+    // 然后拿智谱地址 + DeepSeek Key 去测，必然失败 —— 这就是引导页死活过不去、进设置页却没事的原因。
+    const ids = (g.agents && g.agents.length) ? g.agents.slice()
+      : ((S.agents || []).map((a) => a.id).filter((x) => x != null));
+    const idList = ids.length ? ids : [1];
+    let okId = null;
+    for (const id of idList) {
+      try {
+        await api(`/api/ai/agents/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: baseUrl, model: ob.model, api_key: ob.key }),
+        });
+        if (okId == null) okId = id;
+      } catch { /* 某个 id 不存在就跳过 */ }
+    }
+    if (okId == null) { ob.state = 'fail'; ob.msg = '没有可写入的智能体'; renderAiOnboard(); return; }
+    const r = await api(`/api/ai/agents/${okId}/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: '只回复两个字：可用' }),
+    });
     if (r && r.ok && r.content) { ob.state = 'ok'; ob.reply = String(r.content).slice(0, 120); localStorage.setItem(AI_OB_KEY, 'done'); }
     else { ob.state = 'fail'; ob.msg = (r && r.error) || '模型没有返回内容'; }
   } catch (e) { ob.state = 'fail'; ob.msg = e.message; }
@@ -2381,4 +2404,34 @@ function bindAndroidBack() {
   bindAndroidBack();
   if (!localStorage.getItem('sg_profile')) openOnboarding();
   else setTimeout(maybeAiOnboard, 900);
+
+  // 覆盖安装后内置题库可能落后，静默看一眼有没有增量（几 MB），不打断用户
+  setTimeout(silentTikuCheck, 6000);
 })();
+
+/**
+ * 启动后静默检查题库版本。只在发现新版本时提示一句，不弹全屏。
+ * 之所以需要：覆盖安装时不再整块重拷 320MB 的库（要几十秒），改走增量。
+ */
+async function silentTikuCheck() {
+  if (!window.AppUpdate) return;
+  const last = Number(localStorage.getItem('sg_silent_check') || 0);
+  if (Date.now() - last < 6 * 3600 * 1000) return;   // 6 小时内只查一次
+  localStorage.setItem('sg_silent_check', String(Date.now()));
+  try {
+    AppUpdate.start(JSON.stringify(UPDATE_MANIFEST_URLS));
+    setTimeout(() => {
+      let s = null;
+      try { s = JSON.parse(AppUpdate.status()); } catch { return; }
+      if (!s) return;
+      const canApply = s.state === 'done' && s.hasPending;
+      const appNew = s.newAppAvailable;
+      if (canApply || appNew) {
+        const bits = [];
+        if (canApply) bits.push(`题库 ${s.remoteVersion}`);
+        if (appNew) bits.push(`App ${s.newAppVersion}`);
+        toast(`发现更新（${bits.join(' / ')}），到「我的」更新`);
+      }
+    }, 12000);
+  } catch { /* ignore */ }
+}

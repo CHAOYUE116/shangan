@@ -96,7 +96,12 @@ if (isLocalMode()) {
         return {
           ok: r.status >= 200 && r.status < 300,
           status: r.status,
-          json: async function () { return r.data; },
+          // CapacitorHttp 有时把 body 原样返回成字符串（尤其网关 Content-Type 不规范时），
+          // 这里统一兜一层，否则上层 data.choices 永远取不到，表现为「模型没有返回内容」。
+          json: async function () {
+            if (typeof r.data !== 'string') return r.data;
+            try { return JSON.parse(r.data); } catch { return r.data; }
+          },
           text: async function () { return typeof r.data === 'string' ? r.data : JSON.stringify(r.data == null ? '' : r.data); },
         };
       };
