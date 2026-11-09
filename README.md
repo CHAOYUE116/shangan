@@ -2,7 +2,7 @@
 
 > 一个把 61,768 道真题装进手机的考公刷题 App。断网能刷，没有广告，解析不用会员。
 
-**下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)
+**下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 
 ---
 
