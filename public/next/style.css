@@ -1229,3 +1229,22 @@ html[data-theme="dark"] .data-m b { color: #D8E8DC; }
 /* 卡片里第一行不要那条分隔线 */
 .card > .opt-row:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
 .card > .btn-row:last-child { margin-top: 14px; }
+
+/* ===== 0.2.6 可点区域 / 状态色 ===== */
+/* 选错时「你选了 X」标签此前没有样式，和普通中性标签一模一样 */
+.tag.bad { color: var(--red); background: var(--red-soft); }
+
+/* 真机上 chip / seg / 图标按钮只有 30~38px，拇指容易点空 */
+.chip { min-height: 40px; display: inline-flex; align-items: center; }
+.seg { min-height: 42px; }
+.icon-btn { width: 42px; height: 42px; }
+.ai-sw { min-height: 34px; }
+.section-more, .home-week-more { min-height: 40px; display: inline-flex; align-items: center; padding: 0 2px; }
+.home-week-foot > button { min-height: 40px; }
+
+/* 学习报告的每日柱：只有一两天数据时原来会撑成一整块大色块 */
+.rep-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; height: 124px; margin-top: 12px; }
+.rep-col { flex: 1 1 0; min-width: 0; max-width: 56px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.rep-v { font-size: 10.5px; color: var(--text-3); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.rep-bar { width: 100%; max-width: 40px; background: var(--primary); border-radius: 6px 6px 2px 2px; }
+.rep-d { font-size: 10px; color: var(--text-3); margin-top: 5px; }

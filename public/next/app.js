@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.5';
+const APP_VERSION = '0.2.6';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -1946,7 +1946,7 @@ function renderStatsPage() {
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习统计</div><span style="width:38px"></span></div>
   <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>累计做题</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>错题</span></div></div>
   <div class="section-head"><h2 class="section-title">章节正确率</h2></div>
-  <div class="card">${by.length ? by.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div></div><div class="weak-pct">${x.c ? Math.round((x.ok / x.c) * 100) : 0}%</div></div>`).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
+  <div class="card">${by.length ? by.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div></div><div class="weak-pct">${x.c ? Math.round((x.ok / x.c) * 100) : 0}%</div></div>`).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
   <div class="section-head"><h2 class="section-title">近 7 天</h2></div>
   <div class="card">${last.length ? last.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.d)}</div><div class="subject-sub">做题 ${x.c} · 答对 ${x.ok}</div></div><div class="weak-pct">${x.c ? Math.round((x.ok / x.c) * 100) : 0}%</div></div>`).join('') : '<div class="empty-state">暂无记录</div>'}</div>`;
 }
@@ -1960,7 +1960,9 @@ function renderWeeklyReport() {
   const rate = total ? Math.round((right / total) * 100) : 0;
   const max = Math.max(1, ...last.map((x) => Number(x.c) || 0));
   const weak = (st.byChapter || []).filter((x) => x.c >= 3).sort((a, b) => (a.ok / a.c) - (b.ok / b.c)).slice(0, 3);
-  const range = last.length ? `${last[0].d} - ${last[last.length - 1].d}` : '近 7 天';
+  const d0 = last.length ? String(last[0].d) : '';
+  const d1 = last.length ? String(last[last.length - 1].d) : '';
+  const range = !last.length ? '近 7 天' : (d0 === d1 ? d0 : `${d0} ~ ${d1}`);
   const advice = !total
     ? '本周还没有做题记录，先完成今日任务，报告会自动生成。'
     : rate < 50
@@ -1972,7 +1974,7 @@ function renderWeeklyReport() {
   <div class="card-sub" style="margin:-6px 0 14px">${range} · 最近 7 天</div>
   <div class="stats-row"><div class="stat"><b>${total}</b><span>本周做题</span></div><div class="stat"><b>${rate}%</b><span>正确率</span></div><div class="stat"><b>${active}</b><span>活跃天数</span></div></div>
   <div class="card" style="margin-top:14px"><div class="subject-title">每日做题量</div>
-    <div style="display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:12px">${last.length ? last.map((x) => `<div style="flex:1;text-align:center"><div style="height:${Math.max(6, Math.round((Number(x.c) || 0) / max * 88))}px;background:var(--primary);border-radius:6px 6px 2px 2px"></div><div style="font-size:10px;color:var(--text-3);margin-top:5px">${esc(String(x.d).slice(5))}</div></div>`).join('') : '<div class="empty-state">暂无记录</div>'}</div>
+    <div class="rep-bars">${last.length ? last.map((x) => `<div class="rep-col"><div class="rep-v">${Number(x.c) || 0}</div><div class="rep-bar" style="height:${Math.max(6, Math.round((Number(x.c) || 0) / max * 82))}px"></div><div class="rep-d">${esc(String(x.d).slice(5))}</div></div>`).join('') : '<div class="empty-state">暂无记录</div>'}</div>
   </div>
   <div class="section-head"><h2 class="section-title">薄弱模块</h2></div>
   <div class="card">${weak.length ? weak.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div></div><div class="weak-pct">${Math.round((x.ok / x.c) * 100)}%</div><button class="btn btn-ghost btn-sm" data-act="weak" data-name="${esc(x.chapter)}">专项</button></div>`).join('') : '<div class="empty-state">做完几道题后，这里会显示薄弱模块</div>'}</div>
@@ -2029,6 +2031,8 @@ function renderMe() {
 
 /* ---------- 路由 ---------- */
 function go(tab) {
+  // 切页时先收掉弹层：弹层是全局的，页面换了它还挂着会盖住新页面
+  try { if (document.querySelector('.sheet-wrap:not([hidden])')) closeSheet(); } catch { /* ignore */ }
   S.tab = tab;
   const renders = { home: renderHome, library: renderLibrary, review: renderReview, exam: renderExam, me: renderMe };
   $('#view').innerHTML = renders[tab]();
@@ -2047,6 +2051,9 @@ async function startPracticeByUrl(url, title, subject, kind = '', kp = '') {
   } catch (e) { toast(e.message); $('#practice').hidden = true; }
 }
 function startPractice(qs, title, subject, kind = '', restore = null, kp = '') {
+  // /api/practice 回来的是 id，POST /api/records 要的是 questionId —— 在这一层统一好，
+  // 免得每条调用链各自记得该用哪个字段（两侧都传，兼容老数据）
+  qs = (qs || []).map((q) => (q && q.questionId == null && q.id != null) ? Object.assign({}, q, { questionId: q.id }) : q);
   const P = S.practice;
   P.open = true; P.qs = qs; P.idx = 0; P.selected = null; P.confirmed = false; P.answers = {}; P.results = []; P.feedback = null; P.elapsed = 0; P.ai = ''; P.aiLoading = false; P.aiChat = []; P.aiError = ''; P.aiCached = false; P.title = title || '练习'; P.subject = subject || ''; P.kind = kind; P.kp = kp || ''; P.lastWrongIds = []; P.exam = false; P.remaining = 0; P.limitSec = 0; P.qCost = {}; P.flagged = {}; P.paperId = 0; P.qStart = Date.now();
   if (restore) {
