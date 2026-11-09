@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.1.44';
+const APP_VERSION = '0.1.45';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -470,6 +470,45 @@ function yesterdayStat() {
   return { n: Number(hit.c), rate: Math.round((Number(hit.ok) / Number(hit.c)) * 100) };
 }
 
+/** 近 7 天的账，首页「本周小结」用 */
+function weekSummary() {
+  const arr = (S.stats && S.stats.last7) || [];
+  let n = 0, ok = 0, days = 0;
+  for (const x of arr) {
+    const c = Number(x.c) || 0;
+    if (c > 0) { days++; n += c; ok += Number(x.ok) || 0; }
+  }
+  const rate = n ? Math.round((ok / n) * 100) : 0;
+  let advice;
+  if (!n) advice = '这周还没开张。先做 10 道，把这周的账记上。';
+  else if (days <= 2) advice = `只练了 ${days} 天。备考这件事，频次比时长更要紧。`;
+  else if (rate < 60) advice = '正确率偏低，建议先放一放缓，把错题的解析逐条读完再练。';
+  else if (rate < 80) advice = `正确率 ${rate}%，处在提分期。薄弱模块单独拉出来做专项。`;
+  else advice = `正确率 ${rate}%，很稳。可以开始限时练整卷了。`;
+  return { n, ok, rate, days, advice };
+}
+
+/** 首页顶部的更新横幅：只盖题库和 App 两条，用户点过「暂不」就不再提 */
+function renderUpdateBanner() {
+  const h = S.updateHint;
+  if (!h) return '';
+  const muted = JSON.parse(localStorage.getItem('sg_update_mute') || '{}');
+  const bits = [];
+  if (h.tiku && muted.tiku !== h.tiku) bits.push(`题库 ${h.tiku}`);
+  if (h.app && muted.app !== h.app) bits.push(`App ${h.app}`);
+  if (!bits.length) return '';
+  const ver = h.app || h.tiku;
+  return `<div class="upd-banner">
+    <span class="upd-banner-ico">${iconSvg('refresh', 16)}</span>
+    <div class="upd-banner-main">
+      <div class="upd-banner-t">有新版本可用</div>
+      <div class="upd-banner-s">${esc(bits.join(' · '))}</div>
+    </div>
+    <button class="upd-banner-go" data-act="upd-banner-go" data-ver="${esc(ver)}">更新</button>
+    <button class="upd-banner-x" data-act="upd-banner-close" data-ver="${esc(ver)}" aria-label="关闭">✕</button>
+  </div>`;
+}
+
 function renderHome() {
   const today = todayCount();
   const goal = dailyGoal();
@@ -507,6 +546,7 @@ function renderHome() {
     <span class="eyebrow">距离考试还有 <b style="font-size:17px;color:var(--text);font-variant-numeric:tabular-nums;margin:0 2px">${daysLeft()}</b> 天</span>
     <span class="eyebrow" style="color:var(--text-3)">${new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}</span>
   </div>
+  ${renderUpdateBanner()}
   <section class="home-hero">
     <div class="hero-kick">今天这一件事</div>
     <h1 class="hero-h1">${title}</h1>
@@ -532,8 +572,47 @@ function renderHome() {
     </button>
   </div>
   ${resume ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
-  <button class="home-alt" data-act="stats"><span>看看这一周的账</span><span class="home-alt-r">学习统计 ›</span></button>
-  ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}`;
+  <button class="home-ai" data-act="ai-teach">
+    <span class="home-ai-ico">${iconSvg('bot', 20)}</span>
+    <span class="home-ai-main">
+      <span class="home-ai-t">AI 讲题</span>
+      <span class="home-ai-s">${aiReady() ? '这道题换个说法讲一遍 · 错题点一下就行' : '接上你自己的大模型 Key，讲一道题几厘钱'}</span>
+    </span>
+    <span style="color:#93A8DB">›</span>
+  </button>
+  ${(() => {
+    const w = weekSummary();
+    return `<div class="home-week">
+      <div class="home-week-head"><span class="home-week-title">本周</span><button class="home-week-more" data-act="stats" style="border:0;background:transparent;cursor:pointer">详细统计 ›</button></div>
+      <div class="home-week-nums">
+        <div class="home-week-num"><b>${w.n}</b><span>做题</span></div>
+        <div class="home-week-num"><b>${w.rate}%</b><span>正确率</span></div>
+        <div class="home-week-num"><b>${w.days}</b><span>活跃天数</span></div>
+      </div>
+      <div class="home-week-advice">${esc(w.advice)}</div>
+    </div>`;
+  })()}
+  ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}`;
+}
+
+/** AI 是否已经能用（至少一个智能体填了 key） */
+function aiReady() {
+  try {
+    const arr = (S.agents || []).filter((x) => x && x.api_key);
+    return arr.length > 0;
+  } catch { return false; }
+}
+
+/** 点首页横幅 → 让用户选：现在更新题库 / 现在更新 App / 以后再说 */
+function openUpdateChoice() {
+  const h = S.updateHint || {};
+  const rows = [];
+  if (h.tiku) rows.push(`<button class="btn btn-primary btn-block" style="margin-bottom:8px" data-act="upd-do-tiku">更新题库（${esc(h.tiku)}）</button>`);
+  if (h.app) rows.push(`<button class="btn btn-primary btn-block" style="margin-bottom:8px" data-act="upd-do-app">更新 App（${esc(h.app)}）</button>`);
+  rows.push(`<button class="btn btn-ghost btn-block" data-act="upd-later">暂不提醒</button>`);
+  sheet(`<div class="sheet-head"><b>有更新可用</b><button class="sheet-close">✕</button></div>
+    <div class="card-sub" style="margin:-4px 0 14px">题库走增量包，几 MB；App 走安装包，下完需要你点一下安装。</div>
+    ${rows.join('')}`);
 }
 function iconFor(name) {
   return '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>';
@@ -1108,42 +1187,152 @@ function renderBackupPageWrap() {
 
 /* ---------- 时政热点 ---------- */
 let _politics = null;
-async function loadPolitics() {
-  if (_politics) return _politics;
-  const url = location.pathname.includes('/next/') ? '/app-assets/politics.json' : './app-assets/politics.json';
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('时政数据未就绪');
-  _politics = await r.json();
+let _politicsSrc = '';
+
+/**
+ * 时政走「远端优先、本地兜底」：
+ * 远端是仓库里的 release/politics.json，改完 push 就生效，不用发版。
+ * 远端全部失败（离线 / 代理挂了）才用打包进来的那份，保证永远打不开空页面。
+ */
+const POLITICS_URLS = (() => {
+  const ts = Date.now();
+  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/release/politics.json?t=${ts}`;
+  return [
+    `https://gh-proxy.com/https://${raw}`,
+    `https://${raw}`,
+  ];
+})();
+
+async function loadPolitics(force) {
+  if (_politics && !force) return _politics;
+
+  const local = async () => {
+    const r = await fetch('./app-assets/politics.json');
+    if (!r.ok) throw new Error('时政数据未就绪');
+    return r.json();
+  };
+
+  for (const u of POLITICS_URLS) {
+    try {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 8000);
+      const r = await fetch(u, { signal: ac.signal, cache: 'no-store' });
+      clearTimeout(timer);
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (!d || !Array.isArray(d.items) || !d.items.length) continue;
+      _politics = d;
+      _politicsSrc = 'online';
+      localStorage.setItem('sg_politics_cache', JSON.stringify(d));
+      return _politics;
+    } catch { /* 换下一个源 */ }
+  }
+
+  // 上次联网成功时的缓存（离线也能看）
+  try {
+    const c = localStorage.getItem('sg_politics_cache');
+    if (c) {
+      const d = JSON.parse(c);
+      if (d && Array.isArray(d.items) && d.items.length) {
+        _politics = d;
+        _politicsSrc = 'cache';
+        return _politics;
+      }
+    }
+  } catch { /* ignore */ }
+
+  _politics = await local();
+  _politicsSrc = 'local';
   return _politics;
+}
+
+/** 把「时政汇总| xxx」这种前缀去掉，标题只留正文部分 */
+function polTitle(t) {
+  return String(t || '').replace(/^时政(汇总|热点)\s*[|｜]\s*/, '').trim();
+}
+
+/** 摘要里常把「时政热点 1 标题」连在一起，切掉前缀 */
+function polSummary(s) {
+  return String(s || '').replace(/^时政热点\s*\d+\s*/, '').replace(/\s+/g, ' ').trim();
 }
 
 async function openPolitics() {
   // 时政现在从首页快捷卡进，也可能从「我的」进——别硬把 tab 改成 me，
   // 否则返回时会莫名其妙落到「我的」页
   $('#view').innerHTML = '<div class="spinner"></div>';
+  const head = '<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">时政热点</div><button class="icon-btn" data-act="politics-refresh" aria-label="刷新">↻</button></div>';
   try {
     const data = await loadPolitics();
     const items = (data.items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
     S.politicsList = items;
-    $('#view').innerHTML = `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">时政热点</div><span style="width:38px"></span></div>
-      <div class="card-sub" style="margin:-6px 0 12px">共 ${items.length} 篇 · 更新于 ${esc(String(data.updatedAt || '').slice(0, 10))}</div>
-      ${items.map((x, i) => `<div class="pol-item" data-act="politics-open" data-idx="${i}">
-        <div class="pol-top"><span class="pol-date">${esc(x.date || '')}</span><span class="pol-len">${Number(x.chars) || 0} 字</span></div>
-        <div class="pol-title">${esc(String(x.title || '').replace(/^时政汇总\|\s*/, ''))}</div>
-        <div class="pol-sum">${esc(x.summary || '')}</div>
-      </div>`).join('') || '<div class="empty-state">暂无时政数据</div>'}`;
+
+    // 按月份分组，长列表才扫得动
+    const groups = new Map();
+    for (const it of items) {
+      const d = String(it.date || '');
+      const key = d.slice(0, 7) || '其他';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(it);
+    }
+
+    const monthLabel = (k) => {
+      if (k === '其他') return '其他';
+      const [y, m] = k.split('-');
+      return `${y} 年 ${Number(m)} 月`;
+    };
+
+    const body = [...groups.entries()].map(([k, list]) => `
+      <div class="pol-month">${esc(monthLabel(k))}<span>${list.length} 篇</span></div>
+      ${list.map((x) => {
+        const idx = items.indexOf(x);
+        const t = polTitle(x.title);
+        const sum = polSummary(x.summary);
+        const day = String(x.date || '').slice(8, 10) || '--';
+        return `<div class="pol-card" data-act="politics-open" data-idx="${idx}">
+          <div class="pol-card-l"><div class="pol-day">${esc(day)}</div><div class="pol-day-sub">${Number(x.chars) || 0} 字</div></div>
+          <div class="pol-card-r">
+            <div class="pol-card-t">${esc(t)}</div>
+            ${sum ? `<div class="pol-card-s">${esc(sum)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    `).join('');
+
+    const srcTag = _politicsSrc === 'online' ? '已是最新' : _politicsSrc === 'cache' ? '离线缓存' : '本地版本';
+    $('#view').innerHTML = `${head}
+      <div class="pol-top-note"><span>${items.length} 篇 · ${esc(srcTag)}</span><span>更新于 ${esc(String(data.updatedAt || '').slice(0, 10))}</span></div>
+      ${body || '<div class="empty-state">暂无时政数据</div>'}`;
   } catch (e) {
-    $('#view').innerHTML = `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">时政热点</div><span style="width:38px"></span></div><div class="empty-state">${esc(e.message)}</div>`;
+    $('#view').innerHTML = `${head}<div class="empty-state">${esc(e.message)}</div>`;
   }
 }
 
 function openPoliticsDetail(idx) {
   const it = (S.politicsList || [])[idx];
   if (!it) return;
-  const body = String(it.text || '').split('\n').map((s) => `<p>${esc(s)}</p>`).join('');
-  sheet(`<div class="sheet-head"><b>${esc(String(it.title || '').replace(/^时政汇总\|\s*/, ''))}</b><button class="sheet-close">✕</button></div>
-    <div class="card-sub" style="margin-bottom:10px">${esc(it.date || '')} · ${Number(it.chars) || 0} 字</div>
-    <div class="pol-body">${body}</div>
+  const raw = String(it.text || '')
+    .replace(/^时政热点\s*\n?/, '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // 正文是「1 / 标题 / 正文…」这种结构，标题单独成行、编号单独成行。
+  // 认出小标题就加粗，认出编号就单独起段，长文章才看得下去。
+  const blocks = [];
+  for (let i = 0; i < raw.length; i++) {
+    const s = raw[i];
+    if (/^\d{1,2}$/.test(s) && raw[i + 1] && raw[i + 1].length <= 40) {
+      blocks.push(`<h3 class="pol-h3">${esc(raw[i + 1])}</h3>`);
+      i++;
+      continue;
+    }
+    if (/^[一二三四五六七八九十]+是/.test(s)) blocks.push(`<p class="pol-p"><b>${esc(s.slice(0, 3))}</b>${esc(s.slice(3))}</p>`);
+    else blocks.push(`<p class="pol-p">${esc(s)}</p>`);
+  }
+
+  sheet(`<div class="sheet-head"><b>${esc(polTitle(it.title))}</b><button class="sheet-close">✕</button></div>
+    <div class="pol-detail-meta"><span>${esc(it.date || '')}</span><span>${Number(it.chars) || 0} 字</span></div>
+    <div class="pol-body">${blocks.join('')}</div>
     <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="close-sheet">关闭</button>`);
 }
 
@@ -1758,6 +1947,29 @@ document.addEventListener('click', (e) => {
   if (a === 'ai') { openAi(); return; }
   if (a === 'update') { checkUpdate('tiku'); return; }
   if (a === 'app-update') { checkUpdate('app'); return; }
+  if (a === 'politics-refresh') { _politics = null; openPolitics(); return; }
+  if (a === 'ai-teach') { openAi(); go('me'); return; }
+  if (a === 'upd-banner-go') { openUpdateChoice(); return; }
+  if (a === 'upd-banner-close') {
+    // 关掉就不再提这个版本，等下一版再说
+    const muted = JSON.parse(localStorage.getItem('sg_update_mute') || '{}');
+    muted.tiku = S.updateHint && S.updateHint.tiku;
+    muted.app = S.updateHint && S.updateHint.app;
+    localStorage.setItem('sg_update_mute', JSON.stringify(muted));
+    go('home');
+    return;
+  }
+  if (a === 'upd-do-tiku') { closeSheet(); checkUpdate('tiku'); return; }
+  if (a === 'upd-do-app') { closeSheet(); checkUpdate('app'); return; }
+  if (a === 'upd-later') {
+    const muted = JSON.parse(localStorage.getItem('sg_update_mute') || '{}');
+    muted.tiku = S.updateHint && S.updateHint.tiku;
+    muted.app = S.updateHint && S.updateHint.app;
+    localStorage.setItem('sg_update_mute', JSON.stringify(muted));
+    closeSheet();
+    go('home');
+    return;
+  }
   if (a === 'feishu') {
     // 私有飞书知识库：App 内打开（有原生桥时），否则退回系统浏览器
     if (!openInApp(EXTERNAL_LINKS.feishu, '备考资料库')) openExternal(EXTERNAL_LINKS.feishu);
@@ -2489,7 +2701,11 @@ async function silentTikuCheck() {
         const bits = [];
         if (canApply) bits.push(`题库 ${s.remoteVersion}`);
         if (appNew) bits.push(`App ${s.newAppVersion}`);
-        toast(`发现更新（${bits.join(' / ')}），到「我的」更新`);
+        S.updateHint = {
+          tiku: canApply ? String(s.remoteVersion || '') : '',
+          app: appNew ? String(s.newAppVersion || '') : '',
+        };
+        if (S.tab === 'home') render();
       }
     }, 12000);
   } catch { /* ignore */ }

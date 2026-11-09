@@ -136,6 +136,7 @@ research-fenbi-raw/
 
 # 更新清单本身要进仓库（App 从 raw/jsDelivr 读它），大文件仍走 Release
 !release/manifest.json
+!release/politics.json
 !release/delta-*.json.gz
 !dist/release/manifest.json
 
