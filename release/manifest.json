@@ -2,22 +2,22 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.3.9",
-    "versionCode": 79,
-    "code": 79,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
+    "version": "0.3.10",
+    "versionCode": 80,
+    "code": 80,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
         "kind": "github"
       }
     ],
-    "size": 167743424,
-    "sha256": "6fe263c5359bf6e92d0b2a5cd34103c5c3be9c026f2784325623cda0cd3f2d3e"
+    "size": 152241396,
+    "sha256": "e192d943adc8fd599d6a6de7fa05ad2f0100a70e485e96eab558272e74d355a6"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -119,10 +119,11 @@
         "kind": "github"
       }
     ],
-    "size": 80617472,
-    "sha256": "f556be329c8bc8465ff741f6289e4a9744b93e8d3dce070da489f9626054af15",
-    "gz": true
+    "size": 41893888,
+    "sha256": "e9ac65de0e65c0a71d3c9c988e5316dcb512ac1ff2a7f65402e97dac3de5d01c",
+    "gz": true,
+    "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.3.9：公式图不再依赖 Service Worker（WebView 里根本注册不上），离线也能显示；下载进度单调、分块失败自动单线程续上；新增 0.5.14 起累积增量包，老版本不再被迫下全量"
+  "note": "App 0.3.10：公式图全部转成无损 WebP，图片库 76.9MB→40.0MB，安装包 160MB→145MB；离线公式图照旧可用"
 }
