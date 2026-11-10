@@ -61,10 +61,23 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.9';
+const APP_VERSION = '0.3.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
+const DEFAULT_EXAM_BY_TYPE = {
+  '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
+  '三支一扶': { name: '2027 三支一扶', date: '2027-05-15' },
+};
+// 档案自洽：类型不是公务员、考试名却还是默认的「2027 国考」时按类型换掉，
+// 否则首页、考试页会写「事业编考生在准备国考」，自相矛盾。
+function fixProfile(p) {
+  if (!p || !p.examType || p.examType === '公务员') return p;
+  if (p.examName && p.examName !== DEFAULT_PROFILE.examName && !/国考/.test(p.examName)) return p;
+  const d = DEFAULT_EXAM_BY_TYPE[p.examType];
+  if (!d) return p;
+  return { ...p, examName: d.name, examDate: d.date };
+}
 function loadProfile() {
-  try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
+  try { return fixProfile(JSON.parse(localStorage.getItem('sg_profile') || 'null')); } catch { return null; }
 }
 function saveProfile(p) { localStorage.setItem('sg_profile', JSON.stringify(p)); S.profile = p; }
 
@@ -176,6 +189,23 @@ function dueIds() {
   const m = loadReviewState();
   const end = new Date(); end.setHours(23, 59, 59, 999);
   return Object.entries(m).filter(([, r]) => !r.mastered && (r.next || 0) <= end.getTime()).map(([k]) => k);
+}
+// 错题本副标题：今天要复习几道，以及下一批什么时候到期（只有「今日到期 0 道」会让人觉得没安排）
+function dueLine(list) {
+  const rows = list || [];
+  if (!rows.length) return '今日到期 <b>0</b> 道';
+  const m = loadReviewState();
+  const end = new Date(); end.setHours(23, 59, 59, 999);
+  const endTs = end.getTime();
+  const states = rows.map((r) => m[r.questionId]).filter((x) => x && !x.mastered);
+  const due = states.filter((r) => (r.next || 0) <= endTs).length;
+  if (due > 0) return `今日到期 <b>${due}</b> 道 · 重新作答`;
+  const nextTs = states.map((r) => r.next || 0).filter((t) => t > endTs).sort((a, b) => a - b)[0];
+  if (!nextTs) return '今日到期 <b>0</b> 道 · 暂无复习计划';
+  const days = Math.ceil((nextTs - endTs) / 86400000);
+  const d = new Date(nextTs);
+  const label = days <= 1 ? '明天' : days <= 30 ? `${days} 天后` : `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+  return `今日到期 <b>0</b> 道 · 下次复习 ${label}`;
 }
 
 /* ---------- 练习现场（自动保存 / 恢复） ---------- */
@@ -532,8 +562,8 @@ function renderHome() {
     cta = '开始复习';
     act = 'daily-task';
   } else if (remain > 0) {
-    title = `今天做 <em>${Math.min(remain, 15)}</em> 道新题`;
-    sub = `今日还差 <b>${remain}</b> 题 · 从<b>${esc(topWeak)}</b>开始`;
+    title = `今天还剩 <em>${remain}</em> 道`;
+    sub = `今天已做 <b>${today}</b> 题 · 从<b>${esc(topWeak)}</b>开始`;
     cta = '开始做题';
     act = 'daily-task';
   } else {
@@ -573,7 +603,7 @@ function renderHome() {
       <span class="quick-main"><b>模考</b><i>整卷限时</i></span>
     </button>
   </div>
-  ${resume ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
+  ${resume && (resume.ids || []).length >= 3 ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
   <button class="home-ai" data-act="plan">
     <span class="home-ai-ico">${iconSvg('bot', 20)}</span>
     <span class="home-ai-main">
@@ -855,14 +885,16 @@ async function loadPapers() {
   S.lib.view = 'papers';
   $('#view').innerHTML = '<div class="spinner"></div>';
   try {
-    const [papers, categories, chapters] = await Promise.all([
+    const [papers, categories, chapters, done] = await Promise.all([
       api('/api/papers?subject=' + encodeURIComponent(S.lib.subject) + '&limit=2000'),
       api('/api/categories?subject=' + encodeURIComponent(S.lib.subject)),
       api('/api/chapters?subject=' + encodeURIComponent(S.lib.subject)),
+      api('/api/records/papers').catch(() => ({})),
     ]);
     S.lib.papers = papers || [];
     S.lib.categories = categories || [];
     S.lib.chapters = chapters || [];
+    S.lib.done = done || {};
     S.lib.filter = { category: '全部', year: '全部', type: '全部' };
     S.lib.show = 80;
     go('library');
@@ -884,12 +916,15 @@ function renderPapers() {
   <div class="filter-group"><div class="filter-label">分类</div><div class="chips nowrap">${cats.map((c) => chip('category', c)).join('')}</div></div>
   <div class="filter-group"><div class="filter-label">年份</div><div class="chips nowrap">${years.map((y) => chip('year', y)).join('')}</div></div>
   <div class="filter-group"><div class="filter-label">类型</div><div class="chips nowrap">${types.map((t) => chip('type', t)).join('')}</div></div>
-  <div class="paper-list">${list.slice(0, S.lib.show).map((p) => `
+  <div class="paper-list">${list.slice(0, S.lib.show).map((p) => {
+    const d = (S.lib.done || {})[p.id];
+    const rate = d && d.n >= 3 ? Math.round((d.ok / d.n) * 100) : null;
+    return `
     <div class="paper-item" data-act="paper" data-id="${p.id}" data-name="${esc(p.name || '')}" data-subject="${esc(p.subject || '')}">
-      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${typeOf(p.name) === '模考' ? 'warn' : 'ok'}">${typeOf(p.name)}</span><span class="paper-year">${yearOf(p.name)}</span></div>
+      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${typeOf(p.name) === '模考' ? 'warn' : 'ok'}">${typeOf(p.name)}</span>${d ? `<span class="tag done">做过 ${d.n} 题${rate == null ? '' : ` · ${rate}%`}</span>` : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
       <div class="paper-title">${esc(p.name)}</div>
       <div class="paper-meta">${p.questionCount} 题${p.difficulty ? ` · 难度 ${p.difficulty}` : ''}</div>
-    </div>`).join('') || '<div class="empty-state">没有匹配的试卷</div>'}</div>
+    </div>`; }).join('') || '<div class="empty-state">没有匹配的试卷</div>'}</div>
   ${list.length > S.lib.show ? `<button class="btn btn-ghost btn-block" data-act="more-papers" style="margin-top:12px">加载更多（已显示 ${Math.min(S.lib.show, list.length)} / ${list.length} 套）</button>` : ''}`;
 }
 
@@ -953,7 +988,7 @@ function renderReview() {
   <div class="topline"><span class="eyebrow">回顾</span></div>
   <h1 class="page-title">把错题变成会的题</h1>
   <div class="segmented three">${tabs.map(([k, t]) => `<button class="seg ${tab === k ? 'active' : ''}" data-review-tab="${k}">${t}</button>`).join('')}</div>
-  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">错题训练</div><div class="training-sub">错题本 <b>${list.length}</b> 道 · 今日到期 <b>${dueIds().length}</b> 道 · 重新作答</div><button class="btn btn-primary btn-block" data-act="wrong-train">开始训练</button>${list.length > 50 ? `<div class="card-sub" style="margin-top:8px">列表显示最近 50 道，训练会带上全部 ${list.length} 道</div>` : ''}</section>` : ''}
+  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">错题训练</div><div class="training-sub">错题本 <b>${list.length}</b> 道 · ${dueLine(list)}</div><button class="btn btn-primary btn-block" data-act="wrong-train">开始训练</button>${list.length > 50 ? `<div class="card-sub" style="margin-top:8px">列表显示最近 50 道，训练会带上全部 ${list.length} 道</div>` : ''}</section>` : ''}
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
   <div class="card list-card">
     ${list.length ? list.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
@@ -1655,10 +1690,31 @@ function polTitle(t) {
 }
 
 /** 摘要里常把「时政热点 1 标题」连在一起，切掉前缀 */
-function polSummary(s) {
-  return String(s || '').replace(/^时政热点\s*\d+\s*/, '').replace(/\s+/g, ' ').trim();
+function polSummary(s, title) {
+  let t = String(s || "").replace(/\s+/g, " ").trim();
+  // summary 字段里塞了「时政汇总| 标题 时政汇总| 标题 1 标题 …」这种重复，卡片摘要于是全是同一行。
+  // 先把标记剥掉，再砍掉开头重复的那几遍标题，最后取第一句正文。
+  t = t.replace(/时政(汇总|热点)\s*[|｜]?/g, " ").replace(/\s+/g, " ").trim();
+  const ttl = String(title || "").trim();
+  const escT = (x) => x.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
+  if (ttl) {
+    // 只砍开头连续重复的标题（正文中间引用同一份文件名的要留着）
+    const lead = new RegExp("^(?:\\s*" + escT(ttl) + "\\s*(?:\\d{1,2}(?=\\s))?\\s*)+");
+    t = t.replace(lead, " ").replace(/\s+/g, " ").trim();
+  } else {
+    // 拿不到标题时，退一步：同一段《XX》在开头连出现两次以上，砍到最后一次之后
+    const mt = t.match(/《[^》]{2,40}》/);
+    if (mt && t.split(mt[0]).length > 2) t = t.split(mt[0]).join(" ").replace(/\s+/g, " ").trim();
+  }
+  // 标题字段与正文标题对不上时（标题是概括句、正文用《简称》），开头仍会连续重复，再兜一次
+  const mt2 = t.match(/《[^》]{2,40}》/);
+  if (mt2 && t.indexOf(mt2[0]) < 40 && t.split(mt2[0]).length > 2) {
+    const last = t.lastIndexOf(mt2[0]);
+    t = t.slice(last + mt2[0].length).replace(/^\s*\d{1,2}\s*/, "").replace(/\s+/g, " ").trim();
+  }
+  const segs = t.split(/(?<=[。！？])/).map((x) => x.replace(/^[\s|｜]+/, "").replace(/^\d{1,2}\s+(?=[《“"（])/, "").trim()).filter((x) => x.length >= 15);
+  return (segs[0] || t).slice(0, 90);
 }
-
 async function openPolitics() {
   // 时政现在从首页快捷卡进，也可能从「我的」进——别硬把 tab 改成 me，
   // 否则返回时会莫名其妙落到「我的」页
@@ -1689,13 +1745,15 @@ async function openPolitics() {
       ${list.map((x) => {
         const idx = items.indexOf(x);
         const t = polTitle(x.title);
-        const sum = polSummary(x.summary);
+        const sum = polSummary(x.summary, t);
         const day = String(x.date || '').slice(8, 10) || '--';
+        const pq = (x.practice || []).length;
         return `<div class="pol-card" data-act="politics-open" data-idx="${idx}">
           <div class="pol-card-l"><div class="pol-day">${esc(day)}</div><div class="pol-day-sub">${Number(x.chars) || 0} 字</div></div>
           <div class="pol-card-r">
             <div class="pol-card-t">${esc(t)}</div>
             ${sum ? `<div class="pol-card-s">${esc(sum)}</div>` : ''}
+          ${pq ? `<div class="pol-card-q">练一练 ${pq} 题</div>` : ''}
           </div>
         </div>`;
       }).join('')}

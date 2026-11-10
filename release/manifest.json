@@ -1,79 +1,79 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T06:45:14.716Z",
+  "publishedAt": "2026-11-10T11:16:25.447Z",
   "app": {
-    "version": "0.2.9",
-    "versionCode": 69,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/shangan-0.2.9-release.apk",
+    "version": "0.3.0",
+    "versionCode": 70,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
     "sources": [
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/shangan-0.2.9-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
         "kind": "github"
       },
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/shangan-0.2.9-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
         "kind": "gh-proxy"
       }
     ],
-    "size": 144818983,
-    "sha256": "c461b11b7b595e6a0c2dcf24a142b278d6052dfd4dd7766d8ffab6557485ba4f"
+    "size": 154397960,
+    "sha256": "43a07521c57cedef6845f4188178bf4424c0a3982004f2fa26afb88a33f88d94"
   },
   "tiku": {
-    "dbVersion": "0.5.14-20261110-1450",
+    "dbVersion": "0.5.15-20261110-1909",
     "questions": 91648,
     "full": {
-      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/tiku_app.db.gz",
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
       "mirrors": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz"
       ],
       "sources": [
         {
-          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/tiku_app.db.gz",
+          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
           "kind": "github"
         },
         {
-          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/tiku_app.db.gz",
+          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
           "kind": "gh-proxy"
         }
       ],
-      "size": 99382622,
-      "sha256": "fa2aa827860f548341eb4357122a2262ef0caadc33c3b74dae89e8ecc283cc9d",
-      "gzSha256": "402bebb7db436e9fcdb3c081e1b6ea064e778222ab84a08fa2b8b827b3ca532d",
+      "size": 99889809,
+      "sha256": "2e2b8d22e6958e3730c8d218ffe15304acd45b5784a399c8b35ee1d49da0ee9b",
+      "gzSha256": "ccc5dfd69930ed928408e91af5189bf529804d9db9f098b8a209418c458e04f8",
       "gz": true,
-      "rawSize": 375164928
+      "rawSize": 376881152
     },
     "delta": [
       {
-        "from": "0.5.13-20261110-1420",
-        "to": "0.5.14-20261110-1450",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz",
+        "from": "0.5.14-20261110-1450",
+        "to": "0.5.15-20261110-1909",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
         "mirrors": [
-          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz",
-          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz"
+          "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
+          "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz"
         ],
         "sources": [
           {
-            "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz",
+            "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
             "kind": "jsdelivr"
           },
           {
-            "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz",
+            "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
             "kind": "github"
           },
           {
-            "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/delta-0.5.13-20261110-1420-0.5.14-20261110-1450.json.gz",
+            "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
             "kind": "gh-proxy"
           }
         ],
-        "size": 1917425,
-        "sha256": "9c600dfa821911c20fb6bdcd9cb71665cf934c9b80ac7ed6c23670dbe85e1dbe",
-        "gzSha256": "dd961d146bfc81fa94f0ae6ddc6f223968792b5889de27b38119d84d5267b207",
-        "rawSize": 14710064,
+        "size": 22139976,
+        "sha256": "e10587f36f1add0bf1b904183fe60fe7f4fe58806f316cf5fc04a51292485372",
+        "gzSha256": "653ca5beb16b9c89abbf871c95ff49ad1ff1f6b564457fd62db0b0c87b8e45e8",
+        "rawSize": 89497427,
         "counts": {
           "papersAdded": 0,
           "papersChanged": 0,
           "questionsAdded": 0,
-          "questionsChanged": 4153,
+          "questionsChanged": 58458,
           "questionsDeleted": 0,
           "questionCategories": 91805
         }
@@ -81,17 +81,17 @@
     ]
   },
   "images": {
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/images.db.gz",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
     "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/images.db.gz"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz"
     ],
     "sources": [
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/images.db.gz",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
         "kind": "github"
       },
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.14-20261110-1450/images.db.gz",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
         "kind": "gh-proxy"
       }
     ],
@@ -100,5 +100,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "题库 0.5.14-20261110-1450，91648 题"
+  "note": "题库 0.5.15（题干填空横线修复）+ App 0.3.0（首页数字统一、时政摘要、错题复习计划、试卷做过角标）"
 }

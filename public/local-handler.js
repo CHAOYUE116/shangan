@@ -193,6 +193,20 @@ export function createLocalHandler({ query, records, store, ai }) {
       });
     }
     if (route === 'GET /records/recent') return records.recent({ limit: Number(qs.get('limit') || 20) });
+    // 每套试卷做过多少题（试卷列表的「做过」角标用）：{ "123": { n: 30, ok: 18, last: ts } }
+    if (route === 'GET /records/papers') {
+      const all = await store.getAll('records');
+      const map = {};
+      for (const r of all) {
+        const pid = r.paper_id;
+        if (pid == null || pid === 0) continue;
+        const e = map[pid] || (map[pid] = { n: 0, ok: 0, last: 0 });
+        e.n += 1;
+        if (r.is_correct === 1) e.ok += 1;
+        if ((r.created_at || 0) > e.last) e.last = r.created_at || 0;
+      }
+      return map;
+    }
     // 来源分组总览（5 大模块 + 未分类）
     if (route === 'GET /records/wrong/groups') return records.groups('wrong');
     if (route === 'GET /favorites/groups') return records.groups('favorites');
