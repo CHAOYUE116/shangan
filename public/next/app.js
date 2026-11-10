@@ -61,16 +61,74 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.6';
-const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
+const APP_VERSION = '0.3.7';
+const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
   '三支一扶': { name: '2027 三支一扶', date: '2027-05-15' },
 };
+
+/* ---------- 考试组合（2026-11） ----------
+ * 以前的毛病：科目是全局的，公基 2.3 万题占事业编 57%，随机 15 题里 8~9 道是公基；
+ * 但浙江统考、联考 A 类根本不考公基，只有福建《综合基础知识》、山西《综合知识》考。
+ * 现在一场考试 = 若干科目 + 权重，每日任务、随机练习、组卷都按权重分配额，不按题库比例。
+ */
+const EXAM_SCHEMES = {
+  '公务员·国考': { type: '公务员', subs: [['公务员·行测', 6], ['公务员·申论', 4]] },
+  '公务员·省考': { type: '公务员', subs: [['公务员·行测', 6], ['公务员·申论', 4]] },
+  '事业编·联考A类': { type: '事业编', subs: [['事业编·职测', 6], ['事业编·综应', 4]] },
+  '事业编·浙江统考': { type: '事业编', subs: [['事业编·职测', 6], ['事业编·综应', 4]] },
+  '事业编·福建综合基础': { type: '事业编', subs: [['事业编·公基', 7], ['事业编·综应', 3]] },
+  '事业编·山西综合知识': { type: '事业编', subs: [['事业编·公基', 10]] },
+  '三支一扶·综合知识': { type: '三支一扶', subs: [['事业编·公基', 6], ['事业编·职测', 4]] },
+};
+/** 当前档案对应的考试组合；档案里没写或写了不存在的，按类型兜底 */
+function currentScheme() {
+  const name = S.profile.scheme;
+  if (name && EXAM_SCHEMES[name]) return { name, ...EXAM_SCHEMES[name] };
+  const type = S.profile.examType || '公务员';
+  const hit = Object.entries(EXAM_SCHEMES).find(([, v]) => v.type === type);
+  return hit ? { name: hit[0], ...hit[1] } : { name: '公务员·国考', ...EXAM_SCHEMES['公务员·国考'] };
+}
+/** 本场考试要练的科目（已剔除"我不考这科"的），按权重降序 */
+function schemeSubjects() {
+  const sch = currentScheme();
+  const off = new Set(S.profile.excluded || []);
+  const list = sch.subs.filter(([s]) => !off.has(s)).map(([subject, w]) => ({ subject, w }));
+  return list.length ? list : sch.subs.map(([subject, w]) => ({ subject, w }));
+}
+/** 按权重把 n 道题分给各科目：先保底 1 道，剩下的按权重摊，余数给权重最大的 */
+function quotaFor(n, objectiveOnly = false) {
+  // 每日任务只做客观题：综应/申论是主观题（作文、材料分析），塞进每日 15 题里体验很差，
+  // 这两科走「按试卷/按考点」的整卷练习。主观题科目在题库里仍然可见可练。
+  let subs = schemeSubjects();
+  if (objectiveOnly) {
+    const obj = subs.filter((x) => !/综应|申论/.test(x.subject));
+    if (obj.length) subs = obj;
+  }
+  const total = subs.reduce((a, b) => a + b.w, 0) || 1;
+  const raw = subs.map((s) => ({ subject: s.subject, v: (n * s.w) / total }));
+  const out = raw.map((r) => ({ subject: r.subject, n: Math.max(n >= subs.length ? 1 : 0, Math.floor(r.v)) }));
+  let left = n - out.reduce((a, b) => a + b.n, 0);
+  // 余数按小数部分从大到小补
+  const order = raw.map((r, i) => ({ i, frac: r.v - Math.floor(r.v) })).sort((a, b) => b.frac - a.frac);
+  for (let k = 0; left > 0; k = (k + 1) % order.length) { out[order[k].i].n += 1; left--; }
+  while (left < 0) { const i = out.findIndex((o) => o.n > 0); if (i < 0) break; out[i].n -= 1; left++; }
+  return out.filter((o) => o.n > 0);
+}
 // 档案自洽：类型不是公务员、考试名却还是默认的「2027 国考」时按类型换掉，
 // 否则首页、考试页会写「事业编考生在准备国考」，自相矛盾。
 function fixProfile(p) {
-  if (!p || !p.examType || p.examType === '公务员') return p;
+  if (!p) return p;
+  // 老档案没有 scheme（0.3.6 之前），按考试类型补一个默认组合，
+  // 否则 currentScheme() 会兜底到「国考」，事业编用户又会被带偏。
+  if (!p.scheme) {
+    const type = p.examType || '公务员';
+    const hit = Object.entries(EXAM_SCHEMES).find(([, v]) => v.type === type);
+    if (hit) p = { ...p, scheme: hit[0] };
+  }
+  if (!Array.isArray(p.excluded)) p = { ...p, excluded: [] };
+  if (!p.examType || p.examType === '公务员') return p;
   if (p.examName && p.examName !== DEFAULT_PROFILE.examName && !/国考/.test(p.examName)) return p;
   const d = DEFAULT_EXAM_BY_TYPE[p.examType];
   if (!d) return p;
@@ -102,14 +160,29 @@ const S = {
 const SUBJECT_RANK = { '公务员·行测': 0, '公务员·申论': 1, '事业编·综应': 2, '事业编·职测': 3, '事业编·公基': 4 };
 function visibleSubjects() {
   const t = S.profile.examType;
-  const list = (t === '事业编' || t === '三支一扶')
+  const byType = (t === '事业编' || t === '三支一扶')
     ? S.subjects.filter((s) => s.subjectName.startsWith('事业编'))
     : S.subjects.filter((s) => s.subjectName.startsWith('公务员'));
-  return list.slice().sort((a, b) => (SUBJECT_RANK[a.subjectName] ?? 9) - (SUBJECT_RANK[b.subjectName] ?? 9));
+  // 先按「本场考试考什么」排：考试组合里的科目在前（权重高的更前），
+  // 组合外的科目仍然保留（用户可能想看题库），但排到后面并标灰。
+  const subs = schemeSubjects();
+  const rankOf = (name) => {
+    const i = subs.findIndex((x) => x.subject === name);
+    return i < 0 ? 100 + (SUBJECT_RANK[name] ?? 9) : i;
+  };
+  return byType.slice().sort((a, b) => rankOf(a.subjectName) - rankOf(b.subjectName));
 }
+/** 本场考试不考的科目（用来在题库页标「不考」） */
+function notInScheme(name) { return !schemeSubjects().some((x) => x.subject === name); }
 function defaultSubject() {
   const subs = visibleSubjects();
   if (!subs.length) return '';
+  // 优先用考试组合的第一科：浙江统考就是职测，福建综合基础就是公基
+  const first = schemeSubjects()[0];
+  if (first) {
+    const hit = subs.find((s) => s.subjectName === first.subject);
+    if (hit) return hit.subjectName;
+  }
   const last = localStorage.getItem('sg_last_subject');
   if (last && subs.some((s) => s.subjectName === last)) return last;
   // 申论/综应是主观题，和客观题刷题体验完全不同，没练过时先不选它们
@@ -135,7 +208,8 @@ function todayCount() {
 function dailyGoal() { return S.profile.dailyGoal || 20; }
 function dailyRemaining() { return Math.max(0, dailyGoal() - todayCount()); }
 function dailySubject() {
-  return S.profile.examType === '公务员' ? '公务员·行测' : '事业编·职测';
+  // 取本场考试权重最高的科目（原来写死「事业编→职测」，公基/综应永远轮不到）
+  return schemeSubjects()[0].subject;
 }
 
 /* ---------- 复习排期（本机） ---------- */
@@ -837,8 +911,8 @@ function renderLibrary() {
     <div class="continue-main"><div class="continue-title">按考点练</div><div class="continue-sub">按真题考点专项突破 · 专攻一个，练完再换</div></div>
     <span class="chev">›</span>
   </button>
-  <div class="section-head"><h2 class="section-title">选择科目</h2></div>
-  <div class="chips nowrap">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
+  <div class="section-head"><h2 class="section-title">选择科目</h2><span class="module-count">${esc(currentScheme().name)}</span></div>
+  <div class="chips nowrap">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}${notInScheme(s.subjectName) ? ' ·不考' : ''}</button>`).join('')}</div>
   <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${subj.done || 0} 题已做</span></div>
   <div class="card module-card">
     ${groups.map((g, i) => `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部"><div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count">${g.total} 题</div><div class="module-bar"><i style="width:${Math.min(100, g.total / 70)}%"></i></div></div>${(g.subs || []).filter((x) => x.total > 0 && x.name !== '全部').map((x) => `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count">${x.total} 题</div></div>`).join('')}`).join('') || '<div class="empty-state">暂无专项数据</div>'}
@@ -1155,7 +1229,7 @@ function renderExamResult() {
     }).join('');
     return `<details class="card result-q" style="margin-bottom:8px">
       <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
-      <div class="q-stem" style="margin-top:12px">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
+      <div class="q-stem" style="margin-top:12px">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
     </details>`;
   };
   const reviewHtml = gList.length ? gList.map((g) => `<section class="rv-group">
@@ -2308,7 +2382,10 @@ function renderQuestionBlock(q, fb) {
   const stemHtml = q.contentHtml
     ? String(q.contentHtml).replace(TYPE_PREFIX, '')
     : esc(String(q.content || '').replace(TYPE_PREFIX, ''));
-  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${tagText}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(stemHtml)}</div>${renderMaterial(q)}${opts}`;
+  // 出处标识只放在题干最前面，不写进 content：题库里同一道题可能属于多套卷，
+  // 写死会把「跨卷复用」改错，也会污染搜索与指纹匹配。
+  const src = q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : '';
+  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${tagText}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${src}${safeHtml(stemHtml)}</div>${renderMaterial(q)}${opts}`;
 }
 function renderPractice() {
   const P = S.practice; const q = currentQ(); if (!q) return;
@@ -2322,7 +2399,7 @@ function renderPractice() {
   const body = $('#p-body'); const acts = $('#p-actions');
   const options = Array.isArray(q.options) ? q.options : [];
   if (P.exam || !P.confirmed) {
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${P.selected == null ? 'disabled style="opacity:.45"' : ''}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-show-answer>查看参考答案</button>`;
@@ -2845,8 +2922,53 @@ async function reviewTrain() {
 async function startNewDaily() {
   const n = Math.min(dailyRemaining(), 15);
   if (n <= 0) { toast('今日任务已完成'); return; }
-  const subject = dailySubject();
-  await startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(subject)}&n=${n}&mock=0&year=10&difficulty=random`, `今日新题 · ${n} 题`, subject, 'new');
+  // 按考试组合分配额：浙江统考 = 职测 60% + 综应 40%，不会因为公基题多就全推公基
+  const plan = quotaFor(n, true);
+  const qs = [];
+  const seen = new Set();
+  let short = [];
+  for (const p of plan) {
+    try {
+      // 只抽客观题（单选/多选/判断）：综应、申论大部分是主观题，抽进每日任务等于给用户发作文题
+      const got = await api(`/api/practice?subject=${encodeURIComponent(p.subject)}&n=${p.n * 2}&mock=0&year=10&difficulty=random&types=1,2,3`);
+      let hit = 0;
+      for (const q of got || []) {
+        const id = q.id ?? q.questionId;
+        if (id == null || seen.has(id)) continue;
+        seen.add(id); qs.push(q); hit++;
+        if (hit >= p.n) break;
+      }
+      if (hit < p.n) short.push({ subject: p.subject, n: p.n - hit });
+    } catch { short.push({ subject: p.subject, n: p.n }); }
+  }
+  // 某科客观题不够（典型是综应），缺额按权重转给其余科目，别让用户少做题
+  for (const s of short) {
+    const donors = plan.filter((x) => x.subject !== s.subject);
+    if (!donors.length) break;
+    for (const d of donors) {
+      if (s.n <= 0) break;
+      try {
+        const got = await api(`/api/practice?subject=${encodeURIComponent(d.subject)}&n=${s.n}&mock=0&year=10&difficulty=random&types=1,2,3`);
+        for (const q of got || []) {
+          const id = q.id ?? q.questionId;
+          if (id == null || seen.has(id)) continue;
+          seen.add(id); qs.push(q); s.n--;
+          if (s.n <= 0) break;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  // 各科都凑不够时，用主科补齐
+  if (qs.length < n) {
+    try {
+      const more = await api(`/api/practice?subject=${encodeURIComponent(dailySubject())}&n=${n - qs.length}&mock=0&year=10&difficulty=random`);
+      for (const q of more || []) { const id = q.id ?? q.questionId; if (!seen.has(id)) { seen.add(id); qs.push(q); } }
+    } catch { /* ignore */ }
+  }
+  const list = qs.slice(0, n);
+  if (!list.length) { toast('暂无题目'); return; }
+  const label = plan.map((p) => `${p.subject.split('·')[1]} ${p.n}`).join(' + ');
+  startPractice(list, `今日新题 · ${label}`, list[0].subject || dailySubject(), 'new');
 }
 async function startDailyTask() {
   if (dueIds().length) { await reviewTrain(); return; }
@@ -3203,6 +3325,23 @@ function openProfile() {
     <div class="filter-label">考试类型</div><div class="chips">${['公务员', '事业编', '三支一扶'].map((x) => `<button class="chip ${p.examType === x ? 'active' : ''}" data-profile-exam="${x}">${x}</button>`).join('')}</div>
     <div class="filter-label">省份</div><div class="chips">${['全国', '山东', '江苏', '浙江', '广东', '河南', '四川'].map((x) => `<button class="chip ${p.province === x ? 'active' : ''}" data-profile-province="${x}">${x}</button>`).join('')}</div>
     <div class="filter-label">每日题量</div><div class="chips">${[15, 20, 30, 50].map((x) => `<button class="chip ${p.dailyGoal === x ? 'active' : ''}" data-profile-goal="${x}">${x} 题</button>`).join('')}</div>
+    ${(() => {
+      // 考试组合：决定「每日任务抽哪几科、各几道」，不跟着题库题量走
+      const sch = p.scheme || currentScheme().name;
+      const opts = Object.entries(EXAM_SCHEMES).filter(([, v]) => v.type === (p.examType || '公务员'));
+      const cur = EXAM_SCHEMES[sch] || opts[0]?.[1];
+      return `<div class="filter-label">考试组合<button class="link-sm" data-profile-tip="1">?</button></div>
+        <div class="chips">${opts.map(([name]) => `<button class="chip ${name === sch ? 'active' : ''}" data-profile-scheme="${esc(name)}">${esc(name.split('·')[1] || name)}</button>`).join('')}</div>
+        ${cur ? `<div class="card-sub" style="margin-top:6px">每日任务按此比例分配：${cur.subs.map(([s, w]) => `${esc(s.split('·')[1])} ${w}`).join(' : ')}</div>` : ''}`;
+    })()}
+    ${(() => {
+      const sch = EXAM_SCHEMES[p.scheme || currentScheme().name];
+      if (!sch) return '';
+      const off = new Set(p.excluded || []);
+      return `<div class="filter-label">我不考（从选题池剔除）</div>
+        <div class="chips">${sch.subs.map(([s]) => `<button class="chip ${off.has(s) ? 'active' : ''}" data-profile-exclude="${esc(s)}">${esc(s.split('·')[1])}</button>`).join('')}</div>
+        <div class="card-sub" style="margin-top:6px">选中的科目不会被每日任务和随机练习抽到，题库里仍可手动进入</div>`;
+    })()}
     <button class="btn btn-primary btn-block" style="margin-top:14px" data-act="profile-save">保存</button>`);
 }
 function applyTheme(mode) {
@@ -3216,9 +3355,22 @@ document.addEventListener('click', (e) => {
   const ex = e.target.closest('[data-profile-exam]');
   const pr = e.target.closest('[data-profile-province]');
   const gl = e.target.closest('[data-profile-goal]');
+  const sc = e.target.closest('[data-profile-scheme]');
+  const exd = e.target.closest('[data-profile-exclude]');
   if (ex) { S._draft = { ...(S._draft || S.profile), examType: ex.dataset.profileExam }; openProfile(); return; }
   if (pr) { S._draft = { ...(S._draft || S.profile), province: pr.dataset.profileProvince }; openProfile(); return; }
   if (gl) { S._draft = { ...(S._draft || S.profile), dailyGoal: Number(gl.dataset.profileGoal) }; openProfile(); return; }
+  if (sc) { S._draft = { ...(S._draft || S.profile), scheme: sc.dataset.profileScheme, excluded: [] }; openProfile(); return; }
+  if (exd) {
+    const cur = new Set((S._draft || S.profile).excluded || []);
+    const k = exd.dataset.profileExclude;
+    if (cur.has(k)) cur.delete(k); else cur.add(k);
+    const arr = [...cur];
+    // 不能把科目全剔了，否则每日任务无题可抽
+    const sch = EXAM_SCHEMES[(S._draft || S.profile).scheme || currentScheme().name];
+    if (sch && arr.length >= sch.subs.length) { toast('至少要留一科'); return; }
+    S._draft = { ...(S._draft || S.profile), excluded: arr }; openProfile(); return;
+  }
   const obExam = e.target.closest('[data-ob-exam]');
   const obProv = e.target.closest('[data-ob-province]');
   const obDate = e.target.closest('[data-ob-date]');

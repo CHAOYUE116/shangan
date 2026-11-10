@@ -26,9 +26,9 @@ const Q_PAPERS_BY_CATEGORY =
 const Q_PAPER_BY_ID =
   'SELECT id, subjectName, category, name, questionCount, difficulty, chapters FROM papers WHERE id = ?';
 const Q_QUESTIONS_BY_PAPER =
-  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml FROM questions q WHERE q.paperId = ? ORDER BY q.id';
+  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
 const Q_QUESTION_BY_ID =
-  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
+  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
 const Q_MATERIALS_BY_PAPER =
   'SELECT title, idx, text FROM materials WHERE paperId = ? ORDER BY idx';
 // ============ 题库精简（2026-08）：只保留近十年试卷（年份取试卷名前缀，如 "2024年..."） ============
@@ -198,10 +198,40 @@ export function mockCond(mock) {
   return '';
 }
 
+// ============ 真题出处标识（2026-11） ============
+// 只按卷名推导，不回写 questions.content：题意检索、填空归一化都依赖原文，
+// 一旦把「（2026·浙江）」写进 content，搜索「浙江」会命中所有题，指纹匹配也会失准。
+const PROVINCES = ['北京', '天津', '河北', '山西', '内蒙古', '辽宁', '吉林', '黑龙江', '上海', '江苏',
+  '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '广西', '海南',
+  '重庆', '四川', '贵州', '云南', '西藏', '陕西', '甘肃', '青海', '宁夏', '新疆'];
+
+/** 卷名 → （2026·浙江） 这样的出处标签；认不出来返回空串 */
+export function sourceTagOf(name) {
+  const s = String(name || '');
+  if (!s) return '';
+  const year = (/(20\d{2})/.exec(s) || [])[1] || '';
+  let region = '';
+  // 卷名本身常带「2017·浙江公务员考试…」「2017·深圳市…」这种写法，先认这个，
+  // 比逐省匹配更稳（深圳、广州这类市级卷不在省份表里）。
+  const dot = /20\d{2}\s*[·・]\s*([\u4e00-\u9fa5]{2,6}?)(?=公务员|事业单位|事业编|考试|录用|真题|《|$)/.exec(s);
+  if (dot) region = dot[1].replace(/(省|市|自治区|回族|维吾尔|壮族|特别行政区)$/, '');
+  if (region === '国家' || region === '中央') region = '国考';
+  if (!region) for (const p of PROVINCES) if (s.includes(p)) { region = p; break; }
+  if (!region) {
+    if (/国家公务员|国考|中央机关/.test(s)) region = '国考';
+    else if (/联考/.test(s)) region = '联考';
+    else if (/事业单位|事业编/.test(s)) region = '事业编';
+    else if (/省考/.test(s)) region = '省考';
+  }
+  if (!year && !region) return '';
+  return `（${[year, region].filter(Boolean).join('·')}）`;
+}
+
 /** 组装题目响应（与 server toQuestion 相同：字段名为 id） */
 export function toQuestion(q) {
   return {
     id: q.questionId,
+    sourceTag: sourceTagOf(q.paperName),
     paperId: q.paperId ?? null,
     chapter: q.chapter,
     type: q.type,
@@ -295,7 +325,7 @@ function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
   }
   const sel = picks.slice(0, n);
   const qs = tiku.all(
-    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml
+    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
      FROM questions q WHERE q.id IN (${sel.map(() => '?').join(',')})`,
     ...sel
   );
@@ -363,7 +393,7 @@ function enrichGroups(tiku, practice, rows, subject, diffFilter) {
   const allIds = [...new Set([...qids, ...[...groupMembers.values()].flat()])];
   let qs = [];
   if (allIds.length) {
-    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
+    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
   }
   const orderOf = new Map(qs.map((q) => [q.questionId, q.id]));
   const byId = new Map(qs.map((q) => [q.questionId, q]));

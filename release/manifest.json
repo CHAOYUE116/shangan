@@ -1,22 +1,23 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T15:30:07.205Z",
+  "publishedAt": "2026-11-10T16:55:30.343Z",
   "app": {
-    "version": "0.3.6",
-    "versionCode": 76,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.6-release.apk",
+    "version": "0.3.7",
+    "versionCode": 77,
+    "code": 77,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.6-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.6-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
         "kind": "github"
       }
     ],
-    "size": 154403097,
-    "sha256": "6286182e4f8a0396237847107274d17a8bf36a8f5882d9198e289814f224f24f"
+    "size": 167738945,
+    "sha256": "afc1b0dd96a2b2553eb6561ba22eed821a0c9d4fc8275b7f22ef49e5f3ce102a"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -100,5 +101,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "题库 0.5.16：补入 33,071 条解析（事业编职测缺解析 19,035→2,307，公基 17,164→1,006；行测保持 0 缺口），题干填空横线与括号占位还原"
+  "note": "App 0.3.7：考试组合（按你考的那场分配每日题量，不再被公基题量带偏）、真题出处标识（2026·浙江）"
 }

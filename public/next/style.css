@@ -265,6 +265,8 @@ h2.section-title { font-size: 17px; margin: 0; font-weight: 650; letter-spacing:
 
 .q-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .q-stem { font-size: 16.5px; line-height: 1.72; margin-bottom: 18px; }
+/* 真题出处：（2026·浙江）这种，跟题干同一行但视觉上弱一档 */
+.q-src { color: var(--brand, #3557F4); font-weight: 600; font-size: 0.92em; margin-right: 2px; }
 .option {
   width: 100%; display: flex; align-items: flex-start; gap: 12px;
   text-align: left; background: var(--card); border: 1px solid var(--line);
