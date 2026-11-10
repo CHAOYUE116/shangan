@@ -1,4 +1,15 @@
-﻿# CHANGELOG
+# CHANGELOG
+
+## App 0.3.6
+
+这一版只动复习引擎，逐条对应「为什么它现在帮不上提分」：
+
+- **随机练习会重复端上做过的题**：`local-queries.js` 的出题就是 `ORDER BY RANDOM()`，完全不看你的做题记录，前端 `seenQid` 又只在本批次内去重。现在 `startPracticeByUrl` 会先取出「做过的题号」（IndexedDB records，60 秒缓存），命中的丢掉，不足 15 道就再要一轮补足（最多补 3 轮）；试卷、模考、智能组卷、错题复习不受影响。
+- **掌握门槛太松**：原来连对 2 次、到第 3 档就 `mastered = true`，永久移出复习队列——蒙对两次的题也再不会出现。现在要求连对 3 次、第 4 档，且记录 `last` 复习时间。
+- **每日复习先来哪道没讲究**：`dueIds()` 只过滤不排序，额度会被「只错一次」的题占满。现在按「错得次数多 → 拖得久」排序，先啃硬骨头。
+- **复习进度会随配额丢失**：`saveReviewState` 直接 `setItem`，5MB 打满就抛 `QuotaExceededError` 打断答题。现在包了 try/catch，配额满时先丢已掌握的条目再重试。
+- **换机 / 重装复习计划全丢**：`backup.js` 的 `PREF_KEYS` 原来只有 `theme` 和 `custom_practice_cfg`，`sg_review_v1`（复习档位）、`sg_session_v1`（练习现场）、`sg_profile`（备考档案）都不在备份里。现在都进去了。
+- `tools/sync-webapp.mjs` 默认连 `app-assets` 一起同步（`--no-assets` 可关）。此前漏了这一步，APK 里躺的一直是 0.5.0 的旧库，新装用户开箱拿到 10 万行旧数据。
 
 ## App 0.3.2
 

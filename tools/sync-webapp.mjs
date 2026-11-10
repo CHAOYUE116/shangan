@@ -25,7 +25,9 @@ const ROOT = path.resolve(__dirname, '..');
 const WEBAPP = path.resolve(ROOT, '..', 'webapp');
 
 const checkOnly = process.argv.includes('--check');
-const withAssets = process.argv.includes('--assets');
+// 默认连 app-assets 一起同步：漏掉它会让 APK 里一直躺着一份旧题库
+// （0.3.2 之前打进包里的还是 0.5.0 的库，新装用户拿到 10 万行旧数据）。
+const withAssets = !process.argv.includes('--no-assets');
 
 /** 源（相对 kaogong-shuati/） → webapp 内的相对路径 */
 const FILES = [

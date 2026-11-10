@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.6';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -142,19 +142,34 @@ function dailySubject() {
 const REVIEW_KEY = 'sg_review_v1';
 const INTERVALS = [0, 1, 2, 4, 7, 15, 30];
 function loadReviewState() { try { return JSON.parse(localStorage.getItem(REVIEW_KEY) || '{}'); } catch { return {}; } }
-function saveReviewState(v) { localStorage.setItem(REVIEW_KEY, JSON.stringify(v)); }
+function saveReviewState(v) {
+  try {
+    localStorage.setItem(REVIEW_KEY, JSON.stringify(v));
+  } catch (e) {
+    // localStorage 只有 5MB，复习条目每条约 90 字节；真做满 5 万题会顶到上限，
+    // 顶不住时先丢「已掌握」的条目（它们本来就不再参与复习），让写入活下来。
+    try {
+      const slim = {};
+      for (const [k, r] of Object.entries(v)) if (!r || !r.mastered) slim[k] = r;
+      localStorage.setItem(REVIEW_KEY, JSON.stringify(slim));
+    } catch (_) { /* 仍然写不进：本轮复习状态放弃，不影响答题 */ }
+  }
+}
 function updateReview(qid, ok) {
   const m = loadReviewState(); const k = String(qid);
   const r = m[k] || { level: 1, next: 0, wrong: 0, streak: 0, mastered: false };
   if (ok) {
     r.streak = (r.streak || 0) + 1;
     r.level = Math.min(6, (r.level || 1) + 1);
-    if (r.streak >= 2 && r.level >= 3) r.mastered = true;
+    // 「掌握」的门槛：连对 3 次、且间隔已经推到 7 天档。
+    // 原来是连对 2 次就判掌握并从此不再出现，错题里那些「蒙对两次」的题会被永久埋掉。
+    if (r.streak >= 3 && r.level >= 4) r.mastered = true;
     r.next = Date.now() + INTERVALS[Math.min(6, r.level)] * 86400000;
   } else {
     r.streak = 0; r.level = 1; r.wrong = (r.wrong || 0) + 1; r.mastered = false;
     r.next = Date.now() + 86400000;
   }
+  r.last = Date.now();
   m[k] = r; saveReviewState(m);
 }
 // 一次性迁移：老数据里 next=0 的错题会全部「今天到期」，
@@ -188,7 +203,12 @@ function reviewCountOn(dayOffset) {
 function dueIds() {
   const m = loadReviewState();
   const end = new Date(); end.setHours(23, 59, 59, 999);
-  return Object.entries(m).filter(([, r]) => !r.mastered && (r.next || 0) <= end.getTime()).map(([k]) => k);
+  // 到期队列按「错得多、拖得久」优先：错 3 次的题应该排在错 1 次的前面，
+  // 否则每天 15 道的额度会被一批只错一次的题占满，真正的硬骨头永远排不上。
+  return Object.entries(m)
+    .filter(([, r]) => !r.mastered && (r.next || 0) <= end.getTime())
+    .sort((a, b) => (b[1].wrong || 0) - (a[1].wrong || 0) || (a[1].next || 0) - (b[1].next || 0))
+    .map(([k]) => k);
 }
 // 错题本副标题：今天要复习几道，以及下一批什么时候到期（只有「今日到期 0 道」会让人觉得没安排）
 function dueLine(list) {
@@ -2116,10 +2136,54 @@ async function startPracticeByUrl(url, title, subject, kind = '', kp = '') {
   $('#practice').hidden = false;
   $('#p-body').innerHTML = '<div class="spinner"></div>';
   try {
-    const qs = await api(url);
+    // 随机类练习去重：库里 9 万题，纯随机出题会把你做过的题再端上来。
+    // 服务端单次最多给 15 道，所以过滤后不足就再要一轮，最多补 3 轮。
+    const dedupe = !['review', 'paper', 'smart'].includes(kind);
+    const want = dedupe ? Number((/[?&]n=(\d+)/.exec(url) || [])[1] || 0) : 0;
+    let qs = await api(url);
+    if (dedupe && want > 0) {
+      const done = await doneIdSet();
+      if (done.size) {
+        const seen = new Set();
+        const pool = [];
+        const take = (arr) => {
+          for (const q of Array.isArray(arr) ? arr : []) {
+            const k = String(q.questionId != null ? q.questionId : q.id);
+            if (done.has(k) || seen.has(k)) continue;
+            seen.add(k); pool.push(q);
+          }
+        };
+        take(qs);
+        for (let round = 0; round < 3 && pool.length < want; round++) {
+          try { take(await api(url)); } catch { break; }
+        }
+        if (pool.length) qs = pool.slice(0, want);
+      } else if (Array.isArray(qs) && qs.length > want) {
+        qs = qs.slice(0, want);
+      }
+    }
     if (!Array.isArray(qs) || !qs.length) { toast('暂无题目'); $('#practice').hidden = true; return; }
     startPractice(qs, title, subject, kind, null, kp);
   } catch (e) { toast(e.message); $('#practice').hidden = true; }
+}
+
+/** 做过的题号集合（IndexedDB records），缓存 60 秒，避免每次进去都全表扫一遍 */
+let _doneCache = { at: 0, set: new Set() };
+async function doneIdSet() {
+  if (Date.now() - _doneCache.at < 60000) return _doneCache.set;
+  const set = new Set();
+  try {
+    const store = window.__LOCAL_STORE__;
+    if (store) {
+      const rows = await store.getAll('records');
+      for (const r of rows || []) {
+        const id = r.questionId != null ? r.questionId : r.question_id;
+        if (id != null) set.add(String(id));
+      }
+    }
+  } catch { /* 拿不到就当没有记录，别拦着做题 */ }
+  _doneCache = { at: Date.now(), set };
+  return set;
 }
 function startPractice(qs, title, subject, kind = '', restore = null, kp = '') {
   // /api/practice 回来的是 id，POST /api/records 要的是 questionId —— 在这一层统一好，

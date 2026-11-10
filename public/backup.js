@@ -17,7 +17,7 @@ export const FORMAT_VERSION = 1;
 export const APP_VERSION = '0.2.5';
 
 const DATA_STORES = ['records', 'favorites', 'notes', 'custom_batches', 'custom_questions'];
-const PREF_KEYS = ['theme', 'custom_practice_cfg'];
+const PREF_KEYS = ['theme', 'custom_practice_cfg', 'sg_review_v1', 'sg_session_v1', 'sg_last_subject', 'sg_profile'];
 const PREF_PREFIXES = ['custom_bank_mode:', 'custom_bank_count:'];
 const AUTO_KEEP = 4;
 const AUTO_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
