@@ -1,22 +1,22 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T13:22:55.665Z",
+  "publishedAt": "2026-11-10T14:55:57.400Z",
   "app": {
-    "version": "0.3.2",
-    "versionCode": 72,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
+    "version": "0.3.6",
+    "versionCode": 76,
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.6-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.6-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.6-release.apk",
         "kind": "github"
       }
     ],
-    "size": 154401846,
-    "sha256": "59a45072d58164d7b16a4ca190afaf5f198e5f560404a1dd3de2de897fcfe25a"
+    "size": 154403097,
+    "sha256": "6286182e4f8a0396237847107274d17a8bf36a8f5882d9198e289814f224f24f"
   },
   "tiku": {
     "dbVersion": "0.5.15-20261110-1909",
@@ -28,12 +28,12 @@
       ],
       "sources": [
         {
-          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
-          "kind": "gh-proxy"
-        },
-        {
           "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
           "kind": "github"
+        },
+        {
+          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
+          "kind": "gh-proxy"
         }
       ],
       "size": 99889809,
@@ -100,5 +100,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.3.2：修下载进度卡死与状态栏来回跳（分块计数只增、单块 20 秒换连接、解压与校验也有进度、换源不把进度打回 0、下载源优先 gh-proxy）；增量包改流式应用，不再 OOM；安装包内置题库同步到 0.5.15（题干填空横线与括号占位还原）"
+  "note": "App 0.3.6：复习引擎修正 —— 随机练习不再重复端上做过的题、掌握门槛提到连对 3 次、每日到期先复习错得多的、复习进度纳入备份"
 }
