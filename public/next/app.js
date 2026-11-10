@@ -2455,9 +2455,14 @@ function renderMaterial(q) {
   if (!q || !q.material) return '';
   const plain = String(q.material).replace(/<[^>]+>/g, '');
   const chars = plain.length;
-  const tall = chars > 420;
-  return `<div class="q-material${tall ? ' tall' : ''}">
-    <div class="q-material-head">给定材料<span class="q-material-meta">${chars} 字${tall ? ' · 框内可滚动' : ''}</span></div>
+  const hasImg = /<img\b/i.test(String(q.material));
+  // 纯图材料（资料分析的图表、图形推理的九个图）文字长度为 0，
+  // 以前会写「给定材料 0 字」，看着像没加载出来 —— 改成「图表」。
+  const meta = chars > 0
+    ? `${chars} 字${chars > 420 ? ' · 框内可滚动' : ''}`
+    : (hasImg ? '图表' : '');
+  return `<div class="q-material${chars > 420 ? ' tall' : ''}">
+    <div class="q-material-head">给定材料${meta ? `<span class="q-material-meta">${meta}</span>` : ''}</div>
     <div class="q-material-body">${safeHtml(q.material)}</div>
   </div>`;
 }

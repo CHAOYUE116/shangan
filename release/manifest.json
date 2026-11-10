@@ -16,8 +16,8 @@
         "kind": "github"
       }
     ],
-    "size": 167743273,
-    "sha256": "dce1869cffc9310dcc2a78d3e2f93b962856083563b217ba58e031eee3cbaab5"
+    "size": 167743424,
+    "sha256": "6fe263c5359bf6e92d0b2a5cd34103c5c3be9c026f2784325623cda0cd3f2d3e"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
