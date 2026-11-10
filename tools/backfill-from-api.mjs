@@ -53,6 +53,15 @@ const norm = (s) => String(s || '')
   .replace(/[，。、；：？！“”‘’（）()《》〈〉·\-—…\[\]【】]/g, '')
   .slice(0, 40);
 
+/** 严格模式：题干前 60 字归一化必须完全相等，否则不写（宁可少填，不可错填）
+ *  位置对齐只作为「找候选」的手段，最终由 STRICT 判定是否采信。 */
+const strictHead = (s) => String(s || '')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/[\s\u3000]+/g, '')
+  .replace(/[，。、；：？！“”‘’（）()《》〈〉·\-—…\[\]【】]/g, '')
+  .replace(/^\d+[、.]/, '')
+  .slice(0, 60);
+
 const db = new DatabaseSync(path.resolve(ROOT, 'tiku.db'));
 const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
 let total = { papers: 0, filled: 0, noAnswer: 0, unmatched: 0, already: 0 };
@@ -76,14 +85,15 @@ for (const course of courses) {
     c.papers += 1;
 
     const byHead = new Map();
-    const solTexts = sols.map((s) => ({ head: norm(richToText(s.content)), text: richToText(s.solution), raw: s }));
+    const solTexts = sols.map((s) => ({ head: strictHead(richToText(s.content)), text: richToText(s.solution), raw: s }));
     solTexts.forEach((s, i) => { if (s.head) byHead.set(s.head, i); });
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       if (r.analysis && String(r.analysis).trim()) { c.already += 1; continue; }
-      const head = norm(r.content);
-      let s = solTexts[i] && norm(solTexts[i].head).slice(0, 24) === head.slice(0, 24) ? solTexts[i] : null;
+      const head = strictHead(r.content);
+      if (head.length < 12) { c.unmatched += 1; continue; }   // 题干太短/为空，无法可靠对齐
+      let s = solTexts[i] && solTexts[i].head === head ? solTexts[i] : null;
       if (!s) { const idx = byHead.get(head); if (idx != null) s = solTexts[idx]; }
       if (!s) { c.unmatched += 1; continue; }
       if (!s.text) { c.noAnswer += 1; continue; }

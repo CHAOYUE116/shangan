@@ -37,6 +37,8 @@ const SKIP = Number(arg('skip', 0));
 const GAP = Number(arg('gap', 22));
 const RETRY_WAIT = Number(arg('retry', 120));
 const RETRY_MAX = Number(arg('retrymax', 3));
+const COOLDOWN = Number(arg('cooldown', 1800)); // 单卷重试用尽后，整轮歇多久再继续（秒）
+const COOLDOWN_MAX = Number(arg('cooldownmax', 48)); // 最多歇几轮（48×30min＝24 小时）
 
 const Q = 'app=web&kav=131&av=134&hav=128&gav=2&apcid=0&deviceId=';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,7 +89,7 @@ const req = ctx.request;
 
 let ok = 0, skip = 0, fail = 0, noKey = 0, quotaRounds = 0;
 const todo = work.slice(SKIP, SKIP + LIMIT);
-console.log(`解析补采 API  todo=${todo.length} gap=${GAP}s  retry=${RETRY_WAIT}s×${RETRY_MAX}\n`);
+console.log(`解析补采 API  todo=${todo.length} gap=${GAP}s  retry=${RETRY_WAIT}s×${RETRY_MAX}  cooldown=${COOLDOWN}s×${COOLDOWN_MAX}\n`);
 
 for (let i = 0; i < todo.length; i++) {
   const it = todo[i];
@@ -98,39 +100,41 @@ for (let i = 0; i < todo.length; i++) {
   if (fs.existsSync(dest)) { skip += 1; console.log(`${tag} 已有，跳过`); continue; }
 
   let ex = null;
-  let quotaThis = false;
+  let gaveUp = false;
   try {
-    for (let attempt = 0; attempt <= RETRY_MAX; attempt++) {
-      const cr = await req.post(`https://tiku.fenbi.com/api/${course}/exercises?${Q}&type=1`, {
-        form: { type: '1', paperId: String(pid), exerciseTimeMode: '2' },
-        timeout: 30000,
-      });
-      if (cr.status() === 403) {
-        const body = await cr.text();
-        if (attempt === RETRY_MAX) {
-          console.log(`${tag} 403 配额未恢复（${body.replace(/\s+/g, ' ').slice(0, 90)}）`);
-          quotaThis = true;
-          break;
-        }
-        console.log(`${tag} 403 限流，等 ${RETRY_WAIT}s 重试（${attempt + 1}/${RETRY_MAX}）`);
-        await sleep(RETRY_WAIT * 1000);
-        continue;
+    for (let round = 0; round <= COOLDOWN_MAX && !ex; round++) {
+      if (round > 0) {
+        const wait = COOLDOWN;
+        console.log(`${tag} 配额仍未恢复，歇 ${(wait / 60).toFixed(0)} 分钟后再试（第 ${round}/${COOLDOWN_MAX} 轮）`);
+        await sleep(wait * 1000);
       }
-      if (cr.status() !== 200) { console.log(`${tag} create ${cr.status()}`); fail += 1; break; }
-      ex = await cr.json();
-      break;
+      for (let attempt = 0; attempt <= RETRY_MAX; attempt++) {
+        const cr = await req.post(`https://tiku.fenbi.com/api/${course}/exercises?${Q}&type=1`, {
+          form: { type: '1', paperId: String(pid), exerciseTimeMode: '2' },
+          timeout: 30000,
+        });
+        if (cr.status() === 403) {
+          if (attempt === RETRY_MAX) break;
+          console.log(`${tag} 403 限流，等 ${RETRY_WAIT}s 重试（${attempt + 1}/${RETRY_MAX}）`);
+          await sleep(RETRY_WAIT * 1000);
+          continue;
+        }
+        if (cr.status() !== 200) { console.log(`${tag} create ${cr.status()}`); fail += 1; gaveUp = true; break; }
+        ex = await cr.json();
+        if (!ex.key) { console.log(`${tag} 无 exerciseKey`); fail += 1; gaveUp = true; ex = null; }
+        break;
+      }
     }
   } catch (e) {
     console.log(`${tag} ✗ create 异常 ${String(e.message).slice(0, 70)}`);
     fail += 1;
+    gaveUp = true;
   }
 
-  if (quotaThis) {
-    quotaRounds += 1;
-    if (quotaRounds >= 2) { console.log('\n连续两卷配额耗尽 —— 本轮停止，稍后重跑即可续采。'); break; }
+  if (!ex) {
+    if (!gaveUp) { console.log(`${tag} 冷却 ${COOLDOWN_MAX} 轮仍未恢复，整轮结束`); quotaRounds += 1; break; }
     continue;
   }
-  if (!ex || !ex.key) { if (ex === null && !quotaThis) { /* 已在上面计过 */ } continue; }
 
   try {
     await req.post(`https://tiku.fenbi.com/combine/exercise/submit?key=${ex.key}&routecs=${course}&${Q}`, { data: {}, timeout: 30000 });
