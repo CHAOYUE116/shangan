@@ -1997,21 +1997,21 @@ function checkUpdate(mode) {
 }
 
 /* ---------- 学习统计 ---------- */
+// 接口只回有记录的天；图表要固定 7 列，缺的补 0，否则「近 7 天」里只剩两列，看不出趋势
+function fillLast7(got) {
+  const map = new Map((got || []).filter((x) => x && x.d).map((x) => [String(x.d), x]));
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    out.push(map.get(k) || { d: k, c: 0, ok: 0 });
+  }
+  return out;
+}
 function renderStatsPage() {
   const st = S.stats || {};
   const by = (st.byChapter || []).slice().sort((a, b) => (a.c ? a.ok / a.c : 0) - (b.c ? b.ok / b.c : 0));
-  // 近 7 天：接口只回有记录的天，缺的补 0，否则「近 7 天」里只剩两行看不出趋势
-  const filled = (() => {
-    const got = st.last7 || [];
-    const map = new Map(got.map((x) => [String(x.d), x]));
-    const out = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      out.push(map.get(k) || { d: k, c: 0, ok: 0 });
-    }
-    return out;
-  })();
+  const filled = fillLast7(st.last7);
   const pct = (x) => (x.c ? Math.round((x.ok / x.c) * 100) : 0);
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习统计</div><span style="width:38px"></span></div>
   <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>累计做题</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>答错次数</span></div></div>
@@ -2023,7 +2023,7 @@ function renderStatsPage() {
 
 function renderWeeklyReport() {
   const st = S.stats || {};
-  const last = (st.last7 || []).filter((x) => x && x.d && x.c != null);
+  const last = fillLast7(st.last7 || []);
   const total = last.reduce((s, x) => s + (Number(x.c) || 0), 0);
   const right = last.reduce((s, x) => s + (Number(x.ok) || 0), 0);
   const active = last.filter((x) => Number(x.c) > 0).length;
