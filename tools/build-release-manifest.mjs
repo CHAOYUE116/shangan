@@ -80,7 +80,9 @@ for (const p of [dbPath, verPath]) {
 }
 
 const dbBuf = fs.readFileSync(dbPath);
-const dbVersion = fs.readFileSync(verPath, 'utf8').trim();
+// db-version.txt 现在的格式是「版本号 题行数 分类行数」（App 端用它校验库内容是否被换过），
+// 取第一段才是版本号；只取整行会让后面所有 delta 匹配不上。
+const dbVersion = fs.readFileSync(verPath, 'utf8').trim().split(/\s+/)[0];
 const dbHash = sha256(dbBuf);
 console.log(`题库：${dbPath}`);
 console.log(`  db-version: ${dbVersion}`);
