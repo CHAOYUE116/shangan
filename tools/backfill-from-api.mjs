@@ -57,7 +57,10 @@ const norm = (s) => String(s || '')
  *  位置对齐只作为「找候选」的手段，最终由 STRICT 判定是否采信。 */
 const strictHead = (s) => String(s || '')
   .replace(/<[^>]+>/g, ' ')
-  .replace(/[\s\u3000]+/g, '')
+  .replace(/\[图\]/g, '')
+  .replace(/[\s\u3000\u00a0]+/g, '')
+  .replace(/[\uFF3F_]+/g, '')
+  .replace(/（[\s\u3000]*）/g, '')
   .replace(/[，。、；：？！“”‘’（）()《》〈〉·\-—…\[\]【】]/g, '')
   .replace(/^\d+[、.]/, '')
   .slice(0, 60);

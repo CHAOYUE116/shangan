@@ -1,0 +1,16 @@
+{
+  "from": "0.5.15-20261110-1909",
+  "to": "0.5.16-20261110-2340",
+  "url": "delta-0.5.15-20261110-1909-0.5.16-20261110-2340.json.gz",
+  "size": 14985540,
+  "sha256": "ec883855b8a879ffab3c41f63a4e3e41d8b2ddab29279f835c15609a4fc2a8c1",
+  "rawSize": 61442714,
+  "counts": {
+    "papersAdded": 0,
+    "papersChanged": 0,
+    "questionsAdded": 0,
+    "questionsChanged": 33071,
+    "questionsDeleted": 0,
+    "questionCategories": 91805
+  }
+}

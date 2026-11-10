@@ -34,11 +34,13 @@ const COURSE = arg('course', null);
 const LIST = arg('list', null);
 const LIMIT = Number(arg('limit', 9999));
 const SKIP = Number(arg('skip', 0));
-const GAP = Number(arg('gap', 22));
-const RETRY_WAIT = Number(arg('retry', 120));
-const RETRY_MAX = Number(arg('retrymax', 3));
-const COOLDOWN = Number(arg('cooldown', 1800)); // 单卷重试用尽后，整轮歇多久再继续（秒）
-const COOLDOWN_MAX = Number(arg('cooldownmax', 48)); // 最多歇几轮（48×30min＝24 小时）
+const GAP = Number(arg('gap', 8));
+const RETRY_WAIT = Number(arg('retry', 60));
+const RETRY_MAX = Number(arg('retrymax', 4));
+const COOLDOWN = Number(arg('cooldown', 600)); // 撞限流后整轮歇多久（秒）
+const COOLDOWN_MAX = Number(arg('cooldownmax', 24));
+const GAP_MAX = Number(arg('gapmax', 120)); // 自适应上限：被限流后拉长到这么多秒
+const DEAD_FILE = path.resolve(ROOT, '..', 'research', 'solutions-dead.json');
 
 const Q = 'app=web&kav=131&av=134&hav=128&gav=2&apcid=0&deviceId=';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,9 +89,22 @@ await page.goto('https://www.fenbi.com/spa/tiku/guide/realTest/sydw/syzc', { wai
 await sleep(1200);
 const req = ctx.request;
 
-let ok = 0, skip = 0, fail = 0, noKey = 0, quotaRounds = 0;
+let ok = 0, skip = 0, fail = 0, noKey = 0, quotaRounds = 0, dead = 0;
 const todo = work.slice(SKIP, SKIP + LIMIT);
-console.log(`解析补采 API  todo=${todo.length} gap=${GAP}s  retry=${RETRY_WAIT}s×${RETRY_MAX}  cooldown=${COOLDOWN}s×${COOLDOWN_MAX}\n`);
+console.log(`解析补采 API  todo=${todo.length} gap=${GAP}s（自适应 ${GAP}~${GAP_MAX}s）  retry=${RETRY_WAIT}s×${RETRY_MAX}  cooldown=${COOLDOWN}s×${COOLDOWN_MAX}\n`);
+
+// 已经确认下架/不能建练习的卷，记下来，之后每次跑直接跳过——
+// 之前这里把 404 当成「配额没恢复」，于是一卷死卷能耗掉 40×25 分钟。
+let deadSet = new Set();
+try {
+  const d = JSON.parse(fs.readFileSync(DEAD_FILE, 'utf8'));
+  deadSet = new Set(Array.isArray(d) ? d : []);
+} catch { /* 首次运行没有这个文件 */ }
+const saveDead = () => { try { fs.writeFileSync(DEAD_FILE, JSON.stringify([...deadSet], null, 0)); } catch { /* ignore */ } };
+
+let gapNow = GAP;          // 当前实际间隔（秒），被限流就拉长，连续成功就慢慢收回
+const gapAfterOk = () => { gapNow = Math.max(GAP, Math.round(gapNow * 0.85)); };
+const gapAfter403 = () => { gapNow = Math.min(GAP_MAX, Math.max(gapNow + 2, Math.round(gapNow * 1.8))); };
 
 for (let i = 0; i < todo.length; i++) {
   const it = todo[i];
@@ -98,11 +113,12 @@ for (let i = 0; i < todo.length; i++) {
   const dest = path.join(outDir(course), `${pid}.json`);
   const tag = `[${i + 1}/${todo.length}] ${course} ${pid} ${String(it.name || '').slice(0, 26)}`;
   if (fs.existsSync(dest)) { skip += 1; console.log(`${tag} 已有，跳过`); continue; }
+  if (deadSet.has(String(pid))) { dead += 1; continue; }
 
   let ex = null;
   let gaveUp = false;
   try {
-    for (let round = 0; round <= COOLDOWN_MAX && !ex; round++) {
+    for (let round = 0; round <= COOLDOWN_MAX && !ex && !gaveUp; round++) {
       if (round > 0) {
         const wait = COOLDOWN;
         console.log(`${tag} 配额仍未恢复，歇 ${(wait / 60).toFixed(0)} 分钟后再试（第 ${round}/${COOLDOWN_MAX} 轮）`);
@@ -114,14 +130,21 @@ for (let i = 0; i < todo.length; i++) {
           timeout: 30000,
         });
         if (cr.status() === 403) {
+          gapAfter403();
           if (attempt === RETRY_MAX) break;
-          console.log(`${tag} 403 限流，等 ${RETRY_WAIT}s 重试（${attempt + 1}/${RETRY_MAX}）`);
+          console.log(`${tag} 403 限流，等 ${RETRY_WAIT}s 重试（${attempt + 1}/${RETRY_MAX}）  gap→${gapNow}s`);
           await sleep(RETRY_WAIT * 1000);
           continue;
         }
-        if (cr.status() !== 200) { console.log(`${tag} create ${cr.status()}`); fail += 1; gaveUp = true; break; }
+        if (cr.status() === 404) {
+          // 卷子下架了，重试多少次都一样：记账、跳过、别占着冷却
+          console.log(`${tag} 404 卷子已下架，跳过`);
+          deadSet.add(String(pid)); saveDead(); dead += 1; gaveUp = true; break;
+        }
+        if (cr.status() !== 200) { console.log(`${tag} create ${cr.status()}，跳过`); fail += 1; gaveUp = true; break; }
         ex = await cr.json();
         if (!ex.key) { console.log(`${tag} 无 exerciseKey`); fail += 1; gaveUp = true; ex = null; }
+        else gapAfterOk();
         break;
       }
     }
@@ -166,8 +189,8 @@ for (let i = 0; i < todo.length; i++) {
     console.log(`${tag} ✗ ${String(e.message).slice(0, 80)}`);
     fail += 1;
   }
-  await sleep(jitter(GAP));
+  await sleep(jitter(gapNow));
 }
 
-console.log(`\n完成 ok=${ok} skip=${skip} fail=${fail} noKey=${noKey} 配额耗尽=${quotaRounds}`);
+console.log(`\n完成 ok=${ok} skip=${skip} fail=${fail} noKey=${noKey} 下架跳过=${dead} 配额耗尽=${quotaRounds}`);
 await ctx.close();
