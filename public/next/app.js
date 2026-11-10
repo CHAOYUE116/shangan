@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.2.6';
+const APP_VERSION = '0.2.7';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem('sg_profile') || 'null'); } catch { return null; }
@@ -3398,13 +3398,30 @@ function bindAndroidBack() {
 (async function boot() {
   const T0 = performance.now();
   // 启动耗时打点：logcat 里 grep "boot" 就能看到每一段花了多久
-  const mark = (k) => { try { console.log('[boot]', k, Math.round(performance.now() - T0) + 'ms'); } catch { /* ignore */ } };
+  const mark = (k) => { try { const t = Math.round(performance.now() - T0); (window.__BOOT__ = window.__BOOT__ || []).push([k, t]); console.log('[boot]', k, t + 'ms'); } catch { /* ignore */ } };
   mark('start');
   const saved = localStorage.getItem('theme');
   document.documentElement.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   S.plan = loadPlan();
   S.settings = loadSettings();
   applyFontSize(S.settings.fs);
+
+  // 先用上一次的首屏数字直出，不等任何桥、不发任何请求。
+  // 这一步只读 localStorage + 渲染，实测 50ms 量级；放在这里，
+  // 启动图就能在第一帧之后立刻撤掉，而不是等 __LOCAL_API_PROMISE__ 解析完（那要 1.9 秒）。
+  let painted = false;
+  try {
+    const snap = JSON.parse(localStorage.getItem('sg_home_snap') || 'null');
+    if (snap && snap.stats && localStorage.getItem('sg_profile')) {
+      S.stats = snap.stats;
+      if (Array.isArray(snap.subjects) && snap.subjects.length) S.subjects = snap.subjects;
+      go('home');
+      painted = true;
+      mark('snap-paint');
+      // 首屏一出来就撤启动图，不让用户对着图标等
+      try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 
   // 等 local-bootstrap 装好 fetch / NativeDB 桥再发请求。
   // 不等的话第一轮 api() 会打空，Promise.all 直接 reject，
@@ -3417,8 +3434,10 @@ function bindAndroidBack() {
   // 首屏只等最少的数据。错题回填和摊平都能挪到后台，
   // 它们要读几百条记录，卡在前面会让白屏多两三秒。
   // loadHome 成功才切首页；失败就留着骨架，别渲染出一片白。
-  try { await loadHome(); go('home'); } catch (e) { toast(e.message); }
+  try { await loadHome(); go('home'); painted = true; } catch (e) { if (!painted) toast(e.message); }
   mark('home-rendered');
+  // 存一份首屏快照，下次冷启先拿它画第一帧
+  try { localStorage.setItem('sg_home_snap', JSON.stringify({ stats: S.stats, subjects: S.subjects, t: Date.now() })); } catch { /* ignore */ }
 
   // 首屏渲染完了，可以撤掉原生启动图了；浏览器里没有这个桥，忽略即可
   try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ }
@@ -3429,7 +3448,7 @@ function bindAndroidBack() {
     try { spreadLegacyReviews(15); } catch { /* ignore */ }
   }, 0);
 
-  setTimeout(() => { try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ } }, 2500);
+  setTimeout(() => { try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ } }, 1500);
   bindAndroidBack();
   bindSwipe();
   if (!localStorage.getItem('sg_profile')) openOnboarding();

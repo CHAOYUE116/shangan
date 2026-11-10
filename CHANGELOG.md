@@ -1,5 +1,36 @@
 # 更新记录
 
+## 0.2.7
+
+启动这一块重新做了一遍，冷启从 7 秒降到 2~3 秒。
+
+**真正的瓶颈不在拷库**
+之前一直以为首启慢是因为要把 408 MB 题库解压出来。实测拷库只值 1.6~2.8 秒，而且只有第一次装完才有；之后每次冷启都要 7 秒，钱花在别的地方：
+
+- WebView 创建 + Capacitor 插件注入，主线程被堵 1.4 秒两次（logcat 里 `Skipped 66 frames` / `Davey! duration=1381ms`）
+- `boot()` 要等 `__LOCAL_API_PROMISE__` 解析完才敢渲染，那一步要 1.9 秒
+- 首屏 `loadHome()` 在模拟器上要 5~8 秒（动态 import `local-api.js` 单独就 1.1 秒）
+
+**改了三处**
+
+1. **Application 里预热开库**。新建 `App.java`，`onCreate` 就起一条 daemon 线程打开题库，跟 WebView 初始化并行。实测 `warm open in 1032ms`，等 JS 要查数据时库已经开着。`MainActivity` 直接复用这个实例，`openIfNeeded()` 加 `synchronized` 防止两条线程同时解压同一个 332 MB。
+
+2. **首屏快照前置到桥之前**。上一轮的「缓存直出」写在 `await __LOCAL_API_PROMISE__` 后面，等于白等；现在挪到 `boot()` 最前面——只读 localStorage、只调 `renderHome()`，不碰任何接口。打点实测 `snap-paint` 从 **1947ms 降到 176ms**。
+
+3. **修好启动图撤不掉的竞态**。`SplashBridge.hide()` 原来看到 `overlay == null` 就直接 return，而 `show()` 是 `webView.post` 出去的、要等主线程空出来才执行——于是 hide 先到、show 后到，启动图反而一直盖到 `loadHome` 结束。现在加 `hideRequested` 标志：hide 先到就把请求记下来，show 看到标志直接不贴；万一已经贴上，补一次 hide 自愈。
+
+**结果**
+
+| 阶段 | 改前 | 改后 |
+|---|---|---|
+| 系统启动窗口（原生首帧） | ~1.3s | ~1.3s |
+| 启动图 → 首页 | 5~6s | ~1.2s |
+| 冷启总量（模拟器） | 7~8s | **2.5~3s** |
+
+真机 CPU 比模拟器快，实际应该在 2 秒上下。
+
+`app.js` 的 `boot()` 现在把耗时打进 `window.__BOOT__`，`adb` 连 CDP 就能读每一段花了多少毫秒，下次再慢有据可查。
+
 ## 0.2.6
 
 第二轮通检。把整个 App 走了一遍——首页、题库、试卷、答题、回顾、考试、报告、趋势、计划、我的、统计、时政、搜索、AI、备份——先量数据再改，改完逐项回测。
