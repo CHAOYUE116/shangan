@@ -2000,13 +2000,25 @@ function checkUpdate(mode) {
 function renderStatsPage() {
   const st = S.stats || {};
   const by = (st.byChapter || []).slice().sort((a, b) => (a.c ? a.ok / a.c : 0) - (b.c ? b.ok / b.c : 0));
-  const last = st.last7 || [];
+  // 近 7 天：接口只回有记录的天，缺的补 0，否则「近 7 天」里只剩两行看不出趋势
+  const filled = (() => {
+    const got = st.last7 || [];
+    const map = new Map(got.map((x) => [String(x.d), x]));
+    const out = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      out.push(map.get(k) || { d: k, c: 0, ok: 0 });
+    }
+    return out;
+  })();
+  const pct = (x) => (x.c ? Math.round((x.ok / x.c) * 100) : 0);
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习统计</div><span style="width:38px"></span></div>
-  <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>累计做题</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>错题</span></div></div>
+  <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>累计做题</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>答错次数</span></div></div>
   <div class="section-head"><h2 class="section-title">章节正确率</h2></div>
-  <div class="card">${by.length ? by.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div></div><div class="weak-pct">${x.c ? Math.round((x.ok / x.c) * 100) : 0}%</div></div>`).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
+  <div class="card">${by.length ? by.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div><div class="kp-bar"><i style="width:${pct(x)}%;background:${pct(x) >= 60 ? 'var(--green)' : pct(x) >= 45 ? 'var(--amber)' : 'var(--red)'}"></i></div></div><div class="weak-pct">${pct(x)}%</div></div>`).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
   <div class="section-head"><h2 class="section-title">近 7 天</h2></div>
-  <div class="card">${last.length ? last.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.d)}</div><div class="subject-sub">做题 ${x.c} · 答对 ${x.ok}</div></div><div class="weak-pct">${x.c ? Math.round((x.ok / x.c) * 100) : 0}%</div></div>`).join('') : '<div class="empty-state">暂无记录</div>'}</div>`;
+  <div class="card">${filled.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.d)}</div><div class="subject-sub">做题 ${x.c} · 答对 ${x.ok}</div>${x.c ? `<div class="kp-bar"><i style="width:${pct(x)}%"></i></div>` : ''}</div><div class="weak-pct">${x.c ? pct(x) + '%' : '—'}</div></div>`).join('')}</div>`;
 }
 
 function renderWeeklyReport() {
@@ -2204,6 +2216,20 @@ function renderMaterial(q) {
   </div>`;
 }
 
+// 题型标签：以前一律写死「单项选择」，多选题、判断题都跟着错标。
+// 题干自带「(不定项选择)」这类前缀时以它为准，并把前缀从正文里去掉，免得一行里两次题型。
+const TYPE_PREFIX = /^[（(]\s*(不定项选择|多项选择|单项选择|单选|多选|判断)\s*[）)]\s*/;
+function typeTagOf(q, options) {
+  if (!options.length) return '主观题';
+  const t = String(q.type ?? '');
+  if (t === '2') return '多项选择';
+  if (t === '3') return '判断';
+  const m = String(q.content || '').match(TYPE_PREFIX);
+  if (m) return m[1];
+  const ch = String(q.chapter || '');
+  if (/判断/.test(ch)) return '判断';
+  return '单项选择';
+}
 function renderQuestionBlock(q, fb) {
   const P = S.practice;
   const options = Array.isArray(q.options) ? q.options : [];
@@ -2213,7 +2239,11 @@ function renderQuestionBlock(q, fb) {
     const cls = correct ? 'correct' : picked ? 'wrong' : '';
     return `<div class="option static ${cls}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span>${correct ? '<span class="opt-note">正确答案</span>' : picked ? '<span class="opt-note">你的选择</span>' : ''}</div>`;
   }).join('');
-  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}`;
+  const tagText = typeTagOf(q, options);
+  const stemHtml = q.contentHtml
+    ? String(q.contentHtml).replace(TYPE_PREFIX, '')
+    : esc(String(q.content || '').replace(TYPE_PREFIX, ''));
+  return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${tagText}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${safeHtml(stemHtml)}</div>${renderMaterial(q)}${opts}`;
 }
 function renderPractice() {
   const P = S.practice; const q = currentQ(); if (!q) return;
