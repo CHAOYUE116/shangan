@@ -1,6 +1,12 @@
 # 上岸
 
-> 一个把 61,768 道真题装进手机的考公刷题 App。断网能刷，没有广告，解析不用会员。
+> 一个把 9 万道真题装进手机的考公刷题 App。断网能刷，没有广告，解析不用会员。
+
+
+> **声明**　本项目是个人学习项目，不收费、无广告、不对外提供商业服务。
+> 题库内容来自公开网络的采集整理，**版权归原平台与原命题机构所有**，本项目不主张任何权利；
+> 权利人提出异议会在 72 小时内删除相关内容。
+> 详细条款见 [DISCLAIMER.md](DISCLAIMER.md)，代码许可见 [LICENSE](LICENSE)（仅覆盖代码，不覆盖题库）。
 
 **下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 

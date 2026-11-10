@@ -5,7 +5,7 @@
     "version": "0.3.7",
     "versionCode": 77,
     "code": 77,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
     "sources": [
       {
         "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
@@ -78,6 +78,29 @@
           "questionsDeleted": 0,
           "questionCategories": 91805
         }
+      },
+      {
+        "from": "0.5.14-20261110-1450",
+        "to": "0.5.16-20261110-2340",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/delta-0.5.14-20261110-1450-0.5.16-20261110-2340.json.gz",
+        "sources": [
+          {
+            "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/delta-0.5.14-20261110-1450-0.5.16-20261110-2340.json.gz",
+            "kind": "gh-proxy"
+          },
+          {
+            "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/delta-0.5.14-20261110-1450-0.5.16-20261110-2340.json.gz",
+            "kind": "github"
+          },
+          {
+            "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.14-20261110-1450-0.5.16-20261110-2340.json.gz",
+            "kind": "jsdelivr"
+          }
+        ],
+        "size": 31695650,
+        "sha256": "a44cf1c2a83b76003c184228bba10b239b133a6d02253e72a246a8ce044c5356",
+        "rawSize": 123915607,
+        "gzSha256": "2edc97668ce375e3340756a7c0f11036d2e82d77893699fa55698970c65e3089"
       }
     ]
   },

@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.7';
+const APP_VERSION = '0.3.8';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -207,6 +207,26 @@ function todayCount() {
 }
 function dailyGoal() { return S.profile.dailyGoal || 20; }
 function dailyRemaining() { return Math.max(0, dailyGoal() - todayCount()); }
+/* 一次请求最多只回 15 道（服务端限制），要 20 道或 50 道就得循环补齐。
+   以前「50 题模考」实际只给 15 题、「20 题每日任务」只给 15 题，就是这个原因。 */
+async function fetchPool(subject, need, types = '1,2,3') {
+  const out = []; const seen = new Set();
+  for (let round = 0; round < 8 && out.length < need; round++) {
+    const ask = Math.min(60, Math.max(need - out.length, 15) * 2);
+    let rows = [];
+    try { rows = await api(`/api/practice?subject=${encodeURIComponent(subject)}&n=${ask}&mock=0&year=10&difficulty=random&types=${types}`); } catch { break; }
+    let added = 0;
+    for (const q of rows || []) {
+      const k = String(q.questionId ?? q.id);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(q); added++;
+      if (out.length >= need) break;
+    }
+    if (!added) break;
+  }
+  return out;
+}
+
 function dailySubject() {
   // 取本场考试权重最高的科目（原来写死「事业编→职测」，公基/综应永远轮不到）
   return schemeSubjects()[0].subject;
@@ -989,33 +1009,52 @@ async function loadPapers() {
     S.lib.categories = categories || [];
     S.lib.chapters = chapters || [];
     S.lib.done = done || {};
-    S.lib.filter = { category: '全部', year: '全部', type: '全部' };
+    S.lib.filter = { region: '全部', year: '全部', kind: '全部' };
     S.lib.show = 80;
     go('library');
   } catch (e) { toast(e.message); }
 }
 function yearOf(name) { const m = String(name).match(/(20\d{2})/); return m ? m[1] : '其他'; }
-function typeOf(name) { return /模考/.test(name) ? '模考' : '真题'; }
+// 「分类」这一栏原来直接用数据库里的 papers.category，可那列是采集时粉笔的 label 名，
+// 里�面混了三种维度：省份（福建/江苏/天津）、考试类型（事业单位/书记员/选调）、
+// 联考类别（联考A类/C类），还有【辅警】这种带括号的 —— 摊在一排 chip 里根本没法用。
+// 现在拆成两个互斥维度，全部从卷名现算：地区 + 卷型。
+const REGION_NAMES = ['北京', '天津', '河北', '山西', '内蒙古', '辽宁', '吉林', '黑龙江', '上海', '江苏', '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '广西', '海南', '重庆', '四川', '贵州', '云南', '西藏', '陕西', '甘肃', '青海', '宁夏', '新疆'];
+function regionOf(name) {
+  const s = String(name || '');
+  if (/国家公务员|国考|中央机关/.test(s)) return '国考';
+  for (const p of REGION_NAMES) if (s.includes(p)) return p;
+  if (/联考/.test(s)) return '联考';
+  if (/事业单位|事业编/.test(s)) return '事业编统考';
+  if (/省考/.test(s)) return '省考';
+  return '其他';
+}
+function kindOf(name) {
+  const s = String(name || '');
+  if (/模拟|模考|预测|押题/.test(s)) return '模拟';
+  return '真题';
+}
 function renderPapers() {
   const f = S.lib.filter;
-  const cats = ['全部', ...S.lib.categories.map((c) => c.category)];
+  const uniq = (arr) => [...new Set(arr)];
+  const regions = ['全部', ...uniq(S.lib.papers.map((p) => regionOf(p.name))).sort((a, b) => a.localeCompare(b, 'zh'))];
   const years = ['全部', ...[...new Set(S.lib.papers.map((p) => yearOf(p.name)))].filter((y) => y !== '其他').sort((a, b) => Number(b) - Number(a)).slice(0, 7), '其他'];
-  const types = ['全部', '真题', '模考'];
-  const list = S.lib.papers.filter((p) => (f.category === '全部' || p.category === f.category) && (f.year === '全部' || yearOf(p.name) === f.year) && (f.type === '全部' || typeOf(p.name) === f.type));
+  const kinds = ['全部', '真题', '模拟'];
+  const list = S.lib.papers.filter((p) => (f.region === '全部' || regionOf(p.name) === f.region) && (f.year === '全部' || yearOf(p.name) === f.year) && (f.kind === '全部' || kindOf(p.name) === f.kind));
   const chip = (key, val) => `<button class="chip ${f[key] === val ? 'active' : ''}" data-pf="${key}" data-val="${esc(val)}">${esc(val)}</button>`;
   return `
   <div class="subpage-head"><button class="icon-btn" data-act="back-subject">‹</button><div class="subpage-title">筛选试卷</div><span style="width:38px"></span></div>
   <div class="filter-group"><div class="filter-label">科目</div><div class="chips nowrap">${visibleSubjects().map((x) => `<button class="chip ${S.lib.subject === x.subjectName ? 'active' : ''}" data-pf-subject="${esc(x.subjectName)}">${esc(x.subjectName)}</button>`).join('')}</div></div>
   <div class="card-sub" style="margin:-4px 0 10px">${esc(S.lib.subject)} · 共 ${list.length} 套</div>
-  <div class="filter-group"><div class="filter-label">分类</div><div class="chips nowrap">${cats.map((c) => chip('category', c)).join('')}</div></div>
+  <div class="filter-group"><div class="filter-label">地区</div><div class="chips nowrap">${regions.map((c) => chip('region', c)).join('')}</div></div>
   <div class="filter-group"><div class="filter-label">年份</div><div class="chips nowrap">${years.map((y) => chip('year', y)).join('')}</div></div>
-  <div class="filter-group"><div class="filter-label">类型</div><div class="chips nowrap">${types.map((t) => chip('type', t)).join('')}</div></div>
+  <div class="filter-group"><div class="filter-label">卷型</div><div class="chips nowrap">${kinds.map((t) => chip('kind', t)).join('')}</div></div>
   <div class="paper-list">${list.slice(0, S.lib.show).map((p) => {
     const d = (S.lib.done || {})[p.id];
     const rate = d && d.n >= 3 ? Math.round((d.ok / d.n) * 100) : null;
     return `
     <div class="paper-item" data-act="paper" data-id="${p.id}" data-name="${esc(p.name || '')}" data-subject="${esc(p.subject || '')}">
-      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${typeOf(p.name) === '模考' ? 'warn' : 'ok'}">${typeOf(p.name)}</span>${d ? `<span class="tag done">做过 ${d.n} 题${rate == null ? '' : ` · ${rate}%`}</span>` : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
+      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${kindOf(p.name) === '模拟' ? 'warn' : 'ok'}">${kindOf(p.name)}</span>${d ? `<span class="tag done">做过 ${d.n} 题${rate == null ? '' : ` · ${rate}%`}</span>` : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
       <div class="paper-title">${esc(p.name)}</div>
       <div class="paper-meta">${p.questionCount} 题${p.difficulty ? ` · 难度 ${p.difficulty}` : ''}</div>
     </div>`; }).join('') || '<div class="empty-state">没有匹配的试卷</div>'}</div>
@@ -1092,11 +1131,23 @@ function renderReview() {
 }
 
 /* ---------- 考试 ---------- */
+// 每道题给多少秒，直接决定「N 题 · M 分钟」对不对得上。
+// 行测/职测 55 秒：130 题 = 119 分钟，和真实行测（120 分钟）吻合；
+// 公基 45 秒；主观题不参加模考。卡片上的分钟数由 examMinutes() 现算，
+// 不再手写「20 题 · 30 分钟」这种和实际计时（n*60）不一致的文案。
+function secPerQ(subject) {
+  const s = String(subject || '');
+  if (/行测|职测/.test(s)) return 55;
+  if (/公基|综合知识/.test(s)) return 45;
+  return 60;
+}
+function examMinutes(n, subject) { return Math.max(1, Math.ceil((n * secPerQ(subject)) / 60)); }
 function examPresets() {
-  if (S.profile.examType === '事业编' || S.profile.examType === '三支一扶') {
-    return [{ no: '01', title: '热身小考', meta: '10 题 · 15 分钟', n: 10 }, { no: '02', title: '稳步进阶', meta: '20 题 · 30 分钟', n: 20 }, { no: '03', title: '综合耐力', meta: '50 题 · 60 分钟', n: 50 }];
-  }
-  return [{ no: '01', title: '热身小考', meta: '10 题 · 15 分钟', n: 10 }, { no: '02', title: '稳步进阶', meta: '20 题 · 30 分钟', n: 20 }, { no: '03', title: '综合耐力', meta: '50 题 · 60 分钟', n: 50 }, { no: '04', title: '行测全真', meta: '130 题 · 120 分钟', n: 130 }];
+  const subj = dailySubject();
+  const mk = (no, title, n) => ({ no, title, meta: `${n} 题 · ${examMinutes(n, subj)} 分钟`, n });
+  const base = [mk('01', '热身小考', 10), mk('02', '稳步进阶', 20), mk('03', '综合耐力', 50)];
+  if (S.profile.examType === '事业编' || S.profile.examType === '三支一扶') return base;
+  return [...base, mk('04', '行测全真', 130)];
 }
 function renderExam() {
   if (S.examResult) return renderExamResult();
@@ -1112,7 +1163,7 @@ function renderExam() {
   <section class="banner small">${artClock()}<div class="banner-copy"><div class="banner-kicker">${esc(S.profile.examType)} · ${esc(S.profile.province)}</div><div class="banner-title small">距离大考还有 ${daysLeft()} 天</div><div class="banner-sub">按卷型练，比盲目刷题更稳</div></div></section>
   <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
-  <section class="training-card" style="cursor:pointer" data-act="papers-entry"><div class="training-title">真题整卷模考</div><div class="training-sub">3,090 套真题卷 · 按卷计时 · 交卷出成绩单</div><button class="btn btn-ghost btn-block" data-act="papers-entry">选一份卷子</button></section>
+  <section class="training-card" style="cursor:pointer" data-act="papers-entry"><div class="training-title">真题整卷模考</div><div class="training-sub">按地区、年份挑一份真卷 · 按卷计时 · 交卷出成绩单</div><button class="btn btn-ghost btn-block" data-act="papers-entry">选一份卷子</button></section>
   ${hist.length ? `<div class="section-head"><h2 class="section-title">模考成绩单</h2><button class="section-more" data-act="exam-history">全部 ${hist.length} 次 ›</button></div>` + `<div class="card list-card">${hist.slice(-3).reverse().map((r) => { const sc = Math.round((r.right / (r.total || 1)) * 1000) / 10; const d = new Date(r.ts); return `<div class="hist-row"><div class="hist-main"><div class="hist-title">${esc(r.title || '模考')}</div><div class="hist-sub">${d.getMonth() + 1}/${d.getDate()} · ${esc(r.kind || '随机')} · ${r.total} 题</div></div><div class="hist-score"><b>${sc}</b><span>${r.right}/${r.total}</span></div></div>`; }).join('')}</div>` : ''}
   ${trendCard(hist)}
   <button class="home-alt" data-act="plan" style="margin-top:14px"><span>没有计划？让 AI 排一个<b>四阶段备考计划</b></span><span class="home-alt-r">去生成 ›</span></button>
@@ -1144,7 +1195,7 @@ function trendBars(list, key, max) {
   return '<div class="trend-bars">' + list.slice(0, max).map((x) => `<div class="trend-col" title="${esc(String(x.k))} · ${x.n} 场 · 平均 ${x.score} 分">
     <div class="trend-col-v">${Math.round(x.score)}</div>
     <div class="trend-col-bar" style="height:${Math.max(6, Math.round((x.score / top) * 56))}px"></div>
-    <div class="trend-col-k">${esc(String(x.k).slice(key === 'year' ? 2 : 0))}</div>
+    <div class="trend-col-k">${esc(key === 'year' ? String(x.k).slice(2) + '年' : String(x.k))}</div>
   </div>`).join('') + '</div>';
 }
 
@@ -2622,6 +2673,7 @@ document.addEventListener('click', (e) => {
   if (a === 'search-open') { openQuestionById(Number(act.dataset.id), '搜索结果'); return; }
   if (a === 'back-subject') { goBackSmart('library'); return; }
   if (a === 'papers') { loadPapers(); return; }
+  if (a === 'papers-entry') { loadPapers(); return; }
   if (a === 'more-papers') { S.lib.show += 80; $('#view').innerHTML = renderPapers(); return; }
     if (a === 'paper') {
       const pid = act.dataset.id;
@@ -2930,7 +2982,7 @@ async function startNewDaily() {
   for (const p of plan) {
     try {
       // 只抽客观题（单选/多选/判断）：综应、申论大部分是主观题，抽进每日任务等于给用户发作文题
-      const got = await api(`/api/practice?subject=${encodeURIComponent(p.subject)}&n=${p.n * 2}&mock=0&year=10&difficulty=random&types=1,2,3`);
+      const got = await fetchPool(p.subject, p.n);
       let hit = 0;
       for (const q of got || []) {
         const id = q.id ?? q.questionId;
@@ -3017,16 +3069,33 @@ async function startSmartPaper() {
 }
 async function startExam(n = 10, title = '模拟考试') {
   S.examResult = null;
-  const subject = dailySubject();
   $('#practice').hidden = false;
   $('#p-body').innerHTML = '<div class="spinner"></div>';
   try {
-    const qs = await api(`/api/practice?subject=${encodeURIComponent(subject)}&n=${n}&mock=0&year=10&difficulty=random`);
-    if (!Array.isArray(qs) || !qs.length) { $('#practice').hidden = true; toast('暂无题目'); return; }
-    startPractice(qs, title, subject, 'exam');
+    // 组卷菜单也走「考试组合」：选的是浙江统考就只出职测题，
+    // 不会再因为公基题多就把整场模考刷成公基。主观题不进模考（没法自动判分）。
+    const plan = quotaFor(n, true);
+    const parts = [];
+    const seen = new Set();
+    for (const p of plan) {
+      if (p.n <= 0) continue;
+      const rows = await fetchPool(p.subject, p.n);
+      for (const q of rows) {
+        const k = String(q.questionId || q.id);
+        if (seen.has(k)) continue;
+        seen.add(k); parts.push(q);
+      }
+    }
+    const qs = parts;
+    if (!qs.length) { $('#practice').hidden = true; toast('暂无题目'); return; }
+    const primary = (plan.find((p) => p.n > 0) || {}).subject || dailySubject();
+    const sec = secPerQ(primary);
+    startPractice(qs, `${title} · ${qs.length} 题`, primary, 'exam');
     const P = S.practice;
     P.exam = true;
-    P.limitSec = Math.max(60, n * 60);
+    // 用「实际拿到的题数 × 每题秒数」，不用请求的 n：
+    // 题池不够时只会给到 15 题，按 n 计时就会出现「10 题却给了 15 分钟」。
+    P.limitSec = Math.max(60, Math.round((qs.length * sec) / 10) * 10);
     P.remaining = P.limitSec;
     renderPractice();
     saveSession();
@@ -3675,10 +3744,15 @@ function bindSwipe() {
   let x0 = 0; let y0 = 0; let t0 = 0;
   body.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
+    // 图片/宽表格上按下就不当切题手势：图形推理的大图、资料分析的宽表要横向拖才能看全，
+    // 以前一拖就跳题，等于「看不了图」。
+    const t = e.target;
+    if (t && t.closest && t.closest('img, .q-figure, table, .table-wrap, .q-src-none')) { x0 = NaN; return; }
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
   }, { passive: true });
   body.addEventListener('touchend', (e) => {
     if (!S.practice.open) return;
+    if (Number.isNaN(x0)) { x0 = 0; return; }
     const t = e.changedTouches[0];
     if (!t) return;
     const dx = t.clientX - x0; const dy = t.clientY - y0;
@@ -3687,6 +3761,30 @@ function bindSwipe() {
     if (Math.abs(dy) > Math.abs(dx) * 1.4) return;            // 上下滚材料不算
     if (dx < 0) nextQuestion(); else prevQuestion();
   }, { passive: true });
+  // 题干/材料里的图点一下放大：手机屏上横排的图形推理选项经常挤成一条线
+  body.addEventListener('click', (e) => {
+    const im = e.target.closest && e.target.closest('.q-stem img, .q-material-body img');
+    if (!im || !im.src) return;
+    e.preventDefault();
+    openImageView(im.src);
+  });
+}
+function openImageView(src) {
+  let el = document.getElementById('img-view');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'img-view';
+    el.innerHTML = '<img alt="题目图片"><button class="iv-close" aria-label="关闭">✕</button><div class="iv-tip">点图切换「适应屏幕 / 原始大小」· 双指可缩放</div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', (ev) => {
+      if (ev.target.classList.contains('iv-close')) { el.classList.remove('on'); return; }
+      if (ev.target.tagName === 'IMG') { el.classList.toggle('actual'); return; }
+      el.classList.remove('on');
+    });
+  }
+  el.classList.remove('actual');
+  el.querySelector('img').src = src;
+  el.classList.add('on');
 }
 function bindAndroidBack() {
   // 暴露给原生层：MainActivity.onBackPressed 会调它，返回 "handled" 表示已消费
