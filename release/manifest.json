@@ -7,12 +7,12 @@
     "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
     "sources": [
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
-        "kind": "github"
-      },
-      {
         "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
         "kind": "gh-proxy"
+      },
+      {
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
+        "kind": "github"
       }
     ],
     "size": 154401945,
@@ -28,12 +28,12 @@
       ],
       "sources": [
         {
-          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
-          "kind": "github"
-        },
-        {
           "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
           "kind": "gh-proxy"
+        },
+        {
+          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/tiku_app.db.gz",
+          "kind": "github"
         }
       ],
       "size": 99889809,
@@ -53,16 +53,16 @@
         ],
         "sources": [
           {
-            "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
-            "kind": "jsdelivr"
+            "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
+            "kind": "gh-proxy"
           },
           {
             "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
             "kind": "github"
           },
           {
-            "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
-            "kind": "gh-proxy"
+            "url": "https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/delta-0.5.14-20261110-1450-0.5.15-20261110-1909.json.gz",
+            "kind": "jsdelivr"
           }
         ],
         "size": 22172381,
@@ -87,12 +87,12 @@
     ],
     "sources": [
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
-        "kind": "github"
-      },
-      {
         "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
         "kind": "gh-proxy"
+      },
+      {
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/images.db.gz",
+        "kind": "github"
       }
     ],
     "size": 80617472,

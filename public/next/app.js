@@ -61,7 +61,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.1';
+const APP_VERSION = '0.3.2';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20 };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
