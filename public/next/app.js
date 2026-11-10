@@ -1234,6 +1234,7 @@ function renderAiSettings() {
         <div class="ai-row-s">${esc(a.model || '还没选模型')} · ${esc(hostOf(a.base_url) || '还没填地址')}</div>
       </div>
       <button class="ai-sw${a.enabled ? ' on' : ''}" data-act="ai-toggle" data-id="${a.id}">${a.enabled ? '已启用' : '启用'}</button>
+      <span class="ai-chev">›</span>
     </div>`).join('');
   const skillRows = skills.length
     ? skills.map((s) => `

@@ -1258,3 +1258,5 @@ html[data-theme="dark"] .data-m b { color: #D8E8DC; }
 .rep-v { font-size: 10.5px; color: var(--text-3); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
 .rep-bar { width: 100%; max-width: 40px; background: var(--primary); border-radius: 6px 6px 2px 2px; }
 .rep-d { font-size: 10px; color: var(--text-3); margin-top: 5px; }
+
+.ai-chev { flex: 0 0 auto; margin-left: 2px; color: var(--text-3, #9AA0AE); font-size: 18px; line-height: 1; }
