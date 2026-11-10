@@ -36,7 +36,8 @@ const GAP = Number(arg('gap', 45));         // 卷间间隔（秒）
 const ANSWER_N = Number(arg('answer', 5));  // 每套随机作答几题
 const OUT = path.resolve(ROOT, arg('out', `../research/fenbi-solutions/${COURSE}`));
 const CAT = arg('cat', null);   // 分类按钮文本：模拟题 / 联考A类 / 联考B类 …（不传=默认分类）
-const DEBUG = argv.includes('--debug');    // 保存交卷页 HTML 快照（调 DOM 抓取用）
+const DEBUG = argv.includes('--debug');
+const MATCH = arg('match', null);   // 只处理卷名包含该子串的卷（补指定年份/地区用）    // 保存交卷页 HTML 快照（调 DOM 抓取用）
 // 综应走 shenlunList 入口，其余走 realTest
 const LIST_URL = arg('list',
   (COURSE === 'zhyynl' || COURSE === 'shenlun')
@@ -132,17 +133,21 @@ for (let p = 0; p < PAGES; p++) {
     const fresh = items.filter((t) => !seenLabels.has(t));
     fresh.forEach((t) => seenLabels.add(t));
     console.log(`第 ${q + 1} 页 ${items.length} 份（新增 ${fresh.length}）`);
+    if (process.env.DUMP_LIST) fresh.forEach((t) => console.log(`  · ${t.slice(0, 60)}`));
     for (const t of fresh) papers.push(t);
-    if (papers.length >= LIMIT) break;
+    if (papers.length >= LIMIT && !MATCH) break;   // 带 --match 时要接着翻页，否则永远走不到老卷
   }
   break;
 }
-console.log(`候选 ${papers.length} 份\n`);
+// --match：只留卷名包含指定子串的（补某一年的老卷时，列表里前面的新卷会占满名额）
+const picked = MATCH ? papers.filter((t) => t.includes(MATCH)) : papers;
+if (MATCH) console.log(`按「${MATCH}」过滤：${picked.length}/${papers.length} 份`);
+console.log(`候选 ${picked.length} 份\n`);
 
 // ---------- 逐套：进入 → 作答 → 交卷 → 抓解析 ----------
 let ok = 0, fail = 0;
-for (let i = 0; i < Math.min(LIMIT, papers.length); i++) {
-  const label = papers[i];
+for (let i = 0; i < Math.min(LIMIT, picked.length); i++) {
+  const label = picked[i];
   console.log(`[${i + 1}/${Math.min(LIMIT, papers.length)}] ${label.slice(0, 50)}`);
   try {
     await page.goto(`${LIST_URL}?redirect=true`, { waitUntil: 'domcontentloaded', timeout: 60000 });
