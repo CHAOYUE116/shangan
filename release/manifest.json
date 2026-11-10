@@ -1,22 +1,22 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T12:06:47.574Z",
+  "publishedAt": "2026-11-10T12:42:10.094Z",
   "app": {
-    "version": "0.3.0",
-    "versionCode": 70,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
+    "version": "0.3.1",
+    "versionCode": 71,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
     "sources": [
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
         "kind": "github"
       },
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.0-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
         "kind": "gh-proxy"
       }
     ],
-    "size": 154398729,
-    "sha256": "e4a6b2594a0c5c3c31caac150595b6d055ad7ba44427d316102ce6a25626e805"
+    "size": 154401945,
+    "sha256": "c110a440a4c8d7dcb4392bd5ea9d6c27b0df0c8ca2f0d323c55d930ed02fb1ad"
   },
   "tiku": {
     "dbVersion": "0.5.15-20261110-1909",
@@ -65,10 +65,10 @@
             "kind": "gh-proxy"
           }
         ],
-        "size": 22139976,
-        "sha256": "e10587f36f1add0bf1b904183fe60fe7f4fe58806f316cf5fc04a51292485372",
-        "gzSha256": "653ca5beb16b9c89abbf871c95ff49ad1ff1f6b564457fd62db0b0c87b8e45e8",
-        "rawSize": 89497427,
+        "size": 22172381,
+        "sha256": "ef751486fe19b09a219b7dadc0a8d69ea9e82748ad816378491ceb1a32756a90",
+        "gzSha256": "ef751486fe19b09a219b7dadc0a8d69ea9e82748ad816378491ceb1a32756a90",
+        "rawSize": 91601165,
         "counts": {
           "papersAdded": 0,
           "papersChanged": 0,
@@ -100,5 +100,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.3.0：全流程走查修复（首页数字口径、时政摘要、备考档案自洽、练一练题数、试卷做过角标、错题下次复习时间、统计与报告近 7 天补齐、练习页题型标签、AI 配置可点提示）；题库 0.5.15：题干填空横线与括号占位还原"
+  "note": "App 0.3.1：下载进度不再卡死/回退，通知栏不再来回跳，增量包改为流式应用（修 OOM）；题库 0.5.15：题干填空横线与括号占位还原"
 }

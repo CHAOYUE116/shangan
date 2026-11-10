@@ -124,32 +124,60 @@ try {
   console.warn('    增量包里不会带分类索引，新题将无法出现在模块树里。');
 }
 
-const payload = {
+// v2 格式：NDJSON（一行一条），App 侧逐行 apply，内存占用与包大小无关。
+// v1 的整块 JSON 在 85MB 这种体量上会让中低端机直接 OOM。
+const header = {
+  v: 2,
   schema: 1,
   from: FROM,
   to: TO,
   generatedAt: new Date().toISOString(),
-  papers: [...p.added, ...p.changed],
-  questions: [...q.added, ...q.changed],
-  deleted: { questions: qDeleted, papers: p.deleted },
-  question_categories: qc,
+  reset: ['question_categories'],
+  counts: {
+    papers: p.added.length + p.changed.length,
+    questions: q.added.length + q.changed.length,
+    questionCategories: qc.length,
+    deletedQuestions: qDeleted.length,
+    deletedPapers: p.deleted.length,
+  },
 };
-
-const raw = Buffer.from(JSON.stringify(payload), 'utf8');
-const gz = zlib.gzipSync(raw, { level: 9 });
 
 fs.mkdirSync(OUT, { recursive: true });
 const safe = (s) => String(s).replace(/[^\w.\-]/g, '_');
 const file = path.join(OUT, `delta-${safe(FROM)}-${safe(TO)}.json.gz`);
-fs.writeFileSync(file, gz);
 
+let rawSize = 0;
+await new Promise((resolve, reject) => {
+  const out = fs.createWriteStream(file);
+  const gz = zlib.createGzip({ level: 9 });
+  let buf = '';
+  const flush = () => { if (buf) { rawSize += Buffer.byteLength(buf); gz.write(buf); buf = ''; } };
+  const line = (obj) => {
+    buf += JSON.stringify(obj) + '\n';
+    if (buf.length > 1 << 20) flush();
+  };
+  out.on('error', reject);
+  gz.on('error', reject);
+  gz.pipe(out);
+  out.on('finish', resolve);
+  line(header);
+  for (const r of [...p.added, ...p.changed]) line({ t: 'p', r });
+  for (const r of [...q.added, ...q.changed]) line({ t: 'q', r });
+  for (const r of qc) line({ t: 'c', r });
+  for (const id of qDeleted) line({ t: 'dq', id });
+  for (const id of p.deleted) line({ t: 'dp', id });
+  flush();
+  gz.end();
+});
+
+const gz = fs.readFileSync(file);
 const sha256 = crypto.createHash('sha256').update(gz).digest('hex');
 
 console.log(`\n题库增量: ${FROM} → ${TO}`);
 console.log(`  papers    新增 ${p.added.length} / 改动 ${p.changed.length} / 删除 ${p.deleted.length}`);
 console.log(`  questions 新增 ${q.added.length} / 改动 ${q.changed.length} / 删除题号 ${qDeleted.length}`);
 console.log(`  question_categories ${qc.length} 行（全量）`);
-console.log(`  原始 ${(raw.length / 1048576).toFixed(2)} MB → 压缩 ${(gz.length / 1048576).toFixed(2)} MB`);
+console.log(`  原始 ${(rawSize / 1048576).toFixed(2)} MB → 压缩 ${(gz.length / 1048576).toFixed(2)} MB`);
 console.log(`  输出 ${file}`);
 console.log(`  sha256 ${sha256}`);
 console.log(`\nmanifest 里这样写：`);
@@ -159,11 +187,11 @@ console.log(JSON.stringify({
   url: `https://github.com/CHAOYUE116/shangan/releases/download/tiku-${TO}/${path.basename(file)}`,
   size: gz.length,
   sha256,
-  rawSize: raw.length,
+  rawSize,
 }, null, 2));
 
 fs.writeFileSync(file.replace(/\.json\.gz$/, '.meta.json'), JSON.stringify({
-  from: FROM, to: TO, url: path.basename(file), size: gz.length, sha256, rawSize: raw.length,
+  from: FROM, to: TO, url: path.basename(file), size: gz.length, sha256, rawSize,
   counts: {
     papersAdded: p.added.length, papersChanged: p.changed.length,
     questionsAdded: q.added.length, questionsChanged: q.changed.length,
