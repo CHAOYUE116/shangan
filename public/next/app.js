@@ -22,6 +22,62 @@ function safeHtml(html) {
   return t.innerHTML;
 }
 
+/* ---------- 公式图离线化（不依赖 Service Worker） ----------
+ * Capacitor 的 WebView 里 serviceWorker.register 会失败（本地资源根是自定义
+ * scheme），所以 sw-local.js 那套拦截在 App 内一直没生效，结果是公式图画不出来。
+ * 这里改成渲染后直接把 <img src="…formulas?latex=KEY"> 换成 data: URL：
+ * KEY 就是 images.db 的主键，走原生桥一次查询即可，全程离线。
+ */
+const IMG_KEY_RE = /[?&]latex=([^&"']+)/;
+const _imgUrlCache = new Map();
+
+function imgKeyOf(src) {
+  const m = IMG_KEY_RE.exec(String(src || ''));
+  if (!m) return null;
+  try { return decodeURIComponent(m[1]); } catch { return m[1]; }
+}
+
+function bytesToDataUrl(bytes, mime) {
+  let bin = '';
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return `data:${mime || 'image/png'};base64,${btoa(bin)}`;
+}
+
+function hydrateImages(root) {
+  const imgApi = window.__LOCAL_IMAGES__;
+  if (!imgApi || !root || !root.querySelectorAll) return;
+  for (const im of root.querySelectorAll('img:not([data-img-ok])')) {
+    const key = imgKeyOf(im.getAttribute('src'));
+    if (!key) continue;
+    im.dataset.imgOk = '1';
+    let url = _imgUrlCache.get(key);
+    if (url === undefined) {
+      try {
+        const rec = imgApi.formula(key);
+        url = rec && rec.blob ? bytesToDataUrl(rec.blob, rec.mime) : null;
+      } catch { url = null; }
+      _imgUrlCache.set(key, url);
+    }
+    if (url) im.src = url;
+  }
+}
+
+if (typeof MutationObserver !== 'undefined') {
+  const mo = new MutationObserver((list) => {
+    for (const m of list) {
+      if (m.type === 'attributes') hydrateImages(m.target);
+      else for (const n of m.addedNodes) if (n.nodeType === 1) hydrateImages(n);
+    }
+  });
+  const startImgWatch = () => {
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    hydrateImages(document.body);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startImgWatch, { once: true });
+  else startImgWatch();
+}
+
 /* 选项/解析渲染：含公式图（<img>）时走 safeHtml 保留图片，否则按纯文本转义 */
 const hasRichHtml = (s) => /<img\b/i.test(String(s || ''));
 function renderRichText(s) {
@@ -61,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.8';
+const APP_VERSION = '0.3.9';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },

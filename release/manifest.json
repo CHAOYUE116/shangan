@@ -1,23 +1,23 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T16:55:30.343Z",
+  "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.3.7",
-    "versionCode": 77,
-    "code": 77,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
+    "version": "0.3.9",
+    "versionCode": 79,
+    "code": 79,
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.7-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.9-release.apk",
         "kind": "github"
       }
     ],
-    "size": 167738945,
-    "sha256": "afc1b0dd96a2b2553eb6561ba22eed821a0c9d4fc8275b7f22ef49e5f3ce102a"
+    "size": 167743273,
+    "sha256": "dce1869cffc9310dcc2a78d3e2f93b962856083563b217ba58e031eee3cbaab5"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -124,5 +124,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.3.7：考试组合（按你考的那场分配每日题量，不再被公基题量带偏）、真题出处标识（2026·浙江）"
+  "note": "App 0.3.9：公式图不再依赖 Service Worker（WebView 里根本注册不上），离线也能显示；下载进度单调、分块失败自动单线程续上；新增 0.5.14 起累积增量包，老版本不再被迫下全量"
 }
