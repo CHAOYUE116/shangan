@@ -1,0 +1,10 @@
+﻿import { chromium } from 'playwright-core';
+const PROFILE = 'D:/Projects/上岸APP/research/fenbi/browser-profile';
+const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const ctx = await chromium.launchPersistentContext(PROFILE, { executablePath: CHROME, headless: false, viewport: { width: 1200, height: 800 } });
+const page = ctx.pages()[0] || await ctx.newPage();
+await page.goto('https://www.fenbi.com/spa/tiku/guide/realTest/sydw/syzc', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1000);
+const r = await ctx.request.post('https://tiku.fenbi.com/api/syzc/exercises?app=web&kav=131&av=134&hav=128&gav=2&apcid=0&deviceId=&type=1', { form: { type: '1', paperId: '77144', exerciseTimeMode: '2' } });
+console.log('create 状态', r.status(), (await r.text()).slice(0, 120).replace(/\s+/g, ' '));
+await ctx.close();

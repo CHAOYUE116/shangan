@@ -1,5 +1,35 @@
 # 更新记录
 
+## 题库 0.5.14
+
+### 解析补采：首批 4,153 题
+
+粉笔的解析只在下发「交卷」之后 —— 整卷接口（`/api/{course}/papers/v2` + `/questions?ids=`）
+只给题干、选项、正确答案，`analysis` 永远是 null。要拿解析必须走：
+
+1. `POST /api/{course}/exercises?type=1`（paperId）→ exerciseKey
+2. `POST /combine/exercise/submit?key=` 交卷
+3. `GET /combine/exercise/getSolution?format=json` → `switchVO.requestKey`（一串加密 key）
+4. `GET /combine/static/solution?key=<requestKey>` → `solutions[]`（含 solution 富文本、correctAnswer、keypoints）
+
+这套链路不用点界面、不用逐题作答，一卷 2 秒。新增两个工具：
+`tools/fenbi-solutions-api.mjs`（批量取）、`tools/backfill-from-api.mjs`（按 paperId 精确回填，
+位置对齐 + 题干前 40 字归一化双校验，对不上就不写）。
+
+首批回填 **35 卷 / 4,153 题**，对不上 11 题（0.3%），全部是卷内题序与解析数组错位的老卷。
+
+### 卡在粉笔的创建练习限流
+
+连续创建到第 31 卷时接口返回：
+
+```
+403 {"path":"/api/syzc/exercises","msg":"您创建练习的频率过高，请稍候再试"}
+```
+
+之后 20 分钟未恢复，判断是配额级限制（每次交卷都会写一条做题记录）。
+剩下的 1,732 卷只能分轮次慢跑，脚本已内置：`--gap 25`（卷间隔）、撞 403 退避 300 秒重试、
+连续两卷耗尽自动停下，重跑会跳过已采的卷。
+
 ## 题库 0.5.13
 
 ### 补上缺的 1,519 条分类索引
