@@ -1,22 +1,22 @@
 {
   "schema": 1,
-  "publishedAt": "2026-11-10T12:42:10.094Z",
+  "publishedAt": "2026-11-10T13:22:55.665Z",
   "app": {
-    "version": "0.3.1",
-    "versionCode": 71,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
+    "version": "0.3.2",
+    "versionCode": 72,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.1-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.15-20261110-1909/shangan-0.3.2-release.apk",
         "kind": "github"
       }
     ],
-    "size": 154401945,
-    "sha256": "c110a440a4c8d7dcb4392bd5ea9d6c27b0df0c8ca2f0d323c55d930ed02fb1ad"
+    "size": 154401846,
+    "sha256": "59a45072d58164d7b16a4ca190afaf5f198e5f560404a1dd3de2de897fcfe25a"
   },
   "tiku": {
     "dbVersion": "0.5.15-20261110-1909",
@@ -100,5 +100,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.3.1：下载进度不再卡死/回退，通知栏不再来回跳，增量包改为流式应用（修 OOM）；题库 0.5.15：题干填空横线与括号占位还原"
+  "note": "App 0.3.2：修下载进度卡死与状态栏来回跳（分块计数只增、单块 20 秒换连接、解压与校验也有进度、换源不把进度打回 0、下载源优先 gh-proxy）；增量包改流式应用，不再 OOM；安装包内置题库同步到 0.5.15（题干填空横线与括号占位还原）"
 }
