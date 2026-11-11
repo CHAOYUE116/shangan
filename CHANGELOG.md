@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## App 0.5.2
+
+- **更新弹窗的进度条看不见**：题库分支用的是 4px 高的 `.p-bar`，`width` 个位数百分比时只有几像素宽，加上灰色轨道很淡，看着像「没有进度条」；App 分支只在 `newAppState === 'downloading'` 时渲染，且 `Math.max(2, appPct)` 在 0% 时只画一个 2% 的蓝点。
+- 新增 `updProgress({ pct, got, total, label, tip })`，两条更新链共用：
+  - 条高 6px、渐变色，右侧显示「已下载 / 总大小」；
+  - `pct === 0` 时不再是空条，改成 `.upd-prog-bar.indet` 的**流动动画**（`@keyframes updSlide`）；
+  - 百分比 20 秒没变过 → 补一行橙字提示「网络慢，还在下…」（App 分支提示「正在换源重试」）。
+- 去重复文案：下载中原生 message 自带「下载中 3% 997 KB / 30.2 MB（4 线程）」，与进度块重复，前端改成「题库有更新，正在增量下载」；`pct === 0` 时进度块不再显示「正在下载」字样。
+- `updProgress` 的 `label` 用 `o.label == null` 判空而不是 `||`——空字符串会被 `||` 吃掉，导致 0% 时又冒出「正在下载」。
+
 ## App 0.5.1
 
 - **「检查更新」时好时坏**：manifest 只有 3 个源（gh-proxy / raw 直连 / jsDelivr），国内到 raw 时通时不通、公共反代偶尔 502，全挂就是一句「检查失败」。现在源扩到 7 个（`manifestUrls()`：gh-proxy、ghfast、ghproxy.net、raw.gitmirror、raw 直连、cdn/fastly jsDelivr），`POLITICS_URLS` 同步加。

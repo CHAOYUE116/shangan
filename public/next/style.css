@@ -906,6 +906,23 @@ html[data-theme="dark"] .upd-prog-bar { background: #2A2E36; }
 html[data-theme="dark"] .upd-prog-meta { color: #8B9199; }
 .btn[disabled] { opacity: .62; }
 
+/* 还没拿到百分比时：一条来回流动的条，让人知道「在动」而不是「卡住」 */
+.upd-prog-bar.indet > i {
+  width: 38% !important;
+  animation: updSlide 1.15s ease-in-out infinite;
+}
+@keyframes updSlide {
+  0%   { transform: translateX(-100%); }
+  55%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+.upd-prog-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--orange, #b26a00);
+}
+
 
 /* 首页本周学习报告：7 天迷你柱 + 底部两个入口 */
 .home-week-bars{display:flex;align-items:flex-end;gap:5px;height:56px;margin:14px 2px 0}

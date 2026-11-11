@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2358,6 +2358,26 @@ function manifestUrls(fresh) {
 }
 const UPDATE_MANIFEST_URLS = manifestUrls();
 
+/**
+ * 更新进度块。
+ * 进度还是 0 的时候不画「0% 的空条」（看起来像没有进度条），改画一条流动条；
+ * 一直不动超过 20 秒，补一行「网络慢，正在换源重试」。
+ */
+function updProgress(opts) {
+  const o = opts || {};
+  const p = Math.max(0, Math.min(100, Number(o.pct) || 0));
+  const mb = (n) => (Number(n) > 0 ? (Number(n) / 1048576).toFixed(1) + ' MB' : '');
+  const size = Number(o.total) > 0 ? `${mb(o.got) || '0.0 MB'} / ${mb(o.total)}` : (mb(o.total) || '');
+  const bar = p > 0
+    ? `<div class="upd-prog-bar"><i style="width:${Math.max(3, p)}%"></i></div>`
+    : '<div class="upd-prog-bar indet"><i></i></div>';
+  const label = esc(o.label == null ? '正在下载' : String(o.label));
+  const left = label + (p > 0 ? ' ' + p + '%' : '');
+  return `<div class="upd-prog">${bar}
+    ${(left || size) ? `<div class="upd-prog-meta"><span>${left}</span><span>${esc(size)}</span></div>` : ''}
+    ${o.tip ? `<div class="upd-prog-tip">${esc(o.tip)}</div>` : ''}</div>`;
+}
+
 function checkUpdate(mode) {
   if (!window.AppUpdate) { toast('在线更新只在 App 内可用'); return; }
   // 题库和 App 是两条独立的更新链：各查各的，各说各的。
@@ -2367,7 +2387,7 @@ function checkUpdate(mode) {
   const mb = (n) => { const v = Number(n) || 0; return v > 0 ? (v / 1048576).toFixed(1) + ' MB' : '大小未知'; };
   sheet(`<div class="sheet-head"><b>${onlyApp ? 'App 更新' : '题库更新'}</b><button class="sheet-close">✕</button></div>
     <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">${onlyApp ? '正在检查 App 新版本…' : '正在检查题库更新…'}</div>
-    <div class="p-bar" style="margin-top:12px"><i id="upd-bar" style="width:0%"></i></div></div>`);
+    ${updProgress({ pct: 0, label: '' })}</div>`);
   AppUpdate.reset();
   AppUpdate.start(JSON.stringify(manifestUrls()));
 
@@ -2375,6 +2395,11 @@ function checkUpdate(mode) {
   let reloading = false;
   let autoRetried = false;
   let lastState = '';
+  // 进度停滞检测：百分比 20 秒没变过，就提示「网络慢」，免得用户盯着一条不动的条
+  let seenPct = -1;
+  let seenAppPct = -1;
+  let movedAt = Date.now();
+  let appMovedAt = Date.now();
   clearInterval(checkUpdate._t);
   checkUpdate._t = setInterval(() => {
     let s;
@@ -2382,6 +2407,12 @@ function checkUpdate(mode) {
     const box = $('#upd-body');
     if (!box) { clearInterval(checkUpdate._t); return; }
     const pct = Number(s.progress) || 0;
+    const appPctNow = Number(s.newAppProgress) || 0;
+    const now = Date.now();
+    if (pct !== seenPct) { seenPct = pct; movedAt = now; }
+    if (appPctNow !== seenAppPct) { seenAppPct = appPctNow; appMovedAt = now; }
+    const dlingStalled = s.state === 'downloading' && now - movedAt > 20000;
+    const appStalled = s.newAppState === 'downloading' && now - appMovedAt > 20000;
     const canApply = s.state === 'done' && s.hasPending;
     const finished = s.state === 'done' && !s.hasPending;
     const stuck = s.state === 'checking' && Date.now() - t0 > 45000;
@@ -2424,8 +2455,10 @@ function checkUpdate(mode) {
       body = `
         <div style="font-size:20px;font-weight:600;line-height:1.35;margin:2px 0 6px">${head}</div>
         <div class="card-sub" style="margin:0 0 12px">${sub}</div>
-        ${dling ? `<div class="upd-prog"><div class="upd-prog-bar"><i style="width:${Math.max(2, appPct)}%"></i></div>
-          <div class="upd-prog-meta"><span>正在下载 ${appPct}%</span><span>${(dl / 1048576).toFixed(1)} / ${(tt / 1048576).toFixed(1)} MB</span></div></div>` : ''}
+        ${(dling || appStalled) ? updProgress({
+          pct: appPct, got: dl, total: tt, label: appPct > 0 ? '正在下载' : '',
+          tip: appStalled ? '网络慢，正在换源重试…（可以留在这一页，也可以退出去让它后台下）' : '',
+        }) : ''}
         ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成。点下面按钮安装（安装时 App 会关闭）</div>' : ''}
         ${s.newAppState === 'needPermission' ? '<div class="card-sub" style="margin:0 0 10px;color:var(--orange,#b26a00)">要先允许「安装未知应用」。已帮你打开系统设置，打开开关后回来点安装。</div>' : ''}
         ${appErr && s.newAppAvailable ? `<div class="card-sub" style="margin:0 0 10px;color:var(--red,#c62828)">${esc(s.message || '下载失败')}</div>` : ''}
@@ -2438,10 +2471,16 @@ function checkUpdate(mode) {
       const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
       // 用缓存时原生已经把说明拼进 message 了，这里去掉，避免和下面的诊断行重复
       let line = esc(String(s.message || '处理中…').replace(/（网络不稳，用的是本机 \d+ 分钟前的清单）$/, ''));
+      // 下载中原生那条 message 自己带着百分比和大小，和下面进度条重复，换成一句人话
+      if (s.state === 'downloading') line = '题库有更新，正在下载增量包';
       if (stuck) line = '检查超时 —— 换个网络或点下面重试';
       body = `
         <div class="card-sub">${line}</div>
-        <div class="p-bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
+        ${updProgress({
+          pct, got: s.downloaded, total: s.total,
+          label: pct > 0 ? (s.state === 'done' ? '已下载' : '正在下载') : '',
+          tip: dlingStalled ? '网络慢，还在下，可以留着这一页等它；超过 3 分钟没动静再点重试' : '',
+        })}
         <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
         ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
         ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
