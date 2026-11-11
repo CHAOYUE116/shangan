@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.11';
+const APP_VERSION = '0.3.12';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -305,22 +305,41 @@ function saveReviewState(v) {
     } catch (_) { /* 仍然写不进：本轮复习状态放弃，不影响答题 */ }
   }
 }
-function updateReview(qid, ok) {
+function updateReview(qid, ok, costMs, difficulty) {
   const m = loadReviewState(); const k = String(qid);
   const r = m[k] || { level: 1, next: 0, wrong: 0, streak: 0, mastered: false };
+  const cost = Number(costMs) || 0;
+  // 难度加权：题库里的 difficulty 是 1-5 的真题难度。难题忘得快，间隔压到 0.8；
+  // 简单题可以拉长到 1.15。没有难度值的题按 1.0 处理，不影响老数据。
+  const diff = Number(difficulty) || 0;
+  const factor = diff >= 4 ? 0.8 : diff > 0 && diff <= 2 ? 1.15 : 1;
+  // 「会但慢」：答对了但比这道题平时的用时翻一倍还多（且超过 45 秒），
+  // 说明是硬算/半蒙出来的，不该按正常答对升级。8 秒答对和 80 秒蒙对
+  // 在纯 Leitner 里是同一次成功，这是它最失真的一处。
+  const base = Number(r.avgCost) || 0;
+  const slow = ok && cost > 0 && cost > Math.max(45000, base * 2);
   if (ok) {
     r.streak = (r.streak || 0) + 1;
-    r.level = Math.min(6, (r.level || 1) + 1);
+    if (!slow) r.level = Math.min(6, (r.level || 1) + 1);
     // 「掌握」的门槛：连对 3 次、且间隔已经推到 7 天档。
-    // 原来是连对 2 次就判掌握并从此不再出现，错题里那些「蒙对两次」的题会被永久埋掉。
+    // 慢答对不升档，所以蒙对的题到不了这一档。
     if (r.streak >= 3 && r.level >= 4) r.mastered = true;
-    r.next = Date.now() + INTERVALS[Math.min(6, r.level)] * 86400000;
+    // 间隔按天算，但保留小数：难度 5 的第 2 档是 2×0.8=1.6 天，难度 2 的是 2×1.15=2.3 天，
+    // 取整会把这两者抹平成同一个 2 天，加权就白做了。
+    r.next = Date.now() + Math.max(1, INTERVALS[Math.min(6, r.level)] * factor) * 86400000;
   } else {
     r.streak = 0; r.level = 1; r.wrong = (r.wrong || 0) + 1; r.mastered = false;
     r.next = Date.now() + 86400000;
   }
+  // 每题自己的用时基线（指数平滑），下次判「慢」用
+  if (cost > 0) r.avgCost = base ? Math.round(base * 0.7 + cost * 0.3) : cost;
+  // 判「掌握」不等于这辈子不用再看：30 天后回炉抽检一次，
+  // 答错就掉回 level 1（上面的 else 分支），答对再推 30 天。
+  if (r.mastered) { r.recheckAt = Date.now() + 30 * 86400000; r.next = r.recheckAt; }
   r.last = Date.now();
+  r.lastSlow = !!slow;
   m[k] = r; saveReviewState(m);
+  return { slow, level: r.level, mastered: !!r.mastered };
 }
 // 一次性迁移：老数据里 next=0 的错题会全部「今天到期」，
 // 直接摊到未来若干天，每天 PER_DAY 道，避免首页出现 189 道债。
@@ -348,7 +367,7 @@ function reviewCountOn(dayOffset) {
   const m = loadReviewState();
   const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() + dayOffset);
   const end = new Date(start); end.setHours(23, 59, 59, 999);
-  return Object.values(m).filter((r) => !r.mastered && (r.next || 0) >= start.getTime() && (r.next || 0) <= end.getTime()).length;
+  return Object.values(m).filter((r) => (!r.mastered || !!r.recheckAt) && (r.next || 0) >= start.getTime() && (r.next || 0) <= end.getTime()).length;
 }
 function dueIds() {
   const m = loadReviewState();
@@ -356,7 +375,8 @@ function dueIds() {
   // 到期队列按「错得多、拖得久」优先：错 3 次的题应该排在错 1 次的前面，
   // 否则每天 15 道的额度会被一批只错一次的题占满，真正的硬骨头永远排不上。
   return Object.entries(m)
-    .filter(([, r]) => !r.mastered && (r.next || 0) <= end.getTime())
+    .filter(([, r]) => !r.mastered || !!r.recheckAt)
+    .filter(([, r]) => (r.next || 0) <= end.getTime())
     .sort((a, b) => (b[1].wrong || 0) - (a[1].wrong || 0) || (a[1].next || 0) - (b[1].next || 0))
     .map(([k]) => k);
 }
@@ -725,15 +745,22 @@ function renderHome() {
 
   let title, sub, cta, act;
   if (due > 0) {
-    title = `复习 <em>${Math.min(due, 15)}</em> 道错题`;
+    // 有到期题时，今日任务 = 复习（最多 40%）+ 新题补足剩余额度，
+    // 标题按「还剩多少道 / 到期多少道」说清楚，别让人以为只能复习
+    const rq = reviewQuota();
+    title = remain > 0 ? `今天还剩 <em>${remain}</em> 道` : `复习 <em>${Math.min(due, 15)}</em> 道到期题`;
     const tmr = reviewCountOn(1);
     const st = streakDays();
-    sub = (tmr > 0 ? `今天到期 <b>${due}</b> 道 · 明天还有 ${tmr} 道` : `今天到期 <b>${due}</b> 道`) + (st > 1 ? ` · 已连续 <b>${st}</b> 天` : '') + ` · 弱项是<b>${esc(topWeak)}</b>`;
-    cta = '开始复习';
+    sub = `到期 <b>${due}</b> 道` + (rq > 0 && remain > 0 ? `（先复习 ${rq} 道）` : '')
+      + (tmr > 0 ? ` · 明天还有 ${tmr} 道` : '')
+      + (st > 1 ? ` · 已连续 <b>${st}</b> 天` : '')
+      + ` · 弱项是<b>${esc(topWeak)}</b>`;
+    cta = remain > 0 ? '开始今日任务' : '开始复习';
     act = 'daily-task';
   } else if (remain > 0) {
     title = `今天还剩 <em>${remain}</em> 道`;
-    sub = `今天已做 <b>${today}</b> 题 · 从<b>${esc(topWeak)}</b>开始`;
+    const rq = reviewQuota();
+    sub = `今天已做 <b>${today}</b> 题` + (rq > 0 ? ` · 其中复习 <b>${rq}</b> 道` : '') + ` · 从<b>${esc(topWeak)}</b>开始`;
     cta = '开始做题';
     act = 'daily-task';
   } else {
@@ -1008,6 +1035,7 @@ function renderLibrary() {
       return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部"><div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${(g.subs || []).filter((x) => x.total > 0 && x.name !== '全部').map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('')}`;
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
+  <div class="opt-row" style="padding:12px 14px;border-radius:14px;background:var(--card,#fff)"><span class="opt-label">刷题方式<div class="opt-hint">背题模式不答题，直接看题和解析</div></span><div class="chips"><button class="chip ${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="chip ${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div></div>
   <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="subject-random">本科目随机 20 题</button>`;
 }
 function openKeypoints() {
@@ -2318,6 +2346,9 @@ function renderMe() {
   <div class="section-head"><h2 class="section-title">阅读外观</h2></div>
   <div class="card"><div class="theme-row"><button class="chip ${theme === 'light' ? 'active' : ''}" data-theme-set="light">日间白</button><button class="chip ${theme === 'dark' ? 'active' : ''}" data-theme-set="dark">夜间墨</button><button class="chip" data-theme-set="auto">跟随系统</button></div>
     <div class="opt-row"><span class="opt-label">正文字号</span><div class="chips"><button class="chip ${(S.settings.fs === 's') ? 'active' : ''}" data-fs="s">小</button><button class="chip ${(S.settings.fs !== 's' && S.settings.fs !== 'l') ? 'active' : ''}" data-fs="m">中</button><button class="chip ${S.settings.fs === 'l' ? 'active' : ''}" data-fs="l">大</button></div></div>
+  </div>
+  <div class="section-head"><h2 class="section-title">练习偏好</h2></div>
+  <div class="card">
     <div class="opt-row"><span class="opt-label">点选项立即判对错<div class="opt-hint">关掉后要先点「确认答案」</div></span><button class="switch ${S.settings.instant ? 'on' : ''}" data-instant><i></i></button></div>
     <div class="opt-row"><span class="opt-label">答对自动下一题<div class="opt-hint">停 1.2 秒再翻页；答错会停在解析上</div></span><button class="switch ${S.settings.autoNext ? 'on' : ''}" data-auto-next><i></i></button></div>
     <div class="opt-row"><span class="opt-label">背题模式<div class="opt-hint">不答题，直接看题和解析；考前扫一遍用</div></span><button class="switch ${S.settings.recite ? 'on' : ''}" data-recite><i></i></button></div>
@@ -2568,7 +2599,7 @@ function renderPractice() {
       ${deep.mother ? `<div><b>母题模板</b><p style="white-space:pre-wrap;margin-top:4px">${esc(deep.mother)}</p></div>` : ''}
     </div>` : '';
     const aiCard = `<div class="ai-card"><div class="ai-head"><span class="ai-badge">AI 讲题</span>${P.aiCached ? '<span class="tag ok">缓存</span>' : ''}<span class="ai-sub">换个方式讲这道题</span><button class="btn btn-ghost btn-sm" data-act="ai-explain" ${P.aiLoading ? 'disabled' : ''}>${P.aiLoading ? '解析中…' : P.ai ? '重新讲' : '听一遍'}</button></div>${P.aiLoading ? `<div class="ai-loading"><span class="spinner ai-spinner"></span><span>AI 正在拆解题目…</span></div>` : ''}${P.ai ? `<div class="ai-sections">${renderAiStructured(P.ai)}</div>` : ''}${P.ai ? `<div class="ai-chat"><div class="ai-chat-title">继续追问</div>${P.aiChat.map((m) => `<div class="ai-chat-bubble ${m.role}">${m.role === 'assistant' ? aiRichText(m.content) : esc(m.content)}</div>`).join('')}${P.aiLoading ? `<div class="ai-chat-loading"><span class="spinner ai-spinner"></span> AI 正在回答…</div>` : ''}<div class="ai-chat-input"><input id="ai-chat-input" class="field" placeholder="还有哪里不懂？继续问"><button class="btn btn-primary btn-sm" data-act="ai-send">发送</button></div></div>` : ''}</div>`;
-    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b></div></div>${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
+    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b>${fb.slow ? ' · <span class="tag warn">会但慢</span>' : ''}</div></div>${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
     acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
   }
 }
@@ -2580,7 +2611,9 @@ async function confirmAnswer() {
     const r = await api('/api/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, selected: P.selected }) });
     P.feedback = r; P.confirmed = true;
     P.results.push(!!r.ok);
-    updateReview(q.id, !!r.ok);
+    // 用时进复习模型：答对但明显超时 → 只记成功不升档
+    const rev = updateReview(q.id, !!r.ok, qCostOf(P.idx), q.difficulty);
+    if (rev && rev.slow) r.slow = true;
     saveCurrentAnswer();
     renderPractice();
     saveSession();
@@ -2749,6 +2782,14 @@ document.addEventListener('click', (e) => {
   if (anBtn) { S.settings.autoNext = !S.settings.autoNext; saveSettings(); go('me'); toast(S.settings.autoNext ? '已开启：答对停一下自动翻页' : '已关闭：每题都要自己点下一题'); return; }
   const rcBtn = e.target.closest('[data-recite]');
   if (rcBtn) { S.settings.recite = !S.settings.recite; saveSettings(); go('me'); toast(S.settings.recite ? '已开启背题模式：不答题，直接看解析' : '已回到做题模式'); return; }
+  const libMode = e.target.closest('[data-lib-mode]');
+  if (libMode) {
+    const want = libMode.dataset.libMode === 'recite';
+    if (S.settings.recite !== want) { S.settings.recite = want; saveSettings(); }
+    go('library');
+    toast(want ? '背题模式：进入练习直接看答案和解析' : '做题模式：先选答案再对答案');
+    return;
+  }
   if (e.target.closest('[data-confirm]')) { confirmAnswer(); return; }
   if (e.target.closest('[data-next]')) { nextQuestion(); return; }
   if (e.target.closest('[data-prev]')) { prevQuestion(); return; }
@@ -3092,6 +3133,23 @@ async function reviewTrain() {
 async function startNewDaily() {
   const n = Math.min(dailyRemaining(), 15);
   if (n <= 0) { toast('今日任务已完成'); return; }
+  const list = await buildNewQuestions(n);
+  if (!list.length) { toast('暂无题目'); return; }
+  startPractice(list, `今日新题 · ${list.length} 题`, list[0].subject || dailySubject(), 'new');
+}
+/**
+ * 每日任务里给「复习」留多少额度：
+ * 复习最多占目标的 40%、且不超过 10 道。原来的做法是「有到期题就只做复习，
+ * 没有才做新题」，等于两件事互相挤——到期一多，新题就永远排不上，
+ * 到期少的时候又完全不复习。这里改成同一次任务里按额度混排。
+ */
+function reviewQuota() {
+  const due = dueIds().length;
+  const goal = dailyGoal();
+  return Math.max(0, Math.min(due, Math.round(goal * 0.4), 10));
+}
+/** 按考试组合配额抽新题（客观题），返回题目数组 */
+async function buildNewQuestions(n) {
   // 按考试组合分配额：浙江统考 = 职测 60% + 综应 40%，不会因为公基题多就全推公基
   const plan = quotaFor(n, true);
   const qs = [];
@@ -3136,13 +3194,36 @@ async function startNewDaily() {
     } catch { /* ignore */ }
   }
   const list = qs.slice(0, n);
-  if (!list.length) { toast('暂无题目'); return; }
-  const label = plan.map((p) => `${p.subject.split('·')[1]} ${p.n}`).join(' + ');
-  startPractice(list, `今日新题 · ${label}`, list[0].subject || dailySubject(), 'new');
+  return list;
 }
 async function startDailyTask() {
-  if (dueIds().length) { await reviewTrain(); return; }
-  await startNewDaily();
+  const remain = dailyRemaining();
+  if (remain <= 0) { toast('今日任务已完成，想多练可以点「继续上次」或随机练习'); return; }
+  const qs = [];
+  const seen = new Set();
+  // 先安排到期复习：错过的题不补，明天只会滚得更大
+  const rq = Math.min(reviewQuota(), remain);
+  if (rq > 0) {
+    for (const id of dueIds().slice(0, rq)) {
+      try {
+        const q = await api('/api/question?id=' + encodeURIComponent(id));
+        if (q && q.id != null && !seen.has(q.id)) { seen.add(q.id); qs.push(q); }
+      } catch { /* 单题取不到就跳过 */ }
+    }
+  }
+  const newN = Math.min(remain - qs.length, 15);
+  if (newN > 0) {
+    const fresh = await buildNewQuestions(newN);
+    for (const q of fresh) {
+      const id = q.id ?? q.questionId;
+      if (id == null || seen.has(id)) continue;
+      seen.add(id); qs.push(q);
+    }
+  }
+  if (!qs.length) { toast('暂无题目'); return; }
+  const rn = qs.length - Math.min(newN, qs.length);
+  const label = rn > 0 ? `复习 ${rn} + 新题 ${qs.length - rn}` : `新题 ${qs.length}`;
+  startPractice(qs, `今日任务 · ${label}`, qs[0].subject || dailySubject(), rn > 0 ? 'review' : 'new');
 }
 function openSmartPaper() {
   const d = S.smart;
@@ -3257,7 +3338,7 @@ async function submitExam() {
       const r = await api('/api/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, selected: a.selected }) });
       P.answers[i] = { ...a, confirmed: true, feedback: r };
       if (r.ok) right++;
-      updateReview(q.id, !!r.ok);
+      updateReview(q.id, !!r.ok, Number((P.qCost || {})[i]) || 0, q.difficulty);
       await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [a.selected], correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0 }) }).catch(() => {});
     } catch { /* 单题判分失败不阻塞交卷 */ }
   }
