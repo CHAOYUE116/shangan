@@ -131,7 +131,9 @@ export function createLocalHandler({ query, records, store, ai }) {
     const paperM = route.match(/^GET \/papers\/(\d+)$/);
     if (paperM) return query.paperById(Number(paperM[1]));
     // 与 server.mjs 的 /api/search 同构：返回 { list: [...] }，前端取 d.list
-    if (route === 'GET /search') return { list: query.search(qs.get('q') || '', Number(qs.get('limit') || 30)) };
+    if (route === 'GET /search') {
+      return { list: query.search(qs.get('q') || '', Number(qs.get('limit') || 30), { subject: qs.get('subject') || '', year: qs.get('year') || '' }) };
+    }
     if (route === 'GET /practice') {
       return query.practice(qs.get('subject') || '', {
         chapter: qs.get('chapter') || undefined,
@@ -257,6 +259,10 @@ export function createLocalHandler({ query, records, store, ai }) {
     if (route === 'GET /notes') return records.notes({ limit: Number(qs.get('limit') || 50), offset: Number(qs.get('offset') || 0), qid: qs.get('qid'), group: qs.has('group') ? (qs.get('group') || '') : undefined, sub: qs.get('sub') || undefined });
     if (route === 'POST /notes') return records.upsertNote(body.questionId, { subject: body.subject, chapter: body.chapter, note: body.note });
     if (route === 'DELETE /notes') return records.deleteNote(body.questionId);
+    // 申论/综应批改记录（离线，IndexedDB essays store）
+    if (route === 'GET /essays/stats') return records.essayStats();
+    if (route === 'GET /essays') return records.essays({ limit: Number(qs.get('limit') || 50), offset: Number(qs.get('offset') || 0) });
+    if (route === 'POST /essays') return records.saveEssay(body);
 
     // ---------- AI ----------
     if (route === 'GET /ai/material') return ai.material(qs.get('paperId'));

@@ -760,18 +760,52 @@ export function createLocalApi(tiku, practice, stats = {}) {
     },
 
     /** 题目搜索（题干关键词；跨科目，按 questionId 去重） */
-    search(q, limit = 30) {
+    search(q, limit = 30, opts = {}) {
       const text = String(q || '').trim();
       if (!text) return [];
-      const cap = Math.min(Math.max(Number(limit) || 30, 1), 50);
-      return tiku.all(
-        `SELECT q.questionId id, MIN(q.content) content, MIN(q.chapter) chapter,
-                MIN(p.subjectName) subject, MIN(p.name) paper,
-                MAX(CASE WHEN TRIM(COALESCE(q.analysis, '')) <> '' THEN 1 ELSE 0 END) hasAnalysis
+      const cap = Math.min(Math.max(Number(limit) || 30, 1), 80);
+      // 题干和解析都搜：复习时想找的往往是「哪道题讲过这个说法」，那是解析里的内容。
+      // 两条独立查询再合并——比一条带 CASE 的聚合 SQL 稳（列级 CASE 里绑参会触发 SQLITE_MISMATCH）。
+      const like = `%${text}%`;
+      const extra = [];
+      const extraArgs = [];
+      if (opts.subject) { extra.push('p.subjectName = ?'); extraArgs.push(String(opts.subject)); }
+      if (opts.year) {
+        // year 是「近 N 年」的 N（3/5/10），不是具体年份：按卷名前四位比大小
+        const n = Number(opts.year);
+        if (Number.isFinite(n) && n > 0) {
+          extra.push("p.name GLOB '20*' AND CAST(SUBSTR(p.name, 1, 4) AS INTEGER) >= ?");
+          extraArgs.push(new Date().getFullYear() - (n - 1));
+        }
+      }
+      const tail = extra.length ? ` AND ${extra.join(' AND ')}` : '';
+      const cols = `q.questionId id, MIN(q.content) content, MIN(q.chapter) chapter,
+                    MIN(p.subjectName) subject, MIN(p.name) paper,
+                    MAX(CASE WHEN TRIM(COALESCE(q.analysis, '')) <> '' THEN 1 ELSE 0 END) hasAnalysis`;
+      const stem = tiku.all(
+        `SELECT ${cols}, 1 inStem, '' snippet, 0 inAnalysis
          FROM questions q JOIN papers p ON p.id = q.paperId
-         WHERE q.content LIKE ? GROUP BY q.questionId ORDER BY id DESC LIMIT ?`,
-        `%${text}%`, cap
+         WHERE q.content LIKE ?${tail}
+         GROUP BY q.questionId ORDER BY q.questionId DESC LIMIT ?`,
+        ...[like, ...extraArgs, cap]
       );
+      const stemIds = new Set(stem.map((r) => String(r.id)));
+      const ana = tiku.all(
+        `SELECT ${cols}, 0 inStem,
+                SUBSTR(MAX(CASE WHEN q.analysis LIKE ? THEN q.analysis ELSE '' END), 1, 1200) snippet,
+                1 inAnalysis
+         FROM questions q JOIN papers p ON p.id = q.paperId
+         WHERE q.analysis LIKE ? AND q.content NOT LIKE ?${tail}
+         GROUP BY q.questionId ORDER BY q.questionId DESC LIMIT ?`,
+        ...[like, like, like, ...extraArgs, cap]
+      );
+      const out = stem.slice();
+      for (const r of ana) {
+        if (out.length >= cap) break;
+        if (stemIds.has(String(r.id))) continue;
+        out.push(r);
+      }
+      return out;
     },
 
     /** 随机出题（与 /api/practice 同构；支持章节/树节点/题组） */

@@ -489,7 +489,76 @@ export function createRecordsApi(store, tiku, onChanged) {
         .sort((a, b) => SOURCE_GROUPS.findIndex((g) => g.key === a.key) - SOURCE_GROUPS.findIndex((g) => g.key === b.key));
       return { ok: true, target, total, fixed: updates.length, groups };
     },
+    /**
+     * 申论/综应批改记录（离线存 IndexedDB 的 essays store）。
+     * - saveEssay：每次批改落一条，含分数、作答原文、批改全文
+     * - essays：倒序列表（回看用）
+     * - essayStats：分数趋势 + 平均/首末/最高，全是「拿到满分百分比」口径
+     */
+    async saveEssay({ questionId, subject = '', chapter = '', answer = '', content = '', score = '', fullScore = null } = {}) {
+      if (!String(content || '').trim()) throw new Error('缺少批改内容');
+      const ai = parseScore(score, fullScore);
+      await store.put('essays', {
+        question_id: String(questionId || ''),
+        subject, chapter,
+        answer: String(answer || ''),
+        content: String(content || ''),
+        score: String(score || ''),
+        full_score: fullScore == null ? null : Number(fullScore),
+        got: ai.got, full: ai.full,
+        created_at: Date.now(),
+      });
+      return { ok: true };
+    },
+    async essays({ limit = 50, offset = 0 } = {}) {
+      const rows = await store.getAll('essays');
+      rows.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+      const total = rows.length;
+      const page = rows.slice(offset, offset + limit);
+      return {
+        total, offset, limit, hasMore: offset + page.length < total,
+        list: page.map((r) => ({
+          id: r.id,
+          questionId: r.question_id,
+          subject: r.subject || '',
+          chapter: r.chapter || '',
+          score: r.score || '',
+          fullScore: r.full_score ?? null,
+          answer: String(r.answer || '').slice(0, 400),
+          content: String(r.content || ''),
+          pct: r.full ? Math.round((Number(r.got) / Number(r.full)) * 100) : null,
+          time: fmtDT(r.created_at),
+          ts: r.created_at || 0,
+        })),
+      };
+    },
+    async essayStats() {
+      const rows = (await store.getAll('essays')).sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+      const pts = rows
+        .map((r) => ({ ts: r.created_at || 0, got: Number(r.got), full: Number(r.full), name: r.chapter || r.subject || '' }))
+        .filter((x) => Number.isFinite(x.got) && Number.isFinite(x.full) && x.full > 0);
+      const pcts = pts.map((x) => Math.round((x.got / x.full) * 100));
+      return {
+        count: rows.length,
+        graded: pts.length,
+        avgPct: pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null,
+        firstPct: pcts.length ? pcts[0] : null,
+        lastPct: pcts.length ? pcts[pcts.length - 1] : null,
+        bestPct: pcts.length ? Math.max(...pcts) : null,
+        trend: pts.map((x, i) => ({ ts: x.ts, pct: pcts[i], name: x.name })),
+      };
+    },
   };
+}
+
+/** 从「11/15」「11 分」「三档」这类评分文本里抠出分数（拿不到就返回 null） */
+function parseScore(score, fullScore) {
+  const s = String(score || '');
+  const m = /(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/.exec(s);
+  if (m) return { got: Number(m[1]), full: Number(m[2]) };
+  const n = /(\d+(?:\.\d+)?)/.exec(s);
+  if (n && fullScore) return { got: Number(n[1]), full: Number(fullScore) };
+  return { got: null, full: fullScore ? Number(fullScore) : null };
 }
 
 // ---------- 图片层 ----------

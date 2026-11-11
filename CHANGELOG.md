@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## App 0.5.0
+
+- **搜索只搜题干**：`local-queries.js` 的 `search()` 原来只有 `WHERE q.content LIKE ?`。复习时想找的往往是「哪道题讲过这个说法」，而这句话在解析里——搜不到。现在题干、解析两条查询各跑一次再合并，结果带「题干命中 / 解析命中」标签，解析命中给 1200 字摘要，前端关键词高亮；题干命中的排在前面。
+- **搜索没有任何筛选**：加「全库 / 只看当前科目 / 近 3 年 / 近 5 年」四个 chip。年份按卷名前四位比大小（`p.name GLOB '20*'` + `CAST(SUBSTR(p.name,1,4) AS INTEGER) >= ?`），不是 `LIKE '3%'` 这种错写法。
+- **搜索结果点开打不开**：`search-open` 一直用 `Number(act.dataset.id)`，非数字 id 变 `NaN`，接口报「题目不存在」。改成原样传字符串。
+- **批改完就没了**：`aiGrade()` 拿到结果只存在 `S.practice.answers[idx].grade` 里，关掉页面就丢。现在成功即 `POST /api/essays` 落 IndexedDB（`idb-store.js` 版本 3 → 4，新增 `essays` store，`rowKey` 里 essays 与 records 同样用自动 id）。
+- **批改记录能回看**：回顾页加第四个 tab「批改」——已批改篇数、平均分、最高分、最近一次 / 第一次，加分数趋势条；点任意一条看「我的作答 + 完整批改意见」。
+- `local-api.js` 新增 `saveEssay / essays / essayStats`，`parseScore()` 从「12/15」抠分数；`local-handler.js` 加 `GET /essays/stats`、`GET /essays`、`POST /essays`。
+- **踩坑记录**：`sqljs-engine.js` 的 `all(sql, ...params)` 是变参——传数组会被序列化成 `[[...]]`，NativeDB 直接抛 `datatype mismatch (code 20 SQLITE_MISMATCH)`；必须展开。另外 SQL 列级 `CASE` 里绑参会触发同一个错误，所以改成两条查询合并。
+
 ## App 0.3.6
 
 这一版只动复习引擎，逐条对应「为什么它现在帮不上提分」：

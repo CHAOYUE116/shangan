@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.4.4';
+const APP_VERSION = '0.5.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1083,16 +1083,51 @@ function renderKeypointsPage() {
 function openSearch() {
   S.lib.view = 'search';
   S.tab = 'library';
-  S.search = { q: '', list: [] };
+  S.search = { q: '', list: [], scope: 'all', year: '' };
   go('library');
   setTimeout(() => $('#search-input')?.focus(), 80);
+}
+/** 关键词高亮（先把 HTML 转义，再包 <mark>，避免注入） */
+function hlSearch(text, kw) {
+  const safe = esc(String(text || ''));
+  const k = String(kw || '').trim();
+  if (!k) return safe;
+  const pat = esc(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    return safe.replace(new RegExp(pat, 'gi'), (m) => `<mark class="kw">${m}</mark>`);
+  } catch {
+    return safe;
+  }
+}
+function searchResultRows() {
+  const list = S.search.list || [];
+  const kw = S.search.q || '';
+  return list.map((x) => {
+    const stemHit = x.inStem !== 0;
+    const anaHit = !!x.inAnalysis;
+    const snip = anaHit ? String(x.snippet || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+    return `<div class="paper-item" data-act="search-open" data-id="${esc(String(x.id))}">
+      <div class="paper-top"><span class="tag">${esc(x.subject || '')}</span>${stemHit ? '<span class="tag ok">题干命中</span>' : ''}${anaHit ? '<span class="tag">解析命中</span>' : ''}${x.hasAnalysis ? '' : '<span class="tag warn">暂无解析</span>'}</div>
+      <div class="paper-title">${hlSearch(String(x.content || '').slice(0, 110), kw)}</div>
+      ${snip ? `<div class="search-snip">${hlSearch(snip.slice(0, 120), kw)}</div>` : ''}
+      <div class="paper-meta">${esc(x.paper || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''}</div>
+    </div>`;
+  }).join('');
 }
 function renderSearchPage() {
   const q = S.search.q || '';
   const list = S.search.list || [];
+  const sc = S.search.scope || 'all';
+  const yr = S.search.year || '';
+  const curSub = S.lib.subject || '';
   return `<div class="subpage-head"><button class="icon-btn" data-act="back-library">‹</button><div class="subpage-title">搜索题目</div><span style="width:38px"></span></div>
-  <div class="card" style="padding:10px"><input class="field" id="search-input" placeholder="输入题干关键词，如 乡村振兴、逻辑填空" value="${esc(q)}"><button class="btn btn-primary btn-block" style="margin-top:10px" data-act="search-run">搜索</button></div>
-  <div id="search-results" style="margin-top:12px">${q ? (list.length ? list.map((x) => `<div class="paper-item" data-act="search-open" data-id="${x.id}"><div class="paper-top"><span class="tag">${esc(x.subject || '')}</span><span class="tag ${x.hasAnalysis ? 'ok' : 'warn'}">${x.hasAnalysis ? '有解析' : '暂无解析'}</span></div><div class="paper-title">${esc(String(x.content || '').slice(0, 100))}</div><div class="paper-meta">${esc(x.paper || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''}</div></div>`).join('') : '<div class="empty-state">没有找到匹配题目</div>') : '<div class="empty-state">输入关键词搜索题库；结果可直接打开做题</div>'}</div>`;
+  <div class="card" style="padding:10px"><input class="field" id="search-input" placeholder="搜题干或解析，如 乡村振兴、边际效用" value="${esc(q)}"><button class="btn btn-primary btn-block" style="margin-top:10px" data-act="search-run">搜索</button>
+  <div class="chips" style="margin-top:10px">
+    <button class="chip ${sc === 'all' ? 'active' : ''}" data-act="search-scope" data-v="all">全库</button>
+    <button class="chip ${sc === 'subject' ? 'active' : ''}" data-act="search-scope" data-v="subject">只看${esc((curSub.split('·')[1] || '当前科目'))}</button>
+    ${['近3年', '近5年'].map((t, i) => `<button class="chip ${yr === String(i === 0 ? 3 : 5) ? 'active' : ''}" data-act="search-year" data-v="${i === 0 ? 3 : 5}">${t}</button>`).join('')}
+  </div></div>
+  <div id="search-results" style="margin-top:12px">${q ? (list.length ? searchResultRows() : '<div class="empty-state">没有找到匹配题目</div>') : '<div class="empty-state">题干和解析都会搜；结果可直接打开做题</div>'}</div>`;
 }
 async function runSearch() {
   const q = ($('#search-input')?.value || '').trim();
@@ -1100,11 +1135,12 @@ async function runSearch() {
   S.search.q = q;
   $('#search-results').innerHTML = '<div class="spinner"></div>';
   try {
-    const d = await api('/api/search?q=' + encodeURIComponent(q) + '&limit=30');
+    const p = new URLSearchParams({ q, limit: '40' });
+    if (S.search.scope === 'subject' && S.lib.subject) p.set('subject', S.lib.subject);
+    if (S.search.year) p.set('year', S.search.year);
+    const d = await api('/api/search?' + p.toString());
     S.search.list = d.list || [];
-    $('#search-results').innerHTML = S.search.list.length
-      ? S.search.list.map((x) => `<div class="paper-item" data-act="search-open" data-id="${x.id}"><div class="paper-top"><span class="tag">${esc(x.subject || '')}</span><span class="tag ${x.hasAnalysis ? 'ok' : 'warn'}">${x.hasAnalysis ? '有解析' : '暂无解析'}</span></div><div class="paper-title">${esc(String(x.content || '').slice(0, 100))}</div><div class="paper-meta">${esc(x.paper || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''}</div></div>`).join('')
-      : '<div class="empty-state">没有找到匹配题目</div>';
+    $('#search-results').innerHTML = S.search.list.length ? searchResultRows() : '<div class="empty-state">没有找到匹配题目</div>';
   } catch (e) {
     $('#search-results').innerHTML = `<div class="empty-state">${esc(e.message)}</div>`;
   }
@@ -1199,6 +1235,10 @@ async function loadReview(tab) {
     } else if (tab === 'fav') {
       const d = await api('/api/favorites?limit=50');
       S.review.data.fav = (d.list || d || []).map((x) => itemShape(x));
+    } else if (tab === 'essay') {
+      const [st, d] = await Promise.all([api('/api/essays/stats'), api('/api/essays?limit=50')]);
+      S.review.data.essayStats = st || {};
+      S.review.data.essays = d.list || d || [];
     } else {
       const d = await api('/api/notes?limit=200');
       S.review.data.notes = (d.list || d || []).map((x) => itemShape(x));
@@ -1227,8 +1267,46 @@ function answerHint(r) {
   return out;
 }
 
+/** 批改记录页：分数趋势 + 列表回看（批改全文存在 IndexedDB essays 里，离线可查） */
+function essayBlock() {
+  const st = S.review.data.essayStats || {};
+  const list = S.review.data.essays || [];
+  if (!list.length) {
+    return '<div class="empty-state">还没有批改记录<br><span class="muted">做申论 / 综应主观题时，写完点「AI 批改」就会存到这里</span></div>';
+  }
+  const trend = (st.trend || []).slice(-12);
+  const bars = trend.length
+    ? `<div class="essay-trend">${trend.map((t) => `<i style="height:${Math.max(6, Math.min(100, Number(t.pct) || 0))}%" title="${esc(t.name || '')} ${t.pct == null ? '' : t.pct + '%'}"></i>`).join('')}</div>`
+    : '';
+  const bits = [`已批改 <b>${st.graded || list.length}</b> 篇`];
+  if (st.avgPct != null) bits.push(`平均 <b>${st.avgPct}%</b>`);
+  if (st.bestPct != null) bits.push(`最高 ${st.bestPct}%`);
+  if (st.trend && st.trend.length > 1) bits.push(`最近 ${st.lastPct}%（首次 ${st.firstPct}%）`);
+  const stat = `<section class="training-card"><div class="training-title">申论 / 综应批改</div><div class="training-sub">${bits.join(' · ')}</div>${bars}</section>`;
+  const rows = list.map((r) => `<div class="list-item" data-act="essay-open" data-id="${esc(String(r.id))}">
+      <div class="list-main"><div class="item-snippet">${esc(String(r.answer || '(未留作答)').slice(0, 80))}</div>
+      <div class="item-bottom"><span class="tag">${esc(r.chapter || r.subject || '主观题')}</span>${r.score ? `<span class="tag ok">${esc(r.score)}</span>` : ''}<span class="tag">${esc(r.time || '')}</span></div></div></div>`).join('');
+  return stat + `<div class="card list-card">${rows}</div>`;
+}
+function openEssayDetail(id) {
+  const list = S.review.data.essays || [];
+  const r = list.find((x) => String(x.id) === String(id));
+  if (!r) { toast('记录不存在'); return; }
+  const ans = esc(String(r.answer || '(未留作答)')).replace(/\n/g, '<br>');
+  const body = esc(String(r.content || '')).replace(/\n/g, '<br>');
+  sheet(`<div class="sheet-head"><div class="sheet-title">${esc(r.score || '批改记录')}</div><span class="sheet-close">✕</span></div>
+    <div class="sheet-sub">${esc(r.chapter || r.subject || '')} · ${esc(r.time || '')}</div>
+    <div class="grade-view"><div class="grade-view-t">我的作答</div><div class="grade-view-b">${ans}</div></div>
+    <div class="grade-view"><div class="grade-view-t">批改</div><div class="grade-view-b">${body}</div></div>`);
+}
 function renderReview() {
   const tab = S.review.tab;
+  const tabs = [['wrong', '错题'], ['fav', '收藏'], ['notes', '笔记'], ['essay', '批改']];
+  const head = `
+  <div class="topline"><span class="eyebrow">回顾</span></div>
+  <h1 class="page-title">把错题变成会的题</h1>
+  <div class="segmented">${tabs.map(([k, t]) => `<button class="seg ${tab === k ? 'active' : ''}" data-review-tab="${k}">${t}</button>`).join('')}</div>`;
+  if (tab === 'essay') return head + essayBlock();
   const raw = tab === 'wrong' ? S.review.data.wrong : tab === 'fav' ? S.review.data.fav : S.review.data.notes;
   // 同一道题可能在多套卷里都做错过 -> 按 questionId 去重，只留最近一条
   const seenQ = new Set();
@@ -1244,7 +1322,6 @@ function renderReview() {
     const s = it && it.subject;
     return !s || !notInScheme(s);
   });
-  const tabs = [['wrong', '错题'], ['fav', '收藏'], ['notes', '笔记']];
   // 模块筛选：错题本里同一个模块（chapter）的题常常占一半以上，
   // 不给筛选就只能从头翻。只列出现 ≥2 次的模块，最多 6 个，避免 chips 铺满一屏。
   const chapCount = new Map();
@@ -1261,10 +1338,7 @@ function renderReview() {
   const chapChips = tab === 'wrong' && chapList.length > 1
     ? `<div class="chips chap-chips"><button class="chip ${!S.review.chapter ? 'active' : ''}" data-act="review-chap" data-c="">全部 ${list.length}</button>${chapList.map(([c, n]) => `<button class="chip ${S.review.chapter === c ? 'active' : ''}" data-act="review-chap" data-c="${esc(c)}">${esc(c)} ${n}</button>`).join('')}</div>`
     : '';
-  return `
-  <div class="topline"><span class="eyebrow">回顾</span></div>
-  <h1 class="page-title">把错题变成会的题</h1>
-  <div class="segmented three">${tabs.map(([k, t]) => `<button class="seg ${tab === k ? 'active' : ''}" data-review-tab="${k}">${t}</button>`).join('')}</div>
+  return `${head}
   ${chapChips}
   ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · ${S.review.chapter ? `「${esc(S.review.chapter)}」共 ` : '错题本共 '}${shown.length} 道 · ${dueLine(shown)}` : `${S.review.chapter ? `「${esc(S.review.chapter)}」` : '错题本'} <b>${shown.length}</b> 道 · ${dueLine(shown)}`}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button><div class="training-foot"><span>做对的题自动移出错题本</span><button class="switch ${S.settings.dropFixed !== false ? 'on' : ''}" data-drop-fixed aria-label="做对的题自动移出错题本"><i></i></button></div></section>` : ''}
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
@@ -3005,7 +3079,15 @@ document.addEventListener('click', (e) => {
   if (a === 'search') { openSearch(); return; }
   if (a === 'keypoints') { openKeypoints(); return; }
   if (a === 'search-run') { runSearch(); return; }
-  if (a === 'search-open') { openQuestionById(Number(act.dataset.id), '搜索结果'); return; }
+  if (a === 'search-scope') { S.search.scope = act.dataset.v || 'all'; render(); runSearch(); return; }
+  if (a === 'search-year') {
+    const v = String(act.dataset.v || '');
+    S.search.year = S.search.year === v ? '' : v;
+    render();
+    if (S.search.q) runSearch();
+    return;
+  }
+  if (a === 'search-open') { openQuestionById(act.dataset.id, '搜索结果'); return; }
   if (a === 'back-subject') { goBackSmart('library'); return; }
   if (a === 'papers') { loadPapers(); return; }
   if (a === 'papers-entry') { loadPapers(); return; }
@@ -3084,6 +3166,7 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'correction') { openCorrection(); return; }
   if (a === 'ai-grade') { aiGrade(); return; }
+  if (a === 'essay-open') { openEssayDetail(act.dataset.id); return; }
   if (a === 'show-answer') {
     const q = currentQ();
     sheet(`<div class="sheet-head"><b>参考答案</b><button class="sheet-close">✕</button></div><div class="ai-out">${esc(q?.analysis || '暂无参考答案')}</div>`);
@@ -3835,6 +3918,20 @@ async function aiGrade() {
     } else {
       const m = /【评分】\s*([^\n]{1,40})/.exec(content);
       P.answers[P.idx] = { ...cur, grade: { content, score: m ? m[1].trim() : '', fullScore: r.fullScore || '' } };
+      // 批改结果落库（IndexedDB essays），回顾 → 批改 里能回看，也能看分数趋势
+      api('/api/essays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: q.id,
+          subject: q.subject || '',
+          chapter: q.chapter || '',
+          answer: text,
+          content,
+          score: m ? m[1].trim() : '',
+          fullScore: r.fullScore || null,
+        }),
+      }).then(() => { S.review.data.essays = null; delete S.review.data.essayStats; }).catch(() => {});
     }
   } catch (e) {
     P.answers[P.idx] = { ...(P.answers[P.idx] || {}), grade: { content: `批改失败：${e.message}`, score: '' } };

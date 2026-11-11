@@ -18,8 +18,8 @@
 'use strict';
 
 const DEFAULT_DB = 'kaogong-app';
-const DEFAULT_VERSION = 3; // 3：新增 notes（笔记，2026-08-20）
-const STORES = ['records', 'favorites', 'custom_batches', 'custom_questions', 'notes'];
+const DEFAULT_VERSION = 4; // 4：新增 essays（申论/综应批改记录，2026-11-11）
+const STORES = ['records', 'favorites', 'custom_batches', 'custom_questions', 'notes', 'essays'];
 
 function newId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -89,9 +89,9 @@ export function createIdbStore(opts = {}) {
     });
   }
 
-  /** 取行 key：records 用 id（缺失自动生成），favorites/notes 用 question_id，custom_* 用数字自增 id */
+  /** 取行 key：records/essays 用 id（缺失自动生成），favorites/notes 用 question_id，custom_* 用数字自增 id */
   function rowKey(kind, row) {
-    if (kind === 'records') {
+    if (kind === 'records' || kind === 'essays') {
       if (row.id == null) row.id = newId();
       return row.id;
     }
