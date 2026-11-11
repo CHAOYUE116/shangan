@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.14';
+const APP_VERSION = '0.4.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -202,7 +202,7 @@ const S = {
   stats: null,
   lib: { view: 'subjects', subject: null, chapters: [], categories: [], papers: [], filter: { category: '全部', year: '全部', type: '全部' }, show: 80 },
   search: { q: '', list: [] },
-  review: { tab: 'wrong', data: { wrong: [], fav: [], notes: [] }, loaded: {} },
+  review: { tab: 'wrong', data: { wrong: [], fav: [], notes: [] }, loaded: {}, chapter: '' },
   practice: { open: false, qs: [], idx: 0, selected: null, confirmed: false, answers: {}, results: [], feedback: null, elapsed: 0, timer: null, ai: '', aiLoading: false, aiChat: [], aiError: '', aiCached: false, subject: '', title: '', kind: '', lastWrongIds: [], exam: false, remaining: 0, limitSec: 0 },
   planView: false,
   plan: null,
@@ -1238,19 +1238,33 @@ function renderReview() {
     return !s || !notInScheme(s);
   });
   const tabs = [['wrong', '错题'], ['fav', '收藏'], ['notes', '笔记']];
+  // 模块筛选：错题本里同一个模块（chapter）的题常常占一半以上，
+  // 不给筛选就只能从头翻。只列出现 ≥2 次的模块，最多 6 个，避免 chips 铺满一屏。
+  const chapCount = new Map();
+  for (const it of list) {
+    const c = (it && it.chapter) || '';
+    if (c) chapCount.set(c, (chapCount.get(c) || 0) + 1);
+  }
+  const chapList = [...chapCount.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (S.review.chapter && !chapCount.has(S.review.chapter)) S.review.chapter = '';
+  const shown = tab === 'wrong' && S.review.chapter ? list.filter((it) => (it.chapter || '') === S.review.chapter) : list;
   // 到期数也要跟着过滤，否则会出现「到期 6 道」但列表里只有 3 道
-  const listIds = new Set(list.map((it) => String(it && (it.questionId != null ? it.questionId : it.question_id))));
+  const listIds = new Set(shown.map((it) => String(it && (it.questionId != null ? it.questionId : it.question_id))));
   const dueN = tab === 'wrong' ? dueIds().filter((id) => listIds.has(String(id))).length : dueIds().length;
+  const chapChips = tab === 'wrong' && chapList.length > 1
+    ? `<div class="chips chap-chips"><button class="chip ${!S.review.chapter ? 'active' : ''}" data-act="review-chap" data-c="">全部 ${list.length}</button>${chapList.map(([c, n]) => `<button class="chip ${S.review.chapter === c ? 'active' : ''}" data-act="review-chap" data-c="${esc(c)}">${esc(c)} ${n}</button>`).join('')}</div>`
+    : '';
   return `
   <div class="topline"><span class="eyebrow">回顾</span></div>
   <h1 class="page-title">把错题变成会的题</h1>
   <div class="segmented three">${tabs.map(([k, t]) => `<button class="seg ${tab === k ? 'active' : ''}" data-review-tab="${k}">${t}</button>`).join('')}</div>
-  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · 错题本共 ${list.length} 道 · ${dueLine(list)}` : `错题本 <b>${list.length}</b> 道 · ${dueLine(list)}`}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button>${list.length > 50 ? `<div class="card-sub" style="margin-top:8px">列表显示最近 50 道，训练会带上全部 ${list.length} 道</div>` : ''}</section>` : ''}
+  ${chapChips}
+  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · ${S.review.chapter ? `「${esc(S.review.chapter)}」共 ` : '错题本共 '}${shown.length} 道 · ${dueLine(shown)}` : `${S.review.chapter ? `「${esc(S.review.chapter)}」` : '错题本'} <b>${shown.length}</b> 道 · ${dueLine(shown)}`}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button><div class="training-foot"><span>做对的题自动移出错题本</span><button class="switch ${S.settings.dropFixed !== false ? 'on' : ''}" data-drop-fixed aria-label="做对的题自动移出错题本"><i></i></button></div></section>` : ''}
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
   <div class="card list-card">
-    ${list.length ? list.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
+    ${shown.length ? shown.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
       <div class="list-main"><div class="item-snippet">${esc(r.content || r.note || '(无题干)')}</div>
-      <div class="item-bottom"><span class="tag">${esc(r.subject || '')}</span><span class="tag">${esc(r.chapter || '')}</span>${r.note ? `<span class="tag ok">有笔记</span>` : ''}${tab === 'wrong' ? answerHint(r) : ''}</div></div></div>`).join('') : `<div class="empty-state">暂无${tab === 'wrong' ? '错题' : tab === 'fav' ? '收藏' : '笔记'}<br><span class="muted">去刷题后会自动出现在这里</span></div>`}
+      <div class="item-bottom"><span class="tag">${esc(r.subject || '')}</span><span class="tag">${esc(r.chapter || '')}</span>${r.note ? `<span class="tag ok">有笔记</span>` : ''}${tab === 'wrong' ? answerHint(r) : ''}</div></div></div>`).join('') : `<div class="empty-state">${S.review.chapter ? `「${esc(S.review.chapter)}」下没有${tab === 'wrong' ? '错题' : '内容'}` : `暂无${tab === 'wrong' ? '错题' : tab === 'fav' ? '收藏' : '笔记'}`}<br><span class="muted">去刷题后会自动出现在这里</span></div>`}
   </div>`;
 }
 
@@ -1373,11 +1387,19 @@ function renderExamResult() {
   const modules = new Map();
   R.items.forEach(({ q, a }, i) => {
     const key = q.chapter || '未分类';
-    const m = modules.get(key) || { name: key, total: 0, right: 0, answered: 0, cost: 0 };
+    const m = modules.get(key) || { name: key, total: 0, right: 0, answered: 0, cost: 0, kps: new Map() };
     m.total++;
     m.cost += Number(costs[i]) || 0;
     if (a && a.selected != null) m.answered++;
-    if (a?.feedback?.ok) m.right++;
+    const ok = !!a?.feedback?.ok;
+    if (ok) m.right++;
+    // 考点级下钻：同一模块里再按考点（question_keypoints）分一层
+    const kp = q.kp || '';
+    if (kp) {
+      const k = m.kps.get(kp) || { name: kp, total: 0, right: 0 };
+      k.total++; if (ok) k.right++;
+      m.kps.set(kp, k);
+    }
     modules.set(key, m);
   });
   const mods = [...modules.values()].sort((x, y) => (x.right / x.total) - (y.right / y.total));
@@ -1403,10 +1425,11 @@ function renderExamResult() {
   R.items.forEach((it, i) => {
     if (!pass(it, i)) return;
     const k = it.q.chapter || '未分类';
-    const g = groups.get(k) || { name: k, list: [], right: 0, total: 0 };
+    const g = groups.get(k) || { name: k, list: [], right: 0, total: 0, kps: new Set() };
     g.list.push({ it, i });
     g.total++;
     if (it.a?.feedback?.ok) g.right++;
+    if (it.q.kp) g.kps.add(it.q.kp);
     groups.set(k, g);
   });
   const gList = [...groups.values()].sort((x, y) => (x.right / x.total) - (y.right / y.total));
@@ -1423,13 +1446,13 @@ function renderExamResult() {
       return `<div class="result-opt ${cls}"><b>${'ABCDEFGH'[j]}</b> ${renderOption(o)}${picked ? ' · 你的选择' : ''}${correct ? ' · 正确答案' : ''}</div>`;
     }).join('');
     return `<details class="card result-q" style="margin-bottom:8px">
-      <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
+      <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${q.kp ? `<span class="tag kp">${esc(q.kp)}</span>` : ''}${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
       <div class="q-stem" style="margin-top:12px">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
     </details>`;
   };
   const reviewHtml = gList.length ? gList.map((g) => `<section class="rv-group">
       <div class="rv-head">
-        <div><div class="rv-name">${esc(g.name)}</div><div class="rv-meta">${g.total} 题 · 答对 ${g.right} · ${Math.round((g.right / g.total) * 100)}%</div></div>
+        <div><div class="rv-name">${esc(g.name)}</div><div class="rv-meta">${g.total} 题 · 答对 ${g.right} · ${Math.round((g.right / g.total) * 100)}%${g.kps.size > 1 ? ` · ${g.kps.size} 个考点` : ''}</div></div>
         <button class="chip" data-act="review-kp" data-chapter="${esc(g.name)}">练这个考点</button>
       </div>
       ${g.list.map(rowOf).join('')}
@@ -1447,7 +1470,11 @@ function renderExamResult() {
   <div class="card">${mods.map((m) => {
     const h = hist.get(m.name);
     const histTxt = h && h.c ? ` · 历史 ${Math.round(((Number(h.ok) || 0) / Number(h.c)) * 100)}%` : '';
-    return `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(m.name)}</div><div class="subject-sub">答对 ${m.right} / ${m.total} · 用时 ${m.cost ? fmtTime(Math.round(m.cost / 1000)) : '—'}${histTxt}${m.total > m.answered ? ` · 未答 ${m.total - m.answered}` : ''}</div></div><div class="weak-pct">${Math.round((m.right / m.total) * 100)}%</div></div>`;
+    const kps = [...m.kps.values()].sort((x, y) => y.total - x.total);
+    const kpLine = kps.length > 1
+      ? `<div class="kp-line">${kps.slice(0, 4).map((k) => `<span class="kp-tag${k.right === k.total ? ' ok' : k.right === 0 ? ' no' : ''}">${esc(k.name)} ${k.right}/${k.total}</span>`).join('')}${kps.length > 4 ? `<span class="kp-tag">+${kps.length - 4}</span>` : ''}</div>`
+      : '';
+    return `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(m.name)}</div><div class="subject-sub">答对 ${m.right} / ${m.total} · 用时 ${m.cost ? fmtTime(Math.round(m.cost / 1000)) : '—'}${histTxt}${m.total > m.answered ? ` · 未答 ${m.total - m.answered}` : ''}</div>${kpLine}</div><div class="weak-pct">${Math.round((m.right / m.total) * 100)}%</div></div>`;
   }).join('') || '<div class="empty-state">暂无数据</div>'}</div>
   <div class="section-head"><h2 class="section-title">复盘</h2><span class="section-more">${gList.length} 个模块</span></div>
   <div class="chips rv-filters">
@@ -2600,6 +2627,21 @@ function typeTagOf(q, options) {
   if (/判断/.test(ch)) return '判断';
   return '单项选择';
 }
+/** 题后参照统计（本地口径）：考点上的历史正确率 + 这道题的易错项。
+ *  注意措辞是「你」，不是「全站」——离线题库只有本机数据。 */
+function refStatLine(ref) {
+  if (!ref) return '';
+  const parts = [];
+  if (ref.kp && ref.kp.n) {
+    const pct = Math.round((ref.kp.ok / ref.kp.n) * 100);
+    parts.push(`考点 <b>${esc(ref.kp.name)}</b> · 你在这个考点正确率 <b>${pct}%</b>（${ref.kp.n} 题）`);
+  }
+  if (ref.q && ref.q.wrong > 0 && ref.q.top != null) {
+    parts.push(`易错项 <b>${'ABCDEFGH'[ref.q.top]}</b>（你 ${ref.q.topN} 次选了它）`);
+  }
+  if (!parts.length) return '';
+  return `<div class="ref-stat">${parts.join(' · ')}</div>`;
+}
 function renderQuestionBlock(q, fb) {
   const P = S.practice;
   const options = Array.isArray(q.options) ? q.options : [];
@@ -2664,7 +2706,7 @@ function renderPractice() {
       ${deep.mother ? `<div><b>母题模板</b><p style="white-space:pre-wrap;margin-top:4px">${esc(deep.mother)}</p></div>` : ''}
     </div>` : '';
     const aiCard = `<div class="ai-card"><div class="ai-head"><span class="ai-badge">AI 讲题</span>${P.aiCached ? '<span class="tag ok">缓存</span>' : ''}<span class="ai-sub">换个方式讲这道题</span><button class="btn btn-ghost btn-sm" data-act="ai-explain" ${P.aiLoading ? 'disabled' : ''}>${P.aiLoading ? '解析中…' : P.ai ? '重新讲' : '听一遍'}</button></div>${P.aiLoading ? `<div class="ai-loading"><span class="spinner ai-spinner"></span><span>AI 正在拆解题目…</span></div>` : ''}${P.ai ? `<div class="ai-sections">${renderAiStructured(P.ai)}</div>` : ''}${P.ai ? `<div class="ai-chat"><div class="ai-chat-title">继续追问</div>${P.aiChat.map((m) => `<div class="ai-chat-bubble ${m.role}">${m.role === 'assistant' ? aiRichText(m.content) : esc(m.content)}</div>`).join('')}${P.aiLoading ? `<div class="ai-chat-loading"><span class="spinner ai-spinner"></span> AI 正在回答…</div>` : ''}<div class="ai-chat-input"><input id="ai-chat-input" class="field" placeholder="还有哪里不懂？继续问"><button class="btn btn-primary btn-sm" data-act="ai-send">发送</button></div></div>` : ''}</div>`;
-    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b>${fb.slow ? ' · <span class="tag warn">会但慢</span>' : ''}</div></div>${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
+    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b>${fb.slow ? ' · <span class="tag warn">会但慢</span>' : ''}</div></div>${refStatLine(q.__ref)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
     acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
   }
 }
@@ -2706,7 +2748,16 @@ async function confirmAnswer() {
         })
         .catch(() => {});
     }
-    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [P.selected], correct: r.ok, costMs: qCostOf(P.idx) }) }).catch(() => {});
+    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [P.selected], correct: r.ok, costMs: qCostOf(P.idx), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+    // 参照统计（本地口径）：这道题所在考点上你的历史正确率、这道题你常错在哪个选项。
+    // 明确不是「全站正确率」——离线题库没有别人数据，标成全站就是编数字。
+    const atIdx = P.idx;
+    api('/api/refstats?ids=' + q.id).then((st) => {
+      if (!st) return;
+      const kpName = Object.keys(st.kp || {})[0] || '';
+      q.__ref = { kp: kpName ? { name: kpName, ...st.kp[kpName] } : null, q: (st.q || {})[q.id] || null };
+      if (S.practice.open && S.practice.idx === atIdx) renderPractice();
+    }).catch(() => {});
     saveSession();
   } catch (e) { toast(e.message); }
 }
@@ -2809,7 +2860,17 @@ document.addEventListener('click', (e) => {
   const libSub = e.target.closest('[data-lib-subject]');
   if (libSub) { openLibrary(libSub.dataset.libSubject); return; }
   const rt = e.target.closest('[data-review-tab]');
-  if (rt) { loadReview(rt.dataset.reviewTab); return; }
+  if (rt) { S.review.chapter = ''; loadReview(rt.dataset.reviewTab); return; }
+  const rc = e.target.closest('[data-act="review-chap"]');
+  if (rc) { S.review.chapter = rc.dataset.c || ''; render(); return; }
+  const df = e.target.closest('[data-drop-fixed]');
+  if (df) {
+    S.settings.dropFixed = S.settings.dropFixed === false;
+    saveSettings();
+    render();
+    toast(S.settings.dropFixed ? '做对的题会自动移出错题本' : '做对的题保留在错题本，累计 3 天做对才移除');
+    return;
+  }
   if (e.target.closest('#p-card-btn')) { openAnswerCard(); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
@@ -3187,19 +3248,22 @@ document.addEventListener('keydown', (e) => {
 
 async function reviewTrain() {
   try {
+    // 模块筛选（回顾页 chips）选了什么，就只复习那个模块的错题
+    const chap = S.review.chapter || '';
+    const q = chap ? `&chapter=${encodeURIComponent(chap)}` : '';
     const due = dueIds();
     let ids = due.slice(0, 15);
     if (!ids.length) {
-      const d = await api('/api/records/wrong?limit=15');
+      const d = await api('/api/records/wrong?limit=15' + q + (S.settings.dropFixed === false ? '&keepFixed=1' : ''));
       ids = (d.list || d || []).map((x) => x.questionId || x.question_id || x.id).filter(Boolean).slice(0, 15);
     }
-    if (!ids.length) { toast('暂无需要复习的题'); return; }
+    if (!ids.length) { toast(chap ? `「${chap}」暂时没有需要复习的题` : '暂无需要复习的题'); return; }
     const qs = [];
     for (const id of ids) {
       try { const q = await api('/api/question?id=' + encodeURIComponent(id)); if (q && q.id != null) qs.push(q); } catch { /* skip */ }
     }
     if (!qs.length) { toast('题目加载失败'); return; }
-    startPractice(qs, due.length ? '今日复习' : '错题训练', qs[0].subject || '', 'review');
+    startPractice(qs, chap ? `复习 · ${chap}` : (due.length ? '今日复习' : '错题训练'), qs[0].subject || '', 'review');
   } catch (e) { toast(e.message); }
 }
 async function startNewDaily() {
@@ -3411,10 +3475,11 @@ async function submitExam() {
       P.answers[i] = { ...a, confirmed: true, feedback: r };
       if (r.ok) right++;
       updateReview(q.id, !!r.ok, Number((P.qCost || {})[i]) || 0, q.difficulty);
-      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [a.selected], correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0 }) }).catch(() => {});
+      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [a.selected], correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0, autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
     } catch { /* 单题判分失败不阻塞交卷 */ }
   }
   P.lastWrongIds = P.qs.filter((q, i) => P.answers[i]?.confirmed && !P.answers[i].feedback?.ok).map((q) => q.id);
+  await attachKeypoints(P.qs);
   clearSession();
   $('#practice').hidden = true;
   try { await refreshStats(); } catch { /* ignore */ }
@@ -3481,6 +3546,16 @@ async function fetchQuestions(ids) {
   const arr = await Promise.all(ids.map((id) => api('/api/question?id=' + encodeURIComponent(id)).catch(() => null)));
   return arr.filter((q) => q && q.id != null);
 }
+/** 给题目补考点名（question_keypoints 表）。报告要按考点下钻，题面本身不带考点 */
+async function attachKeypoints(qs) {
+  const ids = (qs || []).map((q) => q && q.id).filter((x) => x != null);
+  if (!ids.length) return qs;
+  try {
+    const map = await api('/api/kp?ids=' + ids.join(','));
+    for (const q of qs) { if (q && map && map[q.id] != null) q.kp = map[q.id]; }
+  } catch { /* 拿不到考点不影响报告主体 */ }
+  return qs;
+}
 async function resumeSession() {
   const s = loadSession();
   if (!s) { toast('没有可继续的练习'); return; }
@@ -3531,6 +3606,7 @@ async function openHistDetail(ts) {
   if (!rec) { toast('这条记录已不在本地'); return; }
   if (!Array.isArray(rec.items) || !rec.items.length) { toast('这次模考没有存逐题记录'); return; }
   const qs = await fetchQuestions(rec.items.map((i) => i.id));
+  await attachKeypoints(qs);
   const byId = new Map(qs.map((q) => [String(q.id), q]));
   const items = rec.items.map((it) => {
     const q = byId.get(String(it.id));
@@ -4029,7 +4105,7 @@ function handleAndroidBack() {
 
 /* ---------- 用户偏好（即时判定 / 字号） ---------- */
 const SETTINGS_KEY = 'sg_settings_v1';
-const DEF_SETTINGS = { instant: true, fs: 'm', autoNext: true, recite: false };
+const DEF_SETTINGS = { instant: true, fs: 'm', autoNext: true, recite: false, dropFixed: true };
 function loadSettings() {
   try { return Object.assign({}, DEF_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
   catch { return Object.assign({}, DEF_SETTINGS); }

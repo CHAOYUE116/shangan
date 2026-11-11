@@ -230,7 +230,11 @@ export function createLocalHandler({ query, records, store, ai }) {
     if (route === 'GET /notes/groups') return records.groups('notes');
     // 一键整理：历史未分类题按真实来源自动归类（幂等，可重复执行）
     if (route === 'POST /organize') return records.organize((body || {}).target);
-    if (route === 'GET /records/wrong') return records.wrong({ limit: Number(qs.get('limit') || 50), offset: Number(qs.get('offset') || 0), group: qs.has('group') ? (qs.get('group') || '') : undefined, sub: qs.get('sub') || undefined });
+    if (route === 'GET /records/wrong') return records.wrong({ limit: Number(qs.get('limit') || 50), offset: Number(qs.get('offset') || 0), group: qs.has('group') ? (qs.get('group') || '') : undefined, sub: qs.get('sub') || undefined, chapter: qs.get('chapter') || undefined, keepFixed: qs.get('keepFixed') === '1' });
+    // 每题考点名（报告按考点下钻）+ 每题参照统计（本地口径）。
+    // 注意不能叫 /keypoints —— 上面 128 行已经占了那个路由（考点树列表），会被先命中返回空数组。
+    if (route === 'GET /kp') return records.keypoints({ ids: (qs.get('ids') || '').split(',').filter(Boolean) });
+    if (route === 'GET /refstats') return records.refstats({ ids: (qs.get('ids') || '').split(',').filter(Boolean) });
     if (route === 'DELETE /records/wrong') {
       // 与 server 同构：body.id 存在时只删单条；body.questionId 按题删；body.group 指定时只清该大模块；body.subject 兼容旧调用；否则清空错题本
       // 注意：只删除错题记录（is_correct = 0），保留正确题记录与学习统计

@@ -135,6 +135,30 @@ export function aggregateStats(records, tiku) {
 }
 
 // ---------- 记录层（存储适配器接口） ----------
+/** 题目 id → 考点名。两级来源：
+ *  1) question_keypoints（粉笔考点树，行测覆盖满、职测只覆盖约三成）
+ *  2) question_categories.sub（导入时按章节归一出来的二级分类，职测/申论/综应都覆盖到）
+ *  公基两表都没有（它只有 8 个模块），返回空，报告就停在模块这一层。 */
+function keypointMapOf(tiku, ids) {
+  const list = (ids || []).map(Number).filter((x) => Number.isFinite(x));
+  const out = {};
+  for (let i = 0; i < list.length; i += 400) {
+    const part = list.slice(i, i + 400);
+    const ph = part.map(() => '?').join(',');
+    for (const r of tiku.all(`SELECT questionId, kpName FROM question_keypoints WHERE questionId IN (${ph}) ORDER BY rank`, ...part)) {
+      if (!out[r.questionId]) out[r.questionId] = r.kpName;
+    }
+    const missing = part.filter((x) => !out[x]);
+    if (missing.length) {
+      const ph2 = missing.map(() => '?').join(',');
+      for (const r of tiku.all(`SELECT question_id, sub FROM question_categories WHERE question_id IN (${ph2}) AND sub IS NOT NULL AND sub <> '' ORDER BY question_id`, ...missing)) {
+        if (!out[r.question_id]) out[r.question_id] = r.sub;
+      }
+    }
+  }
+  return out;
+}
+
 export function createRecordsApi(store, tiku, onChanged) {
   return {
     /** 收藏列表（与 /api/favorites GET 同构：{list,total,offset,limit,hasMore}；group/sub 按来源归档过滤） */
@@ -247,7 +271,7 @@ export function createRecordsApi(store, tiku, onChanged) {
       return new Set(rows.map((r) => String(r.question_id)));
     },
     /** 提交做题记录（与 /api/records POST 同构；同卷同题同日去重，重复则更新；写入即按题目真实来源归档） */
-    async addRecord({ questionId, subject, chapter, type, selected, correct, costMs, paperId }) {
+    async addRecord({ questionId, subject, chapter, type, selected, correct, costMs, paperId, autoDrop }) {
       if (questionId == null) throw new Error('缺少 questionId');
       const now = Date.now();
       // 按本地时区（中国 UTC+8）取当天零点：UTC 零点会在上午 8 点前把记录归到前一天，
@@ -264,15 +288,20 @@ export function createRecordsApi(store, tiku, onChanged) {
       const row = { question_id: questionId, paper_id: paperId ?? cls.paperId ?? null, subject: subject || '', chapter: chapter || '', question_type: type ?? null, selected: selected ?? null, is_correct: correct == null ? null : (correct ? 1 : 0), cost_ms: costMs ?? null, group_key: cls.groupKey, sub_key: cls.subKey, created_at: now };
       if (existing.length) await store.deleteBy('records', 'id', existing[0].id);
       await store.put('records', row);
-      // 错题自动移除：客观题累计做对 3 次（按不同日期计，与 server 口径一致）→ 删除该题错题记录，正确记录与统计保留
-      // 只针对行测/职测客观题（错题本收录范围）；主观题（correct=null）不参与
+      // 订正正确即移出错题本（默认开，跟粉笔「订正正确自动移除错题」一致）：
+      // 这次做对就把该题的历史错题记录删掉，错题本不会一直躺着已订正的题。
+      // 关掉开关后走老规则：累计 3 个不同日期做对才移除，防「蒙对一次」。
       if (correct === true) {
         const all = await store.getAll('records');
-        const okDays = new Set(
-          all.filter((r) => r.question_id === questionId && r.is_correct === 1)
-            .map((r) => new Date(r.created_at).toDateString())
-        );
-        if (okDays.size >= 3) {
+        let drop = autoDrop !== false;
+        if (!drop) {
+          const okDays = new Set(
+            all.filter((r) => r.question_id === questionId && r.is_correct === 1)
+              .map((r) => new Date(r.created_at).toDateString())
+          );
+          drop = okDays.size >= 3;
+        }
+        if (drop) {
           for (const r of all) {
             if (r.question_id === questionId && r.is_correct === 0) await store.deleteBy('records', 'id', r.id);
           }
@@ -292,12 +321,25 @@ export function createRecordsApi(store, tiku, onChanged) {
       const wrong = records.filter((r) => r.is_correct === 0).length;
       return { total, done, wrong };
     },
-    /** 错题本（与 /api/records/wrong 同构：答错题去重 + 分页；只收 is_correct=0 的题；group/sub 按来源归档过滤） */
-    async wrong({ limit = 50, offset = 0, group, sub } = {}) {
-      let rows = (await store.getAll('records')).filter((r) => r.is_correct === 0);
+    /** 错题本（与 /api/records/wrong 同构：答错题去重 + 分页；只收 is_correct=0 的题；group/sub 按来源归档过滤）
+     *  keepFixed=true 时不排除「已订正」的题（练习偏好里关掉自动移出时用） */
+    async wrong({ limit = 50, offset = 0, group, sub, chapter, keepFixed } = {}) {
+      const all = await store.getAll('records');
+      // 每题只认最近一次作答：最近一次做对 = 已订正，默认移出错题本。
+      // 老记录里可能还留着这次之前的历史错题行，所以这里不能只看 is_correct===0。
+      const latest = new Map();
+      for (const r of all) {
+        const id = r.question_id;
+        const prev = latest.get(id);
+        if (!prev || (r.created_at || 0) >= (prev.created_at || 0)) latest.set(id, r);
+      }
+      let rows = keepFixed
+        ? all.filter((r) => r.is_correct === 0)
+        : [...latest.values()].filter((r) => r.is_correct === 0);
       // 主观题（申论/综应 is_correct=null）不计入错题本；按来源归档过滤（group='' 表示未分类，undefined=全部）
       if (group !== undefined) rows = rows.filter((r) => (r.group_key || '') === group);
       if (sub) rows = rows.filter((r) => (r.sub_key || '') === sub);
+      if (chapter) rows = rows.filter((r) => (r.chapter || '') === chapter);
       rows.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
       const seen = new Set();
       const uniq = rows.filter((r) => (seen.has(r.question_id) ? false : (seen.add(r.question_id), true)));
@@ -354,10 +396,73 @@ export function createRecordsApi(store, tiku, onChanged) {
     /** 来源分组总览（与 /api/records/wrong/groups、/api/favorites/groups、/api/notes/groups 同构）：
      *  target='wrong'|'favorites'|'notes' → [{key,name,count,subs:[...]}] */
     async groups(target) {
-      const rows = target === 'wrong'
-        ? (await store.getAll('records')).filter((r) => r.is_correct === 0)
-        : await store.getAll(target);
+      let rows;
+      if (target === 'wrong') {
+        const all = await store.getAll('records');
+        const latest = new Map();
+        for (const r of all) {
+          const prev = latest.get(r.question_id);
+          if (!prev || (r.created_at || 0) >= (prev.created_at || 0)) latest.set(r.question_id, r);
+        }
+        rows = [...latest.values()].filter((r) => r.is_correct === 0);
+      } else {
+        rows = await store.getAll(target);
+      }
       return buildLocalGroups(rows);
+    },
+    /** 考点名映射（question_keypoints 表）：{ [questionId]: kpName }。报告要按考点下钻，题面本身不带考点 */
+    keypoints({ ids }) {
+      return keypointMapOf(tiku, ids);
+    },
+    /** 参照统计（本地口径，明确不是「全站」）：按请求的题目 id 给出
+     *  - q:   { [id]: { n, wrong, top, topN } }  该题你做过几次、错几次、最常选的错误选项
+     *  - kp:  { [kpName]: { n, ok } }            这些题所在考点上你的历史正确率
+     */
+    async refstats({ ids }) {
+      const list = (ids || []).map(Number).filter((x) => Number.isFinite(x));
+      const q = {};
+      const kp = {};
+      if (!list.length) return { q, kp };
+      const kpMap = keypointMapOf(tiku, list);
+      const wantKp = new Set(Object.values(kpMap));
+      const recs = await store.getAll('records');
+      const byQ = new Map();
+      for (const r of recs) {
+        const id = Number(r.question_id);
+        if (!byQ.has(id)) byQ.set(id, []);
+        byQ.get(id).push(r);
+      }
+      for (const id of list) {
+        const rs = byQ.get(id) || [];
+        if (!rs.length) continue;
+        const wrongs = rs.filter((r) => r.is_correct === 0);
+        const tally = new Map();
+        for (const r of wrongs) {
+          const sel = Array.isArray(r.selected) ? r.selected[0] : r.selected;
+          if (sel == null) continue;
+          tally.set(Number(sel), (tally.get(Number(sel)) || 0) + 1);
+        }
+        let top = null; let topN = 0;
+        for (const [k, v] of tally) if (v > topN) { top = k; topN = v; }
+        q[id] = { n: rs.length, wrong: wrongs.length, top, topN };
+      }
+      if (wantKp.size) {
+        // 只统计这些考点下的题，避免把整个题库扫一遍
+        for (const name of wantKp) {
+          const rows = tiku.all(
+            `SELECT questionId FROM question_keypoints WHERE kpName = ? LIMIT 20000`, name
+          );
+          const idSet = new Set(rows.map((r) => Number(r.questionId)));
+          let n = 0; let ok = 0;
+          for (const r of recs) {
+            if (!idSet.has(Number(r.question_id))) continue;
+            if (r.is_correct == null) continue;
+            n++; if (r.is_correct) ok++;
+          }
+          if (n) kp[name] = { n, ok };
+        }
+      }
+      return { q, kp };
     },
     /** 一键整理（与 /api/organize 同构，幂等可重复）：按题目真实来源重算归档列，历史未分类题自动归类 */
     async organize(target) {
