@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.4.4",
-    "versionCode": 89,
-    "code": 89,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.4-release.apk",
+    "version": "0.5.0",
+    "versionCode": 90,
+    "code": 90,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.4-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.4-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk"
       }
     ],
-    "size": 150311727,
-    "sha256": "e15c6a27c3366515a20c2bb9726a56d902e18cf4e8a0805fe5c785d80b841b6b",
-    "name": "shangan-0.4.4-release.apk",
-    "note": "App 0.4.4：主观题接入 AI 批改，内置 shenlun-master 自动注入"
+    "size": 150315169,
+    "sha256": "21edb313232d0f8bf700f4fdf173fb45227b790c1068c00fa21eff303df45f1d",
+    "name": "shangan-0.5.0-release.apk",
+    "note": "App 0.5.0：搜索覆盖解析、筛选与高亮；批改记录落库与分数趋势"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.4.4：主观题接入 AI 批改，内置 shenlun-master 自动注入"
+  "note": "App 0.5.0：搜索覆盖解析、筛选与高亮；批改记录落库与分数趋势"
 }
