@@ -5,20 +5,20 @@
     "version": "0.6.0",
     "versionCode": 97,
     "code": 97,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk",
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.0-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.0-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.0-release.apk"
       }
     ],
     "size": 156091379,
     "sha256": "2ad7e294f5d3b4d420ac07cbd3652a84dfee9b5ce122341395e5742f443fa290",
-    "name": "app-release.apk",
+    "name": "shangan-0.6.0-release.apk",
     "note": "App 0.6.0：每日任务按薄弱考点抽题 + 基础测评（能力画像）；题库 0.5.17 新增 6,963 道带选项考点题"
   },
   "tiku": {
