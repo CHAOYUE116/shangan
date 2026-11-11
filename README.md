@@ -27,7 +27,7 @@
 
 你打开手机，首页只写着一行字：**距离考试还有 21 天，今天 20 题**。点进去就是题。做完一道，答错的选项下面立刻告诉你错在哪，不是「正确答案是 B」，是「B 错在把充分条件当成了必要条件」。到站前最后一道做完，进度条走满，明天见。
 
-走出地铁站，信号恢复，App 在后台悄悄拉了一次更新：2.4 MB，新增 754 道 2026 年 10 月的联考真题。你没感觉到它发生。
+走出地铁站，信号恢复，App 在后台悄悄拉了一次更新：18 MB，新增了几百道这个月的联考真题。你没感觉到它发生。
 
 这就是上岸想做的事。没有别的。
 
@@ -45,8 +45,8 @@
 
 技术上它其实不难，难的是两件事：
 
-1. **怎么把 61,768 道题塞进一个安装包**，还要保证 WebView 打开不卡
-2. **怎么在题目不断新增的情况下，让更新只有几 MB 而不是重下 135 MB**
+1. **怎么把 9 万道题（14 万行）塞进一个安装包**，还要保证 WebView 打开不卡
+2. **怎么在题目不断新增的情况下，让更新只有几十 MB 而不是重下 110 MB**
 
 这个项目的大部分工程量都花在这两件事上。下面是它们各自的答案。
 
@@ -56,21 +56,20 @@
 
 | | |
 | --- | --- |
-| 真题 | **61,768** 道（去重后） |
-| 试卷 | **3,042** 套，覆盖 2001–2027 |
-| 考点 | **46,531** 条，关联 29,961 道题 |
-| 安装包 | **135 MB**（题库 + 图片全部内置） |
-| 冷启动 | **1.7 秒** |
-| 题库更新 | 增量 **2.4 MB** / 全量 84 MB |
-| 解析覆盖 | 行测 100%、公基 100%、职测 85.7% |
+| 真题 | **91,648** 道（去重后；库里 144,641 行含跨省重复收录） |
+| 试卷 | **3,614** 套，覆盖 2001–2027 |
+| 考点 | **46,531** 条 |
+| 安装包 | **143 MB**（题库 + 公式图片全部内置） |
+| 题库体积 | 主库 393 MB + 图片库 40 MB |
+| 题库更新 | 增量 **14–30 MB** / 全量 110 MB（gzip） |
 
-| 科目 | 题量 | 卷数 |
-| --- | ---: | ---: |
-| 公务员·行测 | 45,136 | 724 |
-| 事业编·职测 | 7,092 | 123 |
-| 公务员·申论 | 4,286 | 1,152 |
-| 事业编·公基 | 2,722 | 231 |
-| 事业编·综应 | 2,532 | 812 |
+| 科目 | 题行 | 唯一题 | 卷数 | 有解析 |
+| --- | ---: | ---: | ---: | ---: |
+| 公务员·行测 | 82,544 | 45,136 | 724 | 100% |
+| 事业编·职测 | 30,989 | 16,521 | 370 | 92.6% |
+| 事业编·公基 | 23,910 | 23,053 | 506 | 95.8% |
+| 公务员·申论 | 4,501 | 4,286 | 1,152 | 70.9% |
+| 事业编·综应 | 2,697 | 2,670 | 862 | 26.0% |
 
 ---
 
@@ -78,36 +77,37 @@
 
 ### 题库怎么塞进去
 
-321 MB 的 SQLite 题库，加上 73 MB 的公式图片，直接放进 APK 是 394 MB。做法是：
+393 MB 的 SQLite 题库，加上 40 MB 的公式图片，直接放进 APK 是 433 MB。做法是：
 
-- **图片不放在数据库里**，单独一个 `images.db`，只存图片二进制和一张索引表。题目表里只留图片 ID，渲染时才去查。这样题库主库能从 400+ MB 压到 321 MB。
-- **APK 里的数据库是压缩存储的**，安装后第一次启动解压落盘。
-- **前端只查不改**，所有查询走 `NativeDbBridge` 直连 SQLite，不经过 JS 内存镜像。61,768 道题的库，模糊搜索和分页查询都在 50ms 内返回。
+- **图片不放在数据库里**，单独一个 `images.db`，只存图片二进制和一张索引表。题目表里只留图片 ID，渲染时才去查。图片统一转成无损 WebP（55,837 张，76.9 MB → 40 MB）。
+- **APK 里的数据库是压缩存储的**（主库 gzip 后 110 MB），安装后第一次启动解压落盘。
+- **前端只查不改**，所有查询走 `NativeDbBridge` 直连 SQLite，不经过 JS 内存镜像。14 万行的库，模糊搜索和分页查询都在 50ms 内返回。
 
-代价是首次安装要拷 394 MB（约 30 秒），只有一次。之后每次覆盖安装都跳过重拷，版本落后交给增量包——这是 0.1.38 修的一个大坑，之前每次覆盖安装都要白拷 394 MB。
+代价是首次安装要解压 433 MB（约 30 秒），只有一次。之后每次覆盖安装都跳过重拷，版本落后交给增量包——之前每次覆盖安装都要白拷一遍，这是 0.1.38 修掉的坑。
 
-### 更新为什么只有几 MB
+### 更新为什么只有几十 MB
 
-题库全量 84 MB（gzip 后）。如果每次加题都重下，用户不会更新第二次。
+题库全量 110 MB（gzip 后）。如果每次加题都重下，用户不会更新第二次。
 
-实际做法是打**行级增量包**：
+实际做法是打**行级增量包**（v2 NDJSON，逐行流式应用，不整包进内存）：
 
 ```
-旧库 0.5.0  ──┐
-              ├─ diff ─→ {"papers":[18条],"questions":[754新增,4458修改],"deleted":{"questions":[117]}}
-新库 0.5.2  ──┘
+旧库 0.5.14 ──┐
+              ├─ diff ─→ 头行 {v:2, from, to, reset:[...]}
+新库 0.5.16 ──┘           之后逐行 {"t":"q","r":{...}} / {"t":"d q","id":123}
               ↓
-        gzip 压缩 → 2.4 MB
+        gzip 压缩 → 14–30 MB（取决于跨了几个版本）
 ```
 
-App 收到后在一个事务里 `INSERT OR REPLACE`，中途失败自动回滚，库不会坏。
+App 端边解压边逐行 `INSERT OR REPLACE`，每 2,000 行提交一次事务，中途失败不会把库写坏，也不会像老版本那样因为整包读进 `ByteArrayOutputStream` 而 OOM。
 
-这里有个不明显的坑：**哈希不能算在富文本字段上**。`contentHtml` 和 `analysisHtml` 是运行时按需生成的富文本副本，早期把它们算进 diff 哈希，导致 90,000 行被判定为「变更」，增量包膨胀到 40 MB，跟全量没区别。去掉之后稳定在 2.4 MB。
+这里有个不明显的坑：**哈希不能算在富文本字段上**。`contentHtml` 和 `analysisHtml` 是运行时的富文本副本，早期把它们算进 diff 哈希，导致 9 万行被判定为「变更」，增量包膨胀到 40 MB，跟全量没区别。
 
 ### 两个数据库，互不干扰
 
 ```
-tiku.db     只读题库，321 MB，更新时整块替换
+tiku.db     只读题库，393 MB，更新时整块替换
+images.db   公式与图形图片，40 MB，独立更新
 practice.db 用户记录，几 MB，永远不动
 ```
 
@@ -115,9 +115,9 @@ practice.db 用户记录，几 MB，永远不动
 
 ### 为什么不用 React
 
-整个 App 12 个页面。React + Router + 状态管理的构建链、包体积、启动时间，都不划算。
+整个 App 十几个页面。React + Router + 状态管理的构建链、包体积、启动时间，都不划算。
 
-原生 JS 直接操作 DOM，`app.js` 一个文件 2,400 行，改一行刷新就见效。启动时没有框架初始化，first paint 在 400ms 内。
+原生 JS 直接操作 DOM，`app.js` 一个文件 4,300 行，改一行刷新就见效。启动时没有框架初始化，first paint 在 400ms 内。
 
 代价是可维护性——所以每个页面都遵守同一条规矩：**只回答一个问题，只留一个主按钮**。
 
@@ -137,19 +137,29 @@ practice.db 用户记录，几 MB，永远不动
 
 **刷题**
 - 随机刷题 / 按试卷练 / 按考点练 / 错题再练 / 限时模考
+- **背题模式**：不答题，直接连题带解析往下翻
+- **答对自动跳下一题**（答错停在解析页，留时间看完）
 - 五科：公务员·行测、申论；事业编·职测、公基、综应
-- 按省份、年份、岗位类型筛卷
+- 按省份、年份、卷型（真题 / 模拟）筛卷，卷子带难度与「未完成 N/M」角标
 
 **解析**
 - 逐选项说明，指出每个错误选项具体错在哪
 - 考点标签可点，直接跳到同考点的题
-- 图形推理的公式图片离线内置
+- 图形推理的公式图片离线内置（无损 WebP，55,837 张）
 - 解析分层：先给结论，再给推理，最后给易错点
 
 **学习数据**
-- 章节正确率、近 7 天趋势
-- 每周报告 + 下周建议
-- 错题按遗忘曲线排队回顾
+- 章节正确率、近 7 天趋势、每周报告 + 下周建议
+- 错题本支持**按模块筛选**、**做对自动移出**
+- 每题反馈带「你在这个考点的正确率」「易错项是谁」
+- 模考成绩单：分数 / 用时 / 每题均时 / 模块得分下钻到**考点**、逐题复盘、历史成绩可回看
+
+**每日任务**
+- 每天 = 到期复习（最多 40% 配额）+ 新题，按「考试组合」的科目权重分配
+
+**时政**
+- 每月一组，条与条之间有分割线与序号，已读置灰，可只看未读
+- 每篇配 3 道练习题
 
 **AI（可选）**
 - 用自己的 Key，直连服务商，不经过中间服务器
@@ -173,13 +183,14 @@ AI 那一步可以直接「跳过」，之后随时在「我的 → AI 设置」
 | 想做的事 | 从哪进 |
 | --- | --- |
 | 随便练几题 | 题库 →「随机刷题，不设终点」 |
-| 练一整套卷 | 题库 →「按试卷练习」，按省份 / 年份 / 岗位筛 |
+| 按模块练 | 题库 → 勾模块（每个模块显示「已做 / 总数」） |
+| 练一整套卷 | 题库 →「按试卷练习」，按地区 / 年份 / 卷型筛 |
 | 专攻一个考点 | 题库 →「按考点练」 |
-| 重做错题 | 题库 →「错题再练」 |
-| 模拟考试 | 题库 →「模考」，限时交卷出分 |
+| 重做错题 | 题库 →「错题再练」，可按模块筛 |
+| 摸底考试 | 考试 → 选一套（10 / 20 / 50 题，按科目自动配时） |
 | 看这周学得怎样 | 我的 → 学习统计 / 学习报告 |
 
-答完题点选项就提交，不用点确认。答错自动进错题本。
+默认点选项立即判对错；答对约 1.2 秒后自动进入下一题，答错停在解析页。也可以在「我的 → 练习偏好」里关掉自动跳题、打开背题模式。
 
 **答题页怎么读**：答完之后，每个错误选项下面写明「为什么错」，正确选项标绿。考点标签可以点，跳到同考点的其他题。
 
@@ -205,8 +216,8 @@ Key 只存本机 SQLite，请求由 App 直接发给服务商。
 
 我的 → 检查题库更新。
 
-- 有新题：下增量（1–3 MB），几十秒应用完，页面自动重载
-- 跨版本太多或本地库损坏：退化成全量（84 MB）
+- 有新题：下增量（14–30 MB），一分多钟应用完，页面自动重载
+- 跨版本太多或本地库损坏：退化成全量（110 MB）
 - 下载源走 `gh-proxy` 代理 GitHub Release，国内直连
 
 ### 换手机
@@ -218,11 +229,11 @@ Key 只存本机 SQLite，请求由 App 直接发给服务商。
 ## 技术栈
 
 ```
-前端      原生 JS 单页应用，无框架，~2400 行
+前端      原生 JS 单页应用，无框架，~4300 行
 壳        Capacitor 6 + Android WebView
-数据      SQLite × 2（tiku.db 题库 / practice.db 记录）
+数据      SQLite × 3（tiku.db 题库 / images.db 图片 / practice.db 记录）
 桥接      NativeDbBridge.java —— WebView ⇄ SQLite 直连
-更新      UpdateManager.java —— 增量下载 + 事务应用 + SHA-256 校验
+更新      UpdateManager.java —— 分块下载 + NDJSON 流式应用 + SHA-256 校验
 数据工程  Node.js（采集、ETL、diff、打包）
 ```
 
@@ -236,18 +247,20 @@ kaogong-shuati/
 │   ├── local-api.js       /api/* 的离线实现
 │   └── local-bootstrap.js 启动装配：SQLite → 路由 → AI
 ├── tools/                 数据工程
-│   ├── fenbi-fetch-solutions.mjs   真题采集（Playwright）
-│   ├── import-fenbi-papers.mjs     真题 ETL 入库
-│   ├── build-tiku-delta.mjs        生成增量包
-│   ├── build-release-manifest.mjs  生成更新清单
-│   └── normalize-categories.mjs    清洗脏模块名
-├── build-app-assets.mjs   打包 DB 资源
+│   ├── fenbi-keypoint-fetch.mjs    考点散题采集（Playwright）
+│   ├── fenbi-fetch-all.mjs         整卷采集
+│   ├── import-raw-papers.mjs       原始卷 ETL 入库
+│   ├── build-tiku-delta.mjs        生成增量包（v2 NDJSON）
+│   ├── export-quality-data.mjs     导出仓库用 data/*.jsonl.gz
+│   └── publish-app.mjs             一条命令发版
+├── data/                  导出的题库数据（供他人直接使用）
 ├── server.mjs             本地开发服务器
 └── release/manifest.json  更新清单（App 从这里读）
 
 app-shangan/android/app/src/main/java/com/kaogong/app/
 ├── NativeDbBridge.java    SQLite 桥
 ├── UpdateManager.java     更新管理
+├── DownloadService.java   前台下载通知
 └── WebViewActivity.java   WebView 容器
 ```
 
@@ -259,12 +272,12 @@ app-shangan/android/app/src/main/java/com/kaogong/app/
 # 环境：JDK 17、Android SDK、Node 18+
 
 cd kaogong-shuati
-node tools/sync-webapp.mjs            # public/next → webapp/
-node build-app-assets.mjs app-assets  # tiku.db → tiku_app.db + images.db
+node tools/sync-webapp.mjs              # public/next → webapp/（默认连 assets 一起同步）
+node tools/write-db-version.mjs <题库版本>  # 写 app-assets/db-version.txt
 npx cap copy android
 
 cd ../app-shangan/android
-./gradlew assembleRelease             # 产物在 app/build/outputs/apk/release/
+./gradlew assembleRelease               # 产物在 app/build/outputs/apk/release/
 ```
 
 本地调试：`node server.mjs` → http://localhost:5173
@@ -276,24 +289,24 @@ cd ../app-shangan/android
 题库不走应用商店，走自己的增量通道。
 
 ```
-1. 本地版本 0.5.0-20261108-1955
+1. 本地版本 0.5.14-20261110-1450
 2. 拉 release/manifest.json
-3. 找 from=0.5.0 的 delta
-4. 下载 2.4 MB gz
-5. BEGIN → INSERT OR REPLACE → COMMIT
+3. 找 from=0.5.14 的 delta（没有就退化全量）
+4. 下载 14–30 MB gz，边解压边逐行应用
+5. BEGIN → INSERT OR REPLACE（每 2,000 行提交一次）→ COMMIT
 6. 写 tiku_app.db.ver，前端 reload
 ```
 
-增量包内容：
+增量包是 v2 NDJSON，头行给元信息，之后一行一条记录：
 
 ```json
-{
-  "version": "0.5.2-20261109-0130",
-  "papers":    [ ... ],
-  "questions": [ ... ],
-  "deleted":   { "questions": [], "papers": [] }
-}
+{"v":2,"from":"0.5.14-…","to":"0.5.16-…","reset":["question_categories"],"counts":{…}}
+{"t":"q","r":{ ... 一道题 ... }}
+{"t":"p","r":{ ... 一套卷 ... }}
+{"t":"dq","id":123456}
 ```
+
+老版本用单个 JSON 对象 + 整包读进内存，85 MB 的包会让手机 OOM；现在边解压边写库，峰值内存只有一个读缓冲。
 
 清单地址三个镜像按序试，第一个通的就用：
 
@@ -317,41 +330,28 @@ cd ../app-shangan/android
 **发版流程**
 
 ```bash
-# 1. 采集 + 入库
-node tools/fenbi-fetch-solutions.mjs --course syzc --cat 江苏 --limit 15 --pages 3
-node tools/import-fenbi-papers.mjs --apply
-node tools/normalize-categories.mjs --apply
+# 1. 采集 + 入库（整卷走 fenbi-fetch-all，考点散题走 fenbi-keypoint-fetch）
+node tools/fenbi-keypoint-fetch.mjs --course syzc --gap 8
+node tools/import-raw-papers.mjs --apply
+node tools/classify-gongji.mjs --apply        # 公基按 8 个模块分组
+node tools/backfill-from-api.mjs --apply      # 补解析
 
-# 2. 打增量包
-node tools/build-tiku-delta.mjs --old tiku.db.bak --new tiku.db \
-  --from 0.5.2-20261109-0130 --to 0.5.3-<新时间> --out ../dist/release
+# 2. 打增量包（v2 NDJSON，流式写入）
+node tools/build-tiku-delta.mjs --old tmp-old.db --new app-assets/tiku_app.db \
+  --from 0.5.15-<旧时间> --to 0.5.16-<新时间>
 
-# 3. 重建内置资源
-node build-app-assets.mjs app-assets
-echo -n '0.5.3-<新时间>' > app-assets/db-version.txt
+# 3. 写题库版本号
+node tools/write-db-version.mjs 0.5.16-<新时间>
 
-# 4. 生成 manifest
-node tools/build-release-manifest.mjs \
-  --base https://github.com/CHAOYUE116/shangan/releases/download/tiku-<tag> \
-  --apk ../dist/shangan-<ver>-release.apk
-
-# 5. 上传 Release（curl 必须加 --ssl-no-revoke，否则 Windows 证书吊销检查会掐断连接）
-# 6. 同步 manifest 并提交
-cp ../dist/release/manifest.json release/manifest.json
-
-# 7. 补 CHANGELOG.md —— 写清「改了什么」和「为什么」
-#    每条都要带根因，别只写结论。例如不要写「修复了更新失败」，
-#    要写「sha256 对不上：App 解压后算哈希，manifest 给的却是 .gz 的哈希」
-
-# 8. 把 CHANGELOG 的内容同步到 Release 页面
-GH_TOKEN=<token> node tools/update-release-notes.mjs
+# 4. 出 APK + manifest + 上传 + push + 轮询 CDN，一条命令全包
+node tools/publish-app.mjs --version 0.4.1 --code 86 --note "本次改了什么"
 ```
 
-三个容易漏的点：
+`publish-app.mjs` 内部按固定顺序做九件事：比对版本号（不一致自动 bump）→ `sync-webapp` → `robocopy` 到 android assets → `gradlew assembleRelease` → `fix-manifest` → 补 `app` 段 → 自检（url/sha/size/delta 哈希）→ 上传 Release → commit + push → 轮询 CDN 直到命中新版本。
 
-- `app-assets/db-version.txt` **必须手动写**。`build-app-assets.mjs` 不生成它，但 `build-release-manifest.mjs` 靠它取 `dbVersion`。
-- commit 前必须把 `dist/release/manifest.json` 拷回 `release/manifest.json`，否则仓库里还是旧地址，白等 CDN 刷新。
-- **第 8 步别省**。Release 页面默认只有一堆文件名，用户点进来不知道这次改了什么。`update-release-notes.mjs` 会从 `CHANGELOG.md` 里按版本号切出对应段落，拼上下载说明和安装步骤，写进 Release 的 body。可以先 `--dry` 预览。
+顺序不能颠倒：**`fix-manifest` 会按 `sources[0]` 覆写 `app.url`**，先写 app 段再跑 fix，就等于把新下载地址改回旧包。
+
+还要记得补 `CHANGELOG.md`，写清「改了什么」和「为什么」。每条都要带根因，别只写结论。例如不要写「修复了更新失败」，要写「sha256 对不上：App 解压后算哈希，manifest 给的却是 .gz 的哈希」。
 
 ---
 
@@ -361,9 +361,9 @@ GH_TOKEN=<token> node tools/update-release-notes.mjs
 
 行测、职测、申论、综应的真题与解析，绝大部分来自这里。粉笔的网页端没有做请求签名，带着自己的登录 Cookie 就能取到试卷列表和题目；解析要先提交一次练习，再从 `/combine/static/solution` 取回。采集脚本用 Playwright 驱动真实 Chrome 走这个流程——直接 curl 会被 WAF 返回 453。
 
-入库的 61,768 题里，明确标记 `source='fenbi'` 的是通过这个流程新采的，其余是早期导入、未标记来源的历史数据。
+入库的 144,641 行里，绝大多数是通过这个流程采的（整卷接口给题，`/combine/static/solution` 给解析），另有约 2,722 题来自下面的公基静态源。
 
-**[linfukai186-arch/gongkao-tiku](https://github.com/linfukai186-arch/gongkao-tiku)** — 公基
+**[linfukai186-arch/gongkao-tiku](https://github.com/linfukai186-arch/gongkao-tiku)** — 公基早期底子
 
 作者把事业单位真题整理成静态 JSON 挂在 GitHub Pages 上，结构很干净：
 
@@ -372,11 +372,34 @@ data/<模块>/index.json     条目清单（key 形如 "2026·xxx考试"，count
 data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 ```
 
-字段 `t`=模块/题型、`s`=材料、`q`=题干、`o`=选项数组、`a`=答案、`e`=解析。导入 2,722 题，构成了「事业编·公基」的全部内容。
+字段 `t`=模块/题型、`s`=材料、`q`=题干、`o`=选项数组、`a`=答案、`e`=解析。早期导入 2,722 题；后来公基主要由粉笔整卷补到 23,053 题（506 套卷）。
 
-这个源没有难度字段，所以公基 100% 没有难度标签——App 里遇到这种情况直接不显示，而不是显示「难度 0」。
+这个源没有难度字段，所以这批早期公基题没有难度标签——App 里遇到这种情况直接不显示，而不是显示「难度 0」。
 
-**考点体系**：自建，46,531 条映射。
+**考点体系**：自建，46,531 条映射（`question_keypoints`），另有 `question_categories` 的章节分组兜底。
+
+---
+
+## 仓库里的数据
+
+`data/` 下是两个导出文件，内容是「题干净、有答案、有解析」的那部分，直接用 `gzip -d` + `jq` 就能读，不需要装 App：
+
+| 文件 | 内容 | 大小 |
+| --- | --- | ---: |
+| `data/tiku-quality.jsonl.gz` | **126,875 题**，每行一个 JSON 对象 | 54.6 MB |
+| `data/papers.jsonl.gz` | 3,614 套卷的元信息（卷名 / 科目 / 分类 / 年份 / 题数 / 难度） | 62 KB |
+
+题目字段：
+
+```json
+{"id":123,"qid":"…","pid":45,"paper":"2026年4月25日浙江省事业单位统考《职测》",
+ "ch":"言语理解与表达","t":"单选题","qt":"1","s":"题干","o":["A 选项","B 选项"],
+ "a":"C","ai":2,"d":4,"src":"（2026·浙江）","e":"解析原文","m":"材料","kp":"中心理解题"}
+```
+
+导出脚本：`node tools/export-quality-data.mjs`（从内置库导出，改完题重跑一遍即可）。
+
+> 这套数据只是「题目 + 解析」的文本，没有图片（图片在 `images.db`，不进仓库）；解析与题目版权归原平台与原命题机构所有，见 [DISCLAIMER.md](DISCLAIMER.md)。
 
 ## 依赖
 
@@ -384,18 +407,21 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 | --- | --- |
 | [Capacitor](https://capacitorjs.com/) | Android 壳，负责 WebView 容器和原生插件桥接 |
 | [Playwright](https://playwright.dev/) | 驱动 Chrome 采集真题，绕不过 WAF 时的唯一办法 |
-| [sharp](https://sharp.pixelplumbing.com/) | 公式图片压缩，73 MB 图片库靠它压下来 |
+| [Pillow](https://python-pillow.org/) | 公式图片转无损 WebP：55,837 张，76.9 MB → 40 MB |
 | [SQLite](https://sqlite.org/) | 两套数据库的底座；Node 侧用内置的 `node:sqlite`，不引第三方驱动 |
 
 **已知缺口**
 
 | 问题 | 规模 | 原因 |
 | --- | --- | --- |
-| 职测无解析 | 1,366 题（14.3%） | 源站部分卷子未提供 |
-| 综应无详解 | 72% | 粉笔主观题本就不带详解 |
-| 公基无难度标签 | 100% | 源数据无此字段，已改为不显示 |
-| 答案-解析矛盾 | 43 条 | 待人工核对 |
-| 题干重复 | 10,841 组 | 真题被多省卷重复收录；抽题按 `questionId` 去重，不会重复出现 |
+| 职测无解析 | 2,307 题（7.4%） | 这些题在粉笔同卷里找不到对应题，接口不给 |
+| 公基无解析 | 1,005 题（4.2%） | 同上，早期静态源那批 |
+| 申论无解析 | 1,310 题（29.1%） | 主观题，源站本就不带详解 |
+| 综应无详解 | 1,995 题（74.0%） | 同上 |
+| 答案-解析矛盾 | 7 条 | 已人工核对，待逐条修 |
+| 公基无考点标签 | 100% | 粉笔公基没有考点树，只有 8 个模块分组 |
+| 职测考点覆盖 | 约 29% | 其余用章节 `sub` 兜底 |
+| 跨卷重复收录 | 144,641 行 → 91,648 题 | 同一题被多省卷收录；抽题按 `questionId` 去重，不会重复出现 |
 
 ---
 
@@ -405,13 +431,15 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 
 | 参考 | 借了什么 |
 | --- | --- |
+| [ERRRC/kaogong-shuati](https://github.com/ERRRC/kaogong-shuati)（中文名「没钱考什么公」） | **主要参考实现**。这个项目先做了一版同样的东西：Capacitor 套壳 + 本地 SQLite 题库 + 离线刷题 + 错题本 + AI 解析。本项目的整体技术路线（Capacitor/WebView 而非纯原生、题库随包内置而非联网拉取、用 `node:sqlite` 做数据管线）以及一批页面的信息组织方式（AI 配置页要填哪些字段、数据备份页包含哪些数据、错题本的编排）都参考了它的实现方式与部分代码，之后按本项目的设计语言和数据规模重写、扩展 |
 | [xuexiangjys/XUpdate](https://github.com/xuexiangjys/XUpdate)、[azhon/AppUpdate](https://github.com/azhon/AppUpdate)、[MZCretin/AutoUpdateProject](https://github.com/MZCretin/AutoUpdateProject) | App 内更新的分层（检查 / 解析 / 提示 / 下载）与几个必须处理的坑：Android 10+ 后台不能直接起安装器要发通知、Android 13 通知权限、下载完成复用已下好的包、断点续传 |
 | [AnkiDroid](https://github.com/ankidroid/Anki-Android) | 三计数（待复习 / 已排期 / 已掌握）的错题债务表达 |
 | [Learn-N-Mobile](https://github.com/learnn/Learn-N-Mobile) | 卡片式刷题、左右滑动判对错的手势位 |
 | 粉笔题库 | 数据源；题目页的「考点 / 秒杀 / 陷阱」三段结构 |
-| 若干个人开发者开源的考公 App | AI 配置页与数据备份页的**信息项**（要填哪些字段、备份要包含哪些数据、导入前要不要预览）参考过它们的组织方式；界面已按本 App 的设计语言重做 |
 
 原则是借信息架构，不搬界面：所有页面按本项目的排版体系（圆角卡、`.opt-row`、底部 sheet）重新画过，字号、间距、配色、文案都另起。
+
+如果上面任何一位作者认为这里的使用方式越界，提个 issue，我会在 72 小时内撤掉对应部分。
 
 ---
 
