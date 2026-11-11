@@ -4,15 +4,15 @@
   "app": {
     "version": "0.3.13",
     "versionCode": 83,
-    "code": 80,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
+    "code": 83,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
         "kind": "github"
       }
     ],
