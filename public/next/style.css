@@ -1280,3 +1280,18 @@ html[data-theme="dark"] .data-m b { color: #D8E8DC; }
 #img-view.actual img { max-width: none; max-height: none; margin: 0; }
 #img-view .iv-close { position: fixed; top: 18px; right: 16px; width: 40px; height: 40px; border: 0; border-radius: 20px; background: rgba(255,255,255,.16); color: #fff; font-size: 18px; line-height: 40px; padding: 0; }
 #img-view .iv-tip { position: fixed; left: 0; right: 0; bottom: 26px; text-align: center; font-size: 12px; color: rgba(255,255,255,.66); }
+
+/* --- 时政已读态 --- */
+.pol-card.read { opacity: .62; }
+.pol-card.read .pol-card-t { color: var(--text-2); }
+.pol-read-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 5px; background: var(--soft); color: var(--text-3); font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+
+/* --- 考试 tab 成绩汇总条 --- */
+.sum-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 14px 8px; margin-bottom: 10px; }
+.sum-cell { text-align: center; }
+.sum-cell b { display: block; font-size: 20px; font-weight: 720; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.sum-cell span { display: block; margin-top: 2px; font-size: 11px; color: var(--text-3); }
+
+/* --- 首页到期复习卡 --- */
+.due-card { background: var(--amber-soft); }
+.due-card .due-sub { display: block; margin-top: 2px; font-size: 11.5px; font-style: normal; color: #9a6700; opacity: .85; }

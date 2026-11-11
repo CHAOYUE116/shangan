@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.12';
+const APP_VERSION = '0.3.13';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -785,6 +785,12 @@ function renderHome() {
     <button class="btn btn-primary btn-block hero-btn" data-act="${act}">${cta}</button>
   </section>
   ${due > 0 && remain > 0 ? `<button class="home-alt" data-act="daily-new"><span>还是做点新的？<b>今日新题 ${Math.min(remain, 15)} 道</b></span><span class="home-alt-r">约 10 分钟 ›</span></button>` : ''}
+  ${due > 0 ? (() => {
+    // 到期复习原来只藏在 hero 的副标题里，做完新题就看不见了。单独给一张卡，
+    // 位置放在「时政/资料库/模考」快捷入口之前，翻屏第一眼就能看到。
+    const tmr = reviewCountOn(1);
+    return `<button class="home-alt due-card" data-act="review-train"><span>到期复习 <b>${due} 道</b>${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
+  })() : ''}
   ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n} 题 · 正确率 ${yd.rate}%</span></div>` : ''}
   <div class="quick-row three">
     <button class="quick-card" data-act="politics">
@@ -1000,8 +1006,8 @@ function renderLibrary() {
   };
   return `
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
-  <h1 class="page-title">按方向练习</h1>
-  <div class="card-sub" style="margin:-8px 0 14px">${esc(subject)} · 共 ${total} 题 · 选择模块开始</div>
+  <h1 class="page-title">刷题</h1>
+  <div class="card-sub" style="margin:-8px 0 14px">${esc(subject)} · 共 ${total} 题 · 选模块或整卷开始</div>
   <section class="banner small">
     ${artDesk()}
     <div class="banner-copy">
@@ -1222,11 +1228,12 @@ function renderReview() {
     return true;
   });
   const tabs = [['wrong', '错题'], ['fav', '收藏'], ['notes', '笔记']];
+  const dueN = dueIds().length;
   return `
   <div class="topline"><span class="eyebrow">回顾</span></div>
   <h1 class="page-title">把错题变成会的题</h1>
   <div class="segmented three">${tabs.map(([k, t]) => `<button class="seg ${tab === k ? 'active' : ''}" data-review-tab="${k}">${t}</button>`).join('')}</div>
-  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">错题训练</div><div class="training-sub">错题本 <b>${list.length}</b> 道 · ${dueLine(list)}</div><button class="btn btn-primary btn-block" data-act="wrong-train">开始训练</button>${list.length > 50 ? `<div class="card-sub" style="margin-top:8px">列表显示最近 50 道，训练会带上全部 ${list.length} 道</div>` : ''}</section>` : ''}
+  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · 错题本共 ${list.length} 道 · ${dueLine(list)}` : `错题本 <b>${list.length}</b> 道 · ${dueLine(list)}`}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button>${list.length > 50 ? `<div class="card-sub" style="margin-top:8px">列表显示最近 50 道，训练会带上全部 ${list.length} 道</div>` : ''}</section>` : ''}
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
   <div class="card list-card">
     ${list.length ? list.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
@@ -1269,7 +1276,27 @@ function renderExam() {
   <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
   <section class="training-card" style="cursor:pointer" data-act="papers-entry"><div class="training-title">真题整卷模考</div><div class="training-sub">按地区、年份挑一份真卷 · 按卷计时 · 交卷出成绩单</div><button class="btn btn-ghost btn-block" data-act="papers-entry">选一份卷子</button></section>
-  ${hist.length ? `<div class="section-head"><h2 class="section-title">模考成绩单</h2><button class="section-more" data-act="exam-history">全部 ${hist.length} 次 ›</button></div>` + `<div class="card list-card">${hist.slice(-3).reverse().map((r) => { const sc = Math.round((r.right / (r.total || 1)) * 1000) / 10; const d = new Date(r.ts); return `<div class="hist-row"><div class="hist-main"><div class="hist-title">${esc(r.title || '模考')}</div><div class="hist-sub">${d.getMonth() + 1}/${d.getDate()} · ${esc(r.kind || '随机')} · ${r.total} 题</div></div><div class="hist-score"><b>${sc}</b><span>${r.right}/${r.total}</span></div></div>`; }).join('')}</div>` : ''}
+  ${hist.length ? (() => {
+    const scores = hist.map((r) => (r.total ? (r.right / r.total) * 100 : 0));
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const best = Math.max(...scores);
+    const lastOne = hist[hist.length - 1];
+    const lastRate = lastOne && lastOne.total ? Math.round((lastOne.right / lastOne.total) * 100) : 0;
+    const rows = hist.slice(-3).reverse().map((r) => {
+      const sc = Math.round((r.right / (r.total || 1)) * 1000) / 10;
+      const d = new Date(r.ts);
+      const rate = r.total ? Math.round((r.right / r.total) * 100) : 0;
+      return `<div class="hist-row"><div class="hist-main"><div class="hist-title">${esc(r.title || '模考')}</div><div class="hist-sub">${d.getMonth() + 1}/${d.getDate()} · ${esc(r.kind || '随机')} · ${r.total} 题 · 用时 ${fmtTime(r.used || 0)}</div></div><div class="hist-score"><b>${sc}</b><span>${r.right}/${r.total} · ${rate}%</span></div></div>`;
+    }).join('');
+    return `<div class="section-head"><h2 class="section-title">模考成绩单</h2><button class="section-more" data-act="exam-history">全部 ${hist.length} 次 ›</button></div>`
+      + `<div class="card sum-strip">`
+      + `<div class="sum-cell"><b>${Math.round(avg * 10) / 10}</b><span>平均分</span></div>`
+      + `<div class="sum-cell"><b>${Math.round(best * 10) / 10}</b><span>最高分</span></div>`
+      + `<div class="sum-cell"><b>${lastRate}%</b><span>最近一次</span></div>`
+      + `<div class="sum-cell"><b>${hist.length}</b><span>已考次数</span></div>`
+      + `</div>`
+      + `<div class="card list-card">${rows}</div>`;
+  })() : ''}
   ${trendCard(hist)}
   <button class="home-alt" data-act="plan" style="margin-top:14px"><span>没有计划？让 AI 排一个<b>四阶段备考计划</b></span><span class="home-alt-r">去生成 ›</span></button>
   ${last7.length ? `<div class="section-head"><h2 class="section-title">近 7 天</h2></div><div class="card list-card">${last7.map((d) => `<div class="exam-row"><div class="subject-ico">${iconFor('')}</div><div class="subject-main"><div class="subject-title">${d.d}</div><div class="subject-sub">做题 ${Number(d.c) || 0} · 答对 ${Number(d.ok) || 0}</div></div><div class="weak-pct">${d.c ? Math.round(((Number(d.ok) || 0) / Number(d.c)) * 100) : 0}%</div></div>`).join('')}</div>` : ''}`;
@@ -1973,8 +2000,14 @@ async function openPolitics() {
   const head = '<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">时政热点</div><button class="icon-btn" data-act="politics-refresh" aria-label="刷新">↻</button></div>';
   try {
     const data = await loadPolitics();
-    const items = (data.items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
-    S.politicsList = items;
+    const allItems = (data.items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    S.politicsList = allItems;
+    const readSet = polReadSet();
+    const unreadOf = (x, idx) => !readSet.has(String(x.id != null ? x.id : idx));
+    const unreadCount = allItems.filter((x, i) => unreadOf(x, i)).length;
+    // 「只看未读」只在真的读过一些之后才有意义，否则等于全量列表
+    const onlyUnread = !!S.polUnreadOnly && unreadCount > 0;
+    const items = onlyUnread ? allItems.filter((x, i) => unreadOf(x, i)) : allItems;
 
     // 按月份分组，长列表才扫得动
     const groups = new Map();
@@ -1994,15 +2027,16 @@ async function openPolitics() {
     const body = [...groups.entries()].map(([k, list]) => `
       <div class="pol-month">${esc(monthLabel(k))}<span>${list.length} 篇</span></div>
       ${list.map((x) => {
-        const idx = items.indexOf(x);
+        const idx = allItems.indexOf(x);
         const t = polTitle(x.title);
         const sum = polSummary(x.summary, t);
         const day = String(x.date || '').slice(8, 10) || '--';
         const pq = (x.practice || []).length;
-        return `<div class="pol-card" data-act="politics-open" data-idx="${idx}">
+        const isRead = !unreadOf(x, idx);
+        return `<div class="pol-card ${isRead ? 'read' : ''}" data-act="politics-open" data-idx="${idx}">
           <div class="pol-card-l"><div class="pol-day">${esc(day)}</div><div class="pol-day-sub">${Number(x.chars) || 0} 字</div></div>
           <div class="pol-card-r">
-            <div class="pol-card-t">${esc(t)}</div>
+            <div class="pol-card-t">${esc(t)}${isRead ? '<span class="pol-read-tag">已读</span>' : ''}</div>
             ${sum ? `<div class="pol-card-s">${esc(sum)}</div>` : ''}
           ${pq ? `<div class="pol-card-q">练一练 ${pq} 题</div>` : ''}
           </div>
@@ -2011,12 +2045,31 @@ async function openPolitics() {
     `).join('');
 
     const srcTag = _politicsSrc === 'online' ? '已是最新' : _politicsSrc === 'cache' ? '离线缓存' : '本地版本';
+    const filterRow = `<div class="chips nowrap" style="margin:0 0 10px"><button class="chip ${onlyUnread ? '' : 'active'}" data-act="pol-filter" data-v="all">全部 ${allItems.length}</button>${unreadCount ? `<button class="chip ${onlyUnread ? 'active' : ''}" data-act="pol-filter" data-v="unread">未读 ${unreadCount}</button>` : ''}</div>`;
     $('#view').innerHTML = `${head}
-      <div class="pol-top-note"><span>${items.length} 篇 · ${esc(srcTag)}</span><span>更新于 ${esc(String(data.updatedAt || '').slice(0, 10))}</span></div>
+      <div class="pol-top-note"><span>${items.length} 篇 · ${unreadCount ? `未读 ${unreadCount} 篇` : '都读过了'} · ${esc(srcTag)}</span><span>更新于 ${esc(String(data.updatedAt || '').slice(0, 10))}</span></div>
+      ${filterRow}
       ${body || '<div class="empty-state">暂无时政数据</div>'}`;
   } catch (e) {
     $('#view').innerHTML = `${head}<div class="empty-state">${esc(e.message)}</div>`;
   }
+}
+
+/* ---------- 时政已读 ---------- */
+const POL_READ_KEY = 'sg_pol_read_v1';
+function polReadSet() {
+  try {
+    const a = JSON.parse(localStorage.getItem(POL_READ_KEY) || '[]');
+    return new Set(Array.isArray(a) ? a.map(String) : []);
+  } catch { return new Set(); }
+}
+function polMarkRead(id) {
+  if (id == null) return;
+  try {
+    const s = polReadSet();
+    s.add(String(id));
+    localStorage.setItem(POL_READ_KEY, JSON.stringify([...s].slice(-300)));
+  } catch { /* ignore */ }
 }
 
 /** 时政文章末尾的「模拟演练」做成可点的题卡（2026-11 起采集脚本会把题目解析进 practice[]） */
@@ -2972,7 +3025,13 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (a === 'politics') { openPolitics(); return; }
-  if (a === 'politics-open') { openPoliticsDetail(Number(act.dataset.idx)); return; }
+  if (a === 'politics-open') {
+    const it = (S.politicsList || [])[Number(act.dataset.idx)];
+    if (it) polMarkRead(it.id != null ? it.id : act.dataset.idx);
+    openPoliticsDetail(Number(act.dataset.idx));
+    return;
+  }
+  if (a === 'pol-filter') { S.polUnreadOnly = act.dataset.v === 'unread'; openPolitics(); return; }
     if (a === 'pol-opt') {
       const card = act.closest('.pol-q');
       if (!card || card.dataset.done === '1') return;
