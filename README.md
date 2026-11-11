@@ -19,15 +19,35 @@
 > 权利人提出异议会在 72 小时内删除相关内容。
 > 详细条款见 [DISCLAIMER.md](DISCLAIMER.md)，代码许可见 [LICENSE](LICENSE)（仅覆盖代码，不覆盖题库）。
 
-**下载** [最新版 APK](https://github.com/CHAOYUE116/shangan/releases)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
+**下载** [最新版 APK（Releases → v0.5）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.5)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
+
+当前版本：**App 0.5.4**（`shangan-0.5.4-release.apk`，143.4 MB，Android 8.0+）· 题库 **0.5.16-20261110-2340**（144,641 行 / 91,648 道去重真题）
+
+### 仓库与发布是怎么分工的
+
+项目只有两个仓库，各管一件事：
+
+| 仓库 | 内容 | 谁看 |
+|---|---|---|
+| [`CHAOYUE116/shangan`](https://github.com/CHAOYUE116/shangan)（当前仓库） | Web 前端、构建脚本、题库导出数据、**发布的 APK 与题库资产** | 使用者从这里下载 |
+| [`CHAOYUE116/shangan-app`](https://github.com/CHAOYUE116/shangan-app) | Android 壳：Capacitor 容器、原生下载/题库桥、签名配置 | 开发者 |
+
+Releases 按**大版本**建 tag，一个 tag 只放一版 APK（新版本上传后旧的自动删掉），所以 Releases 列表里不会堆一长串安装包：
+
+| Tag | 放什么 | 例 |
+|---|---|---|
+| `v0.4` / `v0.5` … | **App 安装包**，一个大版本一个 | `shangan-0.5.4-release.apk` |
+| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.16-20261110-2340` |
+
+App 通过仓库根目录的 [`release/manifest.json`](release/manifest.json) 找更新：里面 `app.url` 指向 `v0.5` 那个 APK，`tiku.sources` 指向题库 tag 里的 `tiku_app.db.gz`。所以发版只需要改这一个 JSON，客户端查到的就是最新地址。
 
 ---
 
 清晨六点半，地铁二号线，信号两格。
 
-你打开手机，首页只写着一行字：**距离考试还有 21 天，今天 20 题**。点进去就是题。做完一道，答错的选项下面立刻告诉你错在哪，不是「正确答案是 B」，是「B 错在把充分条件当成了必要条件」。到站前最后一道做完，进度条走满，明天见。
+打开 App，首页只有一行字：**距离考试还有 21 天，今天 20 题**。点进去就是题。做完一道，答错的选项下面立刻说明错在哪，不是「正确答案是 B」，而是「B 错在把充分条件当成了必要条件」。到站前最后一道做完，进度条走满，明天继续。
 
-走出地铁站，信号恢复，App 在后台悄悄拉了一次更新：18 MB，新增了几百道这个月的联考真题。你没感觉到它发生。
+走出地铁站，信号恢复，App 在后台悄悄拉了一次更新：18 MB，新增了几百道这个月的联考真题。整个过程没有感知。
 
 这就是上岸想做的事。没有别的。
 
@@ -111,7 +131,7 @@ images.db   公式与图形图片，40 MB，独立更新
 practice.db 用户记录，几 MB，永远不动
 ```
 
-分开之后，更新题库不会碰你的做题历史、错题本、设置。反过来，清空练习记录也不影响题库。
+分开之后，更新题库不会动到做题历史、错题本和设置。反过来，清空练习记录也不影响题库。
 
 ### 为什么不用 React
 
@@ -151,7 +171,7 @@ practice.db 用户记录，几 MB，永远不动
 **学习数据**
 - 章节正确率、近 7 天趋势、每周报告 + 下周建议
 - 错题本支持**按模块筛选**、**做对自动移出**
-- 每题反馈带「你在这个考点的正确率」「易错项是谁」
+- 每题反馈带该考点的历史正确率与本题易错项（界面文案：「你在这个考点的正确率」「易错项」）
 - 模考成绩单：分数 / 用时 / 每题均时 / 模块得分下钻到**考点**、逐题复盘、历史成绩可回看
 
 **每日任务**
@@ -449,4 +469,4 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 
 ---
 
-<sub>如果这个项目对你有用，点个 Star。有问题提 Issue。</sub>
+<sub>如果这个项目有用，欢迎 Star；问题请提 Issue。</sub>
