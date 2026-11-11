@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.3.13",
-    "versionCode": 83,
-    "code": 83,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
+    "version": "0.4.0",
+    "versionCode": 85,
+    "code": 85,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.13-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
         "kind": "github"
       }
     ],
-    "size": 150303708,
-    "sha256": "0b917b18cff6674fce7f95f7ef459729acbed1e1a01ddec8683f23692a2c2903",
-    "name": "shangan-0.3.13-release.apk",
-    "note": "答题体验对齐：答对自动翻页、背题模式、未完成角标、模块完成度；引擎按用时/难度安排复习并混排到期题；考试成绩汇总条、首页到期卡、时政已读、回顾页今日复习入口"
+    "size": 150308583,
+    "sha256": "e4d2d4a2de1fabc933da3ae06acc75b2cd260b1bd7574d25d5ba18348f991541",
+    "name": "shangan-0.4.0-release.apk",
+    "note": "报告下钻考点级、错题本按模块筛选、订正即移出、每题参照正确率与易错项"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.3.13：答题体验对齐：答对自动翻页、背题模式、未完成角标、模块完成度；引擎按用时/难度安排复习并混排到期题；考试成绩汇总条、首页到期卡、时政已读、回顾页今日复习入口"
+  "note": "App 0.4.0：报告下钻考点级、错题本按模块筛选、订正即移出、每题参照正确率与易错项"
 }
