@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.5.4",
-    "versionCode": 94,
-    "code": 94,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk",
+    "version": "0.6.0",
+    "versionCode": 97,
+    "code": 97,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-release.apk"
       }
     ],
-    "size": 150320339,
-    "sha256": "eb7ab0fc1b779812890ca07a5735d00a604fee8620be7d965fa7f83e63d655a7",
-    "name": "shangan-0.5.4-release.apk",
-    "note": "App 0.5.4：判断题补正确/错误选项、多选题支持多选"
+    "size": 156091379,
+    "sha256": "2ad7e294f5d3b4d420ac07cbd3652a84dfee9b5ce122341395e5742f443fa290",
+    "name": "app-release.apk",
+    "note": "App 0.6.0：每日任务按薄弱考点抽题 + 基础测评（能力画像）；题库 0.5.17 新增 6,963 道带选项考点题"
   },
   "tiku": {
     "dbVersion": "0.5.17-20261112-0200",
@@ -135,5 +135,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "题库 0.5.17-20261112-0200：新增 6,963 道带选项的考点散题（粉笔考点 400 个），考点映射 +51,668 行"
+  "note": "App 0.6.0：每日任务按薄弱考点抽题 + 基础测评（能力画像）；题库 0.5.17 新增 6,963 道带选项考点题"
 }
