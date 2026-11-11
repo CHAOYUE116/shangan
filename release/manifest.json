@@ -104,7 +104,8 @@
         "rawSize": 123915607,
         "gzSha256": "2edc97668ce375e3340756a7c0f11036d2e82d77893699fa55698970c65e3089"
       }
-    ]
+    ],
+    "note": "题库 0.5.16：144,641 行 / 91,648 道唯一题 / 3,614 套卷；题干填空横线、公式图离线化（WebP 无损）、增量包流式应用"
   },
   "images": {
     "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",

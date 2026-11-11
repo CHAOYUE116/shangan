@@ -79,4 +79,4 @@ if (problems.length) {
 fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + '\n', 'utf8');
 fs.mkdirSync(path.dirname(RELEASE), { recursive: true });
 fs.copyFileSync(manifestPath, RELEASE);
-console.log(`✓ ${manifestPath}\n✓ ${RELEASE}\n  app ${m.app.version} ${m.app.sha256.slice(0, 12)} / tiku ${m.tiku.version}`);
+console.log(`✓ ${manifestPath}\n✓ ${RELEASE}\n  app ${m.app.version} ${m.app.sha256.slice(0, 12)} / tiku ${m.tiku.dbVersion || m.tiku.version || '?'}`);
