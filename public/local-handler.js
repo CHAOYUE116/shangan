@@ -62,8 +62,17 @@ export function createLocalHandler({ query, records, store, ai }) {
     const total = rows.length;
     const correct = rows.filter((r) => r.is_correct === 1).length;
     const graded = rows.filter((r) => r.is_correct === 1 || r.is_correct === 0).length;
-    // 错题 = 严格答错（is_correct=0），与 server /api/records/stats 同构；主观题（NULL）不计入错题
-    const wrong = rows.filter((r) => r.is_correct === 0).length;
+    // 错题 = 每题只认最近一次作答且最近一次做错（与 /records/wrong 同口径）。
+    // 原来按记录行计数，同一道题错两次就算两道，于是「我的 62 道」和错题本 44 道对不上。
+    const latestWrong = new Map();
+    for (const r of rows) {
+      if (r.question_id == null) continue;
+      const k = String(r.question_id);
+      const prev = latestWrong.get(k);
+      const t = Number(r.created_at) || 0;
+      if (!prev || t >= (Number(prev.created_at) || 0)) latestWrong.set(k, r);
+    }
+    const wrong = [...latestWrong.values()].filter((r) => r.is_correct === 0).length;
 
     // byChapter：按章节聚合（与 server 同构：{chapter, c, ok}）
     const byChapterMap = new Map();

@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.5';
+const APP_VERSION = '0.5.6';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -803,6 +803,7 @@ function renderHome() {
     const tmr = reviewCountOn(1);
     return `<button class="home-alt due-card" data-act="review-train"><span>再复习 <b>${due} 道</b>到期题${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
   })() : ''}
+  ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}
   ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n < 5 ? `${yd.n} 题 · 刚起步` : `${yd.n} 题 · 正确率 ${yd.rate}%`}</span></div>` : ''}
   <div class="quick-row three">
     <button class="quick-card" data-act="politics">
@@ -813,20 +814,12 @@ function renderHome() {
       <span class="quick-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('book', 18)}</span>
       <span class="quick-main"><b>资料库</b><i>讲义与知识点</i></span>
     </button>
-    <button class="quick-card" data-act="papers">
+    <button class="quick-card" data-act="exam-hub">
       <span class="quick-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('folder', 18)}</span>
-      <span class="quick-main"><b>模考</b><i>整卷限时</i></span>
+      <span class="quick-main"><b>模考</b><i>整卷 / 随机</i></span>
     </button>
   </div>
   ${resume && (resume.ids || []).length >= 3 ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
-  <button class="home-ai" data-act="plan">
-    <span class="home-ai-ico">${iconSvg('bot', 20)}</span>
-    <span class="home-ai-main">
-      <span class="home-ai-t">AI 刷题班</span>
-      <span class="home-ai-s">${esc(planHint())}</span>
-    </span>
-    <span style="color:#93A8DB">›</span>
-  </button>
   ${(() => {
     const w = weekSummary();
     const got = new Map(((S.stats && S.stats.last7) || [])
@@ -859,8 +852,7 @@ function renderHome() {
         <button data-act="report">学习报告 ›</button>
       </div>
     </div>`;
-  })()}
-  ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}`;
+  })()}`;
 }
 
 /** 首页 AI 刷题班那行的副标题：有计划就报当前阶段进度，没有就写清楚它干什么 */
@@ -1016,22 +1008,31 @@ function renderLibrary() {
     for (const k of Object.keys(chapDone)) if (k.startsWith(name) || name.startsWith(k)) n += chapDone[k].n || 0;
     return n;
   };
+  // 展开过的模块（二级标题默认收起，像粉笔那样点开再看）
+  const openGroups = S.lib.openGroups || (S.lib.openGroups = {});
   return `
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
   <h1 class="page-title">刷题</h1>
-  <div class="card-sub" style="margin:-8px 0 14px">${esc(subject)} · 共 ${total} 题 · 选模块或整卷开始</div>
-  <section class="banner small">
-    ${artDesk()}
-    <div class="banner-copy">
-      <div class="banner-kicker">DAILY PRACTICE</div>
-      <div class="banner-title small">随机刷题，不设终点</div>
-      <div class="banner-sub">不选分类，随时结束</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:10px" data-act="library-random">进入练习 ›</button>
-    </div>
-  </section>
-  <div class="stats-row">
-    <button class="stat" data-act="wrong-train"><b>错题再练</b><span>${wrong} 道待巩固</span></button>
-    <button class="stat" data-act="library-exam"><b>模考</b><span>限时 · 交卷评分</span></button>
+  <div class="card-sub" style="margin:-8px 0 12px">${esc(subject)} · 共 ${total} 题</div>
+  <div class="chips nowrap" style="margin-bottom:10px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}${notInScheme(s.subjectName) ? ' ·不考' : ''}</button>`).join('')}</div>
+  <div class="lib-mode-row">
+    <span class="lib-mode-label">做题方式</span>
+    <div class="segmented seg-sm"><button class="${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div>
+  </div>
+  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneOf(g.group), 0)} 题已做</span></div>
+  <div class="card module-card">
+    ${groups.map((g, i) => {
+      const dn = doneOf(g.group);
+      const pct = g.total ? Math.min(100, Math.round((dn / g.total) * 100)) : 0;
+      const subs2 = (g.subs || []).filter((x) => x.total > 0 && x.name !== '全部');
+      const open = !!openGroups[g.group];
+      const caret = subs2.length ? `<button class="module-caret ${open ? 'open' : ''}" data-toggle-group="${esc(g.group)}" aria-label="${open ? '收起' : '展开'}">${open ? '▾' : '▸'}</button>` : '<span class="module-caret ghost"></span>';
+      return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部">${caret}<div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${open ? subs2.map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('') : ''}`;
+    }).join('') || '<div class="empty-state">暂无专项数据</div>'}
+  </div>
+  <div class="stats-row" style="margin-top:14px">
+    <button class="stat stat-link" data-act="wrong-train"><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
+    <button class="stat stat-link" data-act="library-exam"><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时交卷</span></span><span class="stat-go">测 ›</span></button>
   </div>
   <button class="paper-entry" data-act="papers">
     <div class="subject-ico">${iconFor('')}</div>
@@ -1043,41 +1044,40 @@ function renderLibrary() {
     <div class="continue-main"><div class="continue-title">按考点练</div><div class="continue-sub">按真题考点专项突破 · 专攻一个，练完再换</div></div>
     <span class="chev">›</span>
   </button>
-  <div class="section-head"><h2 class="section-title">选择科目</h2><span class="module-count">${esc(currentScheme().name)}</span></div>
-  <div class="chips nowrap">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}${notInScheme(s.subjectName) ? ' ·不考' : ''}</button>`).join('')}</div>
-  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneOf(g.group), 0)} 题已做</span></div>
-  <div class="card module-card">
-    ${groups.map((g, i) => {
-      const dn = doneOf(g.group);
-      const pct = g.total ? Math.min(100, Math.round((dn / g.total) * 100)) : 0;
-      return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部"><div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${(g.subs || []).filter((x) => x.total > 0 && x.name !== '全部').map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('')}`;
-    }).join('') || '<div class="empty-state">暂无专项数据</div>'}
-  </div>
-  <div class="opt-row" style="padding:12px 14px;border-radius:14px;background:var(--card,#fff)"><span class="opt-label">刷题方式<div class="opt-hint">背题模式不答题，直接看题和解析</div></span><div class="chips"><button class="chip ${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="chip ${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div></div>
   <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="subject-random">本科目随机 20 题</button>`;
 }
-function openKeypoints() {
+function openKeypoints(subject) {
+  if (subject) S.lib.subject = subject;
   S.lib.view = 'keypoints';
   S.tab = 'library';
-  S.lib.kps = S.lib.kps || [];
+  S.lib.kps = [];
   S.lib.kpLoading = true;
+  const want = S.lib.subject;
   go('library');
-  api('/api/keypoints?subject=' + encodeURIComponent(S.lib.subject))
-    .then((list) => { S.lib.kps = Array.isArray(list) ? list : []; S.lib.kpCount = S.lib.kps.length; })
-    .catch(() => { S.lib.kps = []; })
+  api('/api/keypoints?subject=' + encodeURIComponent(want))
+    .then((list) => {
+      if (S.lib.subject !== want) return;
+      S.lib.kps = Array.isArray(list) ? list : [];
+      S.lib.kpCount = S.lib.kps.length;
+    })
+    .catch(() => { if (S.lib.subject === want) S.lib.kps = []; })
     .finally(() => { S.lib.kpLoading = false; if (S.lib.view === 'keypoints') go('library'); });
 }
 function renderKeypointsPage() {
   const kps = S.lib.kps || [];
   const loading = S.lib.kpLoading;
+  const subject = S.lib.subject || defaultSubject();
+  const subs = visibleSubjects();
+  const withKp = S.lib.kpSubjects || {};
   const max = Math.max(1, ...kps.map((k) => k.questions || 0));
   return `<div class="subpage-head"><button class="icon-btn" data-act="back-library">‹</button><div class="subpage-title">按考点练</div><span style="width:38px"></span></div>
+  <div class="chips nowrap" style="margin:0 0 12px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${withKp[s.subjectName] === 0 ? 'dim' : ''}" data-kp-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
   <div class="hint" style="margin:0 2px 12px">考点来自真题标注，练完一个考点再换下一个，比乱刷有用。</div>
   ${loading ? '<div class="spinner"></div>' : kps.length ? `<div class="card" style="padding:6px 14px">${kps.slice(0, 120).map((k) => `
     <div class="kp-row" data-kp="${esc(k.name)}">
       <div class="kp-main"><div class="kp-name">${esc(k.name)}</div><div class="kp-bar"><i style="width:${Math.round(((k.questions || 0) / max) * 100)}%"></i></div></div>
       <div class="kp-num">${k.questions || 0} 题${kpBadge(k.name)}</div>
-    </div>`).join('')}</div>` : '<div class="hint">这个科目还没有考点数据</div>'}
+    </div>`).join('')}</div>` : `<div class="empty-state">${esc(subject)} 还没有考点数据<br><span class="card-sub" style="display:inline-block;margin-top:6px">可以在上面换个科目，或先用「按试卷练习」</span></div>`}
   `;
 }
 function openSearch() {
@@ -2487,11 +2487,11 @@ function checkUpdate(mode) {
       if (stuck) line = '检查超时 —— 换个网络或点下面重试';
       body = `
         <div class="card-sub">${line}</div>
-        ${updProgress({
+        ${(s.state === 'checking' || s.state === 'downloading' || canApply) ? updProgress({
           pct, got: s.downloaded, total: s.total,
           label: pct > 0 ? (s.state === 'done' ? '已下载' : '正在下载') : '',
           tip: dlingStalled ? '网络慢，还在下，可以留着这一页等它；超过 3 分钟没动静再点重试' : '',
-        })}
+        }) : ''}
         <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
         ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
         ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
@@ -2635,22 +2635,26 @@ function renderMe() {
     <div class="menu-row" data-act="report"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('lightbulb')}</div><div class="subject-main"><div class="subject-title">学习报告</div><div class="subject-sub">本周做题 · 正确率 · 下周建议</div></div><span class="chev">›</span></div>
     <div class="menu-row" data-act="ai"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('bot')}</div><div class="subject-main"><div class="subject-title">AI 设置</div><div class="subject-sub">解析 · 批改 · 模型与 Key</div></div><span class="chev">›</span></div>
   </div>
+  <div class="section-head"><h2 class="section-title">阅读与练习</h2></div>
+  <div class="card">
+    <div class="filter-label" style="margin-top:0">外观</div>
+    <div class="theme-row">${(() => {
+      const auto = (() => { try { return !localStorage.getItem('theme'); } catch { return true; } })();
+      const cur = auto ? 'auto' : theme;
+      return [['light', '日间白'], ['dark', '夜间墨'], ['auto', '跟随系统']].map(([k, t]) => `<button class="chip ${cur === k ? 'active' : ''}" data-theme-set="${k}">${t}</button>`).join('');
+    })()}</div>
+    <div class="filter-label">正文字号</div>
+    <div class="theme-row">${[['s', '小'], ['m', '中'], ['l', '大']].map(([k, t]) => `<button class="chip ${(k === 'm' ? (S.settings.fs !== 's' && S.settings.fs !== 'l') : S.settings.fs === k) ? 'active' : ''}" data-fs="${k}">${t}</button>`).join('')}</div>
+    <div class="opt-row"><span class="opt-label">点选项立即判对错<div class="opt-hint">关掉后要先点「确认答案」</div></span><button class="switch ${S.settings.instant ? 'on' : ''}" data-instant><i></i></button></div>
+    <div class="opt-row"><span class="opt-label">答对自动下一题<div class="opt-hint">停 1.2 秒再翻页；答错会停在解析上</div></span><button class="switch ${S.settings.autoNext ? 'on' : ''}" data-auto-next><i></i></button></div>
+    <div class="opt-row"><span class="opt-label">背题模式<div class="opt-hint">不答题，直接看题和解析；考前扫一遍用</div></span><button class="switch ${S.settings.recite ? 'on' : ''}" data-recite><i></i></button></div>
+  </div>
   <div class="section-head"><h2 class="section-title">数据与维护</h2></div>
   <div class="card menu-card">
     <div class="menu-row" data-act="backup"><div class="menu-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('database')}</div><div class="subject-main"><div class="subject-title">数据与备份</div><div class="subject-sub">导出到文件 · 换机迁移 · 每周自动存档</div></div><span class="chev">›</span></div>
     ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">只更新题库数据，不动 App</div></div><span class="chev">›</span></div>` : ''}
     ${window.AppUpdate ? `<div class="menu-row" data-act="app-update"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查 App 新版本</div><div class="subject-sub">当前 v${APP_VERSION}${window.__NEW_APP_VER ? ` · 有新版本 ${esc(window.__NEW_APP_VER)}` : ''}</div></div><span class="chev">›</span></div>` : ''}
     <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v${APP_VERSION} · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
-  </div>
-  <div class="section-head"><h2 class="section-title">阅读外观</h2></div>
-  <div class="card"><div class="theme-row"><button class="chip ${theme === 'light' ? 'active' : ''}" data-theme-set="light">日间白</button><button class="chip ${theme === 'dark' ? 'active' : ''}" data-theme-set="dark">夜间墨</button><button class="chip" data-theme-set="auto">跟随系统</button></div>
-    <div class="opt-row"><span class="opt-label">正文字号</span><div class="chips"><button class="chip ${(S.settings.fs === 's') ? 'active' : ''}" data-fs="s">小</button><button class="chip ${(S.settings.fs !== 's' && S.settings.fs !== 'l') ? 'active' : ''}" data-fs="m">中</button><button class="chip ${S.settings.fs === 'l' ? 'active' : ''}" data-fs="l">大</button></div></div>
-  </div>
-  <div class="section-head"><h2 class="section-title">练习偏好</h2></div>
-  <div class="card">
-    <div class="opt-row"><span class="opt-label">点选项立即判对错<div class="opt-hint">关掉后要先点「确认答案」</div></span><button class="switch ${S.settings.instant ? 'on' : ''}" data-instant><i></i></button></div>
-    <div class="opt-row"><span class="opt-label">答对自动下一题<div class="opt-hint">停 1.2 秒再翻页；答错会停在解析上</div></span><button class="switch ${S.settings.autoNext ? 'on' : ''}" data-auto-next><i></i></button></div>
-    <div class="opt-row"><span class="opt-label">背题模式<div class="opt-hint">不答题，直接看题和解析；考前扫一遍用</div></span><button class="switch ${S.settings.recite ? 'on' : ''}" data-recite><i></i></button></div>
   </div>`;
 }
 
@@ -2920,7 +2924,7 @@ function renderPractice() {
     const picked = selArr(P.selected);
     const multi = isMultiOf(q) && !P.exam;
     const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : `<div class="q-tools"><button class="link-sm" data-act="fav-toggle">☆ 收藏</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
@@ -3088,7 +3092,14 @@ document.addEventListener('click', (e) => {
   const pfs = e.target.closest('[data-pf-subject]');
   if (pfs) { S.lib.subject = pfs.dataset.pfSubject; loadPapers(); return; }
   const libSub = e.target.closest('[data-lib-subject]');
-  if (libSub) { openLibrary(libSub.dataset.libSubject); return; }
+  if (libSub) {
+    // 换科目时把展开状态清掉，避免上一科展开的模块名在这一科残留
+    S.lib.openGroups = {};
+    openLibrary(libSub.dataset.libSubject);
+    return;
+  }
+  const kpSub = e.target.closest('[data-kp-subject]');
+  if (kpSub) { openKeypoints(kpSub.dataset.kpSubject); return; }
   const rt = e.target.closest('[data-review-tab]');
   if (rt) { S.review.chapter = ''; loadReview(rt.dataset.reviewTab); return; }
   const rc = e.target.closest('[data-act="review-chap"]');
@@ -3227,9 +3238,22 @@ document.addEventListener('click', (e) => {
     if (a === 'exam-history') { openExamHistory(); return; }
     if (a === 'hist-detail') { openHistDetail(Number(act.dataset.ts)); return; }
   if (a === 'exam-trend') { openExamTrend(); return; }
-  if (a === 'group') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&group=${encodeURIComponent(act.dataset.group)}&sub=${encodeURIComponent(act.dataset.sub)}&n=15&mock=0&year=10&difficulty=random`, act.dataset.group, S.lib.subject); return; }
+  if (a === 'keypoints') { openKeypoints(); return; }
+  if (a === 'group') {
+    // 点行 → 练这个模块；点行首的小三角 → 只展开/收起二级，不跳去做题
+    const caret = e.target.closest('[data-toggle-group]');
+    if (caret) {
+      const name = caret.dataset.toggleGroup;
+      S.lib.openGroups = S.lib.openGroups || {};
+      S.lib.openGroups[name] = !S.lib.openGroups[name];
+      go('library');
+      return;
+    }
+    startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&group=${encodeURIComponent(act.dataset.group)}&sub=${encodeURIComponent(act.dataset.sub)}&n=15&mock=0&year=10&difficulty=random`, act.dataset.group, S.lib.subject); return;
+  }
   if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=15&mock=0&year=10&difficulty=random`, '随机练习', S.lib.subject); return; }
-  if (a === 'library-exam') { startExam(10, '模考'); return; }
+  if (a === 'library-exam') { startExam(10, '随堂测'); return; }
+  if (a === 'exam-hub') { go('exam'); return; }
   if (a === 'review-train' || a === 'wrong-train') { reviewTrain(); return; }
   if (a === 'open-q') { openQuestionById(act.dataset.id); return; }
   if (a === 'exam') { startExam(Number(act.dataset.n) || 20, '模拟考试'); return; }
@@ -3545,7 +3569,11 @@ async function startNewDaily() {
 function reviewQuota() {
   const due = dueIds().length;
   const goal = dailyGoal();
-  return Math.max(0, Math.min(due, Math.round(goal * 0.4), 10));
+  // 每天最多拿 40% 的额度去复习，但积压多的时候要跟着涨：
+  // 原来写死上限 10，错题攒到 60 道还是「复习 10 道」，看起来像数字没更新
+  const base = Math.round(goal * 0.4);
+  const cap = Math.max(10, Math.round(due * 0.5));
+  return Math.max(0, Math.min(due, Math.max(base, cap), Math.round(goal * 0.8)));
 }
 /** 按考试组合配额抽新题（客观题），返回题目数组 */
 async function buildNewQuestions(n) {
@@ -4131,7 +4159,7 @@ function openProfile() {
       const sch = p.scheme || currentScheme().name;
       const opts = Object.entries(EXAM_SCHEMES).filter(([, v]) => v.type === (p.examType || '公务员'));
       const cur = EXAM_SCHEMES[sch] || opts[0]?.[1];
-      return `<div class="filter-label">考试组合<button class="link-sm" data-profile-tip="1">?</button></div>
+      return `<div class="filter-label">考试组合<span class="filter-hint" style="font-weight:400;color:var(--text-3);margin-left:6px">决定每天抽哪几科</span></div>
         <div class="chips">${opts.map(([name]) => `<button class="chip ${name === sch ? 'active' : ''}" data-profile-scheme="${esc(name)}">${esc(name.split('·')[1] || name)}</button>`).join('')}</div>
         ${cur ? `<div class="card-sub" style="margin-top:6px">每日任务按此比例分配：${cur.subs.map(([s, w]) => `${esc(s.split('·')[1])} ${w}`).join(' : ')}</div>` : ''}`;
     })()}
