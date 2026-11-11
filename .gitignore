@@ -184,3 +184,7 @@ public/tarzan-img/
 /docs/plans/
 /docs/superpowers/
 /release/*.meta.json
+
+# 质量审计产物（CSV/xlsx 体积大，按需本地生成）
+/report/
+

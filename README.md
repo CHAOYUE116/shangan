@@ -21,7 +21,7 @@
 
 **下载** [最新版 APK（Releases → v0.6）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.6)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 
-当前版本：**App 0.6.0**（`shangan-0.6.0-release.apk`，148.9 MB，Android 8.0+）· 题库 **0.5.17-20261112-0200**（151,604 行 / 98,611 道去重真题）
+当前版本：**App 0.6.1**（`shangan-0.6.1-release.apk`，151.5 MB，Android 8.0+）· 题库 **0.5.18-20261112-0700**（156,121 行 / 103,128 道去重真题）
 
 ### 仓库与发布是怎么分工的
 
@@ -36,8 +36,8 @@ Releases 按**大版本**建 tag，一个 tag 只放一版 APK（新版本上传
 
 | Tag | 放什么 | 例 |
 |---|---|---|
-| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.0-release.apk` |
-| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.17-20261112-0200` |
+| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.1-release.apk` |
+| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.18-20261112-0700` |
 
 App 通过仓库根目录的 [`release/manifest.json`](release/manifest.json) 找更新：里面 `app.url` 指向 `v0.6` 那个 APK，`tiku.sources` 指向题库 tag 里的 `tiku_app.db.gz`。所以发版只需要改这一个 JSON，客户端查到的就是最新地址。
 
@@ -76,8 +76,8 @@ App 通过仓库根目录的 [`release/manifest.json`](release/manifest.json) �
 
 | | |
 | --- | --- |
-| 真题 | **98,611** 道（去重后；库里 151,604 行含跨省重复收录） |
-| 试卷 | **3,614** 套，覆盖 2001–2027 |
+| 真题 | **103,128** 道（去重后；库里 156,121 行含跨省重复收录） |
+| 试卷 | **3,615** 套，覆盖 2001–2027 |
 | 考点 | **46,531** 条 |
 | 安装包 | **143 MB**（题库 + 公式图片全部内置） |
 | 题库体积 | 主库 393 MB + 图片库 40 MB |
@@ -420,7 +420,7 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 | 文件 | 内容 | 大小 |
 | --- | --- | ---: |
 | `data/tiku-quality.jsonl.gz` | **126,875 题**，每行一个 JSON 对象 | 54.6 MB |
-| `data/papers.jsonl.gz` | 3,614 套卷的元信息（卷名 / 科目 / 分类 / 年份 / 题数 / 难度） | 62 KB |
+| `data/papers.jsonl.gz` | 3,615 套卷的元信息（卷名 / 科目 / 分类 / 年份 / 题数 / 难度） | 62 KB |
 
 题目字段：
 
@@ -454,7 +454,7 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 | 答案-解析矛盾 | 7 条 | 已人工核对，待逐条修 |
 | 公基无考点标签 | 100% | 粉笔公基没有考点树，只有 8 个模块分组 |
 | 职测考点覆盖 | 约 29% | 其余用章节 `sub` 兜底 |
-| 跨卷重复收录 | 151,604 行 → 98,611 题 | 同一题被多省卷收录；抽题按 `questionId` 去重，不会重复出现 |
+| 跨卷重复收录 | 156,121 行 → 103,128 题 | 同一题被多省卷收录；抽题按 `questionId` 去重，不会重复出现 |
 
 ---
 
