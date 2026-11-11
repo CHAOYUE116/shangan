@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.5.1",
-    "versionCode": 91,
-    "code": 91,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk",
+    "version": "0.5.2",
+    "versionCode": 92,
+    "code": 92,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.2-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.2-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.2-release.apk"
       }
     ],
-    "size": 150318094,
-    "sha256": "caca71065336ba092c1c09cd2c128f5cbab8156deb5757060e7d22356b41b23c",
-    "name": "shangan-0.5.1-release.apk",
-    "note": "App 0.5.1：检查更新 7 源兜底 + 本机缓存，断网也能看出有没有新版"
+    "size": 150318997,
+    "sha256": "600f05de808ddb5b8a9c1d1ab113dc6c01073acaea4c1eabca48d80498ec1a4f",
+    "name": "shangan-0.5.2-release.apk",
+    "note": "App 0.5.2：更新进度条重做（6px、流动动画、停滞提示）"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.5.1：检查更新 7 源兜底 + 本机缓存，断网也能看出有没有新版"
+  "note": "App 0.5.2：更新进度条重做（6px、流动动画、停滞提示）"
 }
