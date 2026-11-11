@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.2';
+const APP_VERSION = '0.5.3';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2388,8 +2388,14 @@ function checkUpdate(mode) {
   sheet(`<div class="sheet-head"><b>${onlyApp ? 'App 更新' : '题库更新'}</b><button class="sheet-close">✕</button></div>
     <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">${onlyApp ? '正在检查 App 新版本…' : '正在检查题库更新…'}</div>
     ${updProgress({ pct: 0, label: '' })}</div>`);
-  AppUpdate.reset();
-  AppUpdate.start(JSON.stringify(manifestUrls()));
+  // 后台已经在下载时不要再 reset：reset 会把进度清零，弹层看起来「没在下载」，
+  // 而通知栏那条进度还在正常走 —— 用户会以为进度条丢了
+  let pre = {};
+  try { pre = JSON.parse(AppUpdate.status()); } catch { /* ignore */ }
+  if (!(pre.running && (pre.state === 'downloading' || pre.state === 'checking'))) {
+    AppUpdate.reset();
+    AppUpdate.start(JSON.stringify(manifestUrls()));
+  }
 
   const t0 = Date.now();
   let reloading = false;

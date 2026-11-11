@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## App 0.5.3
+
+- **弹层没进度条，通知栏却正常**：真因不是画得细。`UpdateManager.reset()` 无条件 `set("idle", 0, "")`，而前端每次打开弹层都会先 reset；此时后台线程还在下载，`start()` 见 `worker.isAlive()` 就直接返回 —— 弹层永远停在 0%，通知栏那条进度照走。
+  - `reset()`：`worker.isAlive()` 为真、或 `appState === "downloading"` 时**不清状态**直接返回。
+  - `status()`：`running` 新字段；后台在跑但 `state == "idle"` 时如实报 `downloading`。
+  - `checkUpdate()`：先读一次 `status()`，`running && state ∈ {downloading, checking}` 就不再 `reset/start`，接着显示现有进度。
+- 实测：下载到 2% 时关掉弹层再打开 → 「正在下载 13% · 4.0 MB / 30.2 MB」，条继续走。
+
 ## App 0.5.2
 
 - **更新弹窗的进度条看不见**：题库分支用的是 4px 高的 `.p-bar`，`width` 个位数百分比时只有几像素宽，加上灰色轨道很淡，看着像「没有进度条」；App 分支只在 `newAppState === 'downloading'` 时渲染，且 `Math.max(2, appPct)` 在 0% 时只画一个 2% 的蓝点。
