@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1587,6 +1587,10 @@ function renderAiSettings() {
 
   <div class="sec-head"><h2>技能包</h2><span class="sec-hint">${skills.length} 套</span></div>
   <div class="card">${skillRows}
+    <div class="opt-row">
+      <span class="opt-label">内置技能默认开启<div class="opt-hint">申论批改、花生十三技巧；开着的话新装的机器进来自动挂上</div></span>
+      <button class="switch ${S.settings.skills !== false ? 'on' : ''}" data-act="skills-toggle" aria-label="内置技能开关"></button>
+    </div>
     <div class="btn-row"><button class="btn btn-ghost" data-act="ai-skill-builtin">装内置技能</button><button class="btn btn-ghost" data-act="ai-skill-import">从文本导入</button></div>
   </div>
 
@@ -1681,7 +1685,7 @@ async function runAgentTest(id, box) {
     box.innerHTML = `<div class="empty-state" style="color:var(--red)">${esc(e.message)}</div>`;
   }
 }
-async function importBuiltinSkills() {
+async function importBuiltinSkills(silent) {
   const bundles = ['skill-gongkao-huasheng13.json', 'skill-shenlun-master.json'];
   const imported = [];
   for (const f of bundles) {
@@ -1693,9 +1697,27 @@ async function importBuiltinSkills() {
       const res = await api('/api/skills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: b.name, description: '', text: b.text, files: [{ path: 'SKILL.md', size: 0 }, ...paths] }) });
       if (res.error) throw new Error(res.error);
       imported.push(b.name);
-    } catch (e) { toast(`导入 ${f} 失败：${e.message}`); }
+    } catch (e) { if (!silent) toast(`导入 ${f} 失败：${e.message}`); }
   }
+  if (silent) return imported.length;
   if (imported.length) { toast('已导入：' + imported.join('、')); openAi(); }
+}
+
+/**
+ * 首次启动（或用户重新打开开关）时把内置技能灌进技能库。
+ * 技能内容就是 SKILL.md + references 全文，装在 IndexedDB 里，随用随取；
+ * 没配 AI Key 也不影响，等配了模型就能直接挂上。
+ */
+const SKILLS_SEED_KEY = 'sg_skills_seeded';
+async function ensureBuiltinSkills(force) {
+  if (!force && S.settings.skills === false) return 0;
+  if (!force && localStorage.getItem(SKILLS_SEED_KEY) === '1') return 0;
+  const n = await importBuiltinSkills(true);
+  if (n > 0) {
+    try { localStorage.setItem(SKILLS_SEED_KEY, '1'); } catch { /* ignore */ }
+    try { S.skills = await api('/api/skills'); } catch { /* ignore */ }
+  }
+  return n;
 }
 function openSkillImport() {
   sheet(`<div class="sheet-head"><b>导入技能</b><button class="sheet-close">✕</button></div><div class="filter-label">技能名</div><input class="field" id="sk-name" placeholder="如 my-skill"><div class="filter-label">说明（可选）</div><input class="field" id="sk-desc"><div class="filter-label">SKILL.md / 技能正文</div><textarea class="field" id="sk-text" rows="10" placeholder="粘贴 SKILL.md 内容"></textarea><button class="btn btn-primary btn-block" style="margin-top:12px" data-act="ai-skill-save">保存技能</button>`);
@@ -2065,22 +2087,27 @@ async function openPolitics() {
 
     const body = [...groups.entries()].map(([k, list]) => `
       <div class="pol-month">${esc(monthLabel(k))}<span>${list.length} 篇</span></div>
-      ${list.map((x) => {
+      <div class="pol-list">
+      ${list.map((x, i) => {
         const idx = allItems.indexOf(x);
         const t = polTitle(x.title);
         const sum = polSummary(x.summary, t);
         const day = String(x.date || '').slice(8, 10) || '--';
         const pq = (x.practice || []).length;
         const isRead = !unreadOf(x, idx);
-        return `<div class="pol-card ${isRead ? 'read' : ''}" data-act="politics-open" data-idx="${idx}">
-          <div class="pol-card-l"><div class="pol-day">${esc(day)}</div><div class="pol-day-sub">${Number(x.chars) || 0} 字</div></div>
+        return `<div class="pol-item ${isRead ? 'read' : ''}" data-act="politics-open" data-idx="${idx}">
+          <div class="pol-item-no">${i + 1}</div>
           <div class="pol-card-r">
             <div class="pol-card-t">${esc(t)}${isRead ? '<span class="pol-read-tag">已读</span>' : ''}</div>
             ${sum ? `<div class="pol-card-s">${esc(sum)}</div>` : ''}
-          ${pq ? `<div class="pol-card-q">练一练 ${pq} 题</div>` : ''}
+            <div class="pol-item-foot">
+              <span class="pol-item-day">${esc(day)} 日 · ${Number(x.chars) || 0} 字</span>
+              ${pq ? `<span class="pol-card-q">练一练 ${pq} 题</span>` : ''}
+            </div>
           </div>
         </div>`;
       }).join('')}
+      </div>
     `).join('');
 
     const srcTag = _politicsSrc === 'online' ? '已是最新' : _politicsSrc === 'cache' ? '离线缓存' : '本地版本';
@@ -3190,6 +3217,13 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (a === 'ai-skill-builtin') { importBuiltinSkills(); return; }
+  if (a === 'skills-toggle') {
+    const on = S.settings.skills === false;   // 现在是关 → 点一下开
+    S.settings.skills = on; saveSettings();
+    if (on) { ensureBuiltinSkills(true).then((n) => toast(n ? `已装回内置技能（${n} 套）` : '内置技能已是最新')).catch(() => {}); }
+    else toast('内置技能已关闭，已装的仍留在技能库里');
+    render(); return;
+  }
   if (a === 'ai-skill-import') { openSkillImport(); return; }
   if (a === 'ai-skill-save') {
     const name = ($('#sk-name')?.value || '').trim();
@@ -3829,10 +3863,20 @@ document.addEventListener('click', (e) => {
   if (obProv) { S.ob.draft.province = obProv.dataset.obProvince; renderOnboarding(); return; }
   if (obDate) { S.ob.draft.examDate = obDate.dataset.obDate; S.ob.draft.examName = obDate.dataset.obName; renderOnboarding(); return; }
   if (obGoal) { S.ob.draft.dailyGoal = Number(obGoal.dataset.obGoal); renderOnboarding(); return; }
+  if (e.target.closest('[data-ob-skills]')) { S.ob.draft.skills = S.ob.draft.skills === false; renderOnboarding(); return; }
   if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(2, S.ob.step + 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-back]')) { S.ob.step = Math.max(0, S.ob.step - 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700)); return; }
-  if (e.target.closest('[data-ob-finish]')) { saveProfile(S.ob.draft); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700)); return; }
+  if (e.target.closest('[data-ob-finish]')) {
+    const want = S.ob.draft.skills !== false;
+    saveProfile(S.ob.draft);
+    S.settings.skills = want;
+    saveSettings();
+    S.ob = null; $('#onboard').hidden = true;
+    if (want) setTimeout(() => { ensureBuiltinSkills(true).catch(() => {}); }, 1200);
+    loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700));
+    return;
+  }
   /* AI 配置引导 */
   if (S.aiOb) {
     if (e.target.closest('[data-ai-ob-skip]')) { localStorage.setItem(AI_OB_KEY, 'skip'); S.aiOb = null; $('#onboard').hidden = true; return; }
@@ -3885,7 +3929,7 @@ const PROVINCES = [
   '内蒙古', '广西', '西藏', '宁夏', '新疆',
 ];
 function openOnboarding() {
-  S.ob = { step: 0, draft: { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, targetScore: 70, minutes: 90 } };
+  S.ob = { step: 0, draft: { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, targetScore: 70, minutes: 90, skills: true } };
   renderOnboarding();
 }
 function renderOnboarding() {
@@ -3896,7 +3940,7 @@ function renderOnboarding() {
   } else if (ob.step === 1) {
     el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 2 步 / 共 3 步</div><div class="ob-title">目标省份</div><div class="ob-sub">省考、事业单位统考的卷子按省份区分</div><div class="ob-grid">${PROVINCES.map((x) => `<button class="ob-chip ${d.province === x ? 'active' : ''}" data-ob-province="${x}">${x}</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 3 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-finish>开始使用</button></div>`;
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 3 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div><div class="ob-label">AI 技能</div><button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>内置技能：申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button><div class="ob-sub" style="margin-top:6px">技能是给 AI 用的答题规范，不配 Key 也能先装着，配了就直接生效。后面在「我的 → AI 助手」随时能改</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-finish>开始使用</button></div>`;
   }
 }
 
@@ -4105,7 +4149,7 @@ function handleAndroidBack() {
 
 /* ---------- 用户偏好（即时判定 / 字号） ---------- */
 const SETTINGS_KEY = 'sg_settings_v1';
-const DEF_SETTINGS = { instant: true, fs: 'm', autoNext: true, recite: false, dropFixed: true };
+const DEF_SETTINGS = { instant: true, fs: 'm', autoNext: true, recite: false, dropFixed: true, skills: true };
 function loadSettings() {
   try { return Object.assign({}, DEF_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
   catch { return Object.assign({}, DEF_SETTINGS); }
@@ -4237,6 +4281,10 @@ function bindAndroidBack() {
   bindSwipe();
   if (!localStorage.getItem('sg_profile')) openOnboarding();
   else setTimeout(maybeAiOnboard, 900);
+
+  // 内置技能：只要开关是开的、且这台机器还没灌过，就静默装一次。
+  // 放在 6 秒后，别和首屏抢 IO；装的是文本（两套合计约 330 KB），失败不打扰用户。
+  setTimeout(() => { ensureBuiltinSkills().catch(() => {}); }, 6000);
 
   // 覆盖安装后内置题库可能落后，静默看一眼有没有增量（几 MB），不打断用户
   setTimeout(silentTikuCheck, 6000);

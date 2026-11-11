@@ -142,3 +142,20 @@ research-fenbi-raw/
 
 # 题库图片（从 images.db 动态加载，仓库里不需要）
 public/tarzan-img/
+
+# 临时/过程文件（已在 66fa0b4 从版本库移除，本地保留）
+/tmp-*.mjs
+/walk*.mjs
+/diag-*.mjs
+/make-icons*.mjs
+/patch3.mjs
+/BUILD_MANUAL.md
+/RELEASE_NOTES.md
+/app-mobile-plan.md
+/app-roadmap.md
+/auth-user-isolation-design.md
+/deploy-guide.md
+/dev-screens/
+/icon-preview/
+/shots/
+/docs/design/*.png
