@@ -219,10 +219,24 @@ for (let i = 0; i < todo.length && !stopAll; i++) {
   }
 
   if (got.length) {
-    fs.writeFileSync(dest, JSON.stringify({ course: COURSE, keypointId: kp.id, name: kp.name, parent: kp.parent, count: kp.count, rounds, collectedAt: new Date().toISOString(), questions: got }, null, 0));
+    // 合并旧文件：重采是为了拿选项，不是把之前几轮采到的题丢掉。
+    // 原来直接 writeFileSync(got) 覆盖，重采一遍 23k 题会缩成 16k。
+    let prevQs = [];
+    try {
+      const prev = JSON.parse(fs.readFileSync(dest, 'utf8'));
+      prevQs = Array.isArray(prev.questions) ? prev.questions : [];
+    } catch { /* 新文件 */ }
+    const merged = [...got];
+    const seen = new Set(got.map((q) => q.globalId));
+    for (const q of prevQs) {
+      if (!q || !q.globalId || seen.has(q.globalId)) continue;
+      seen.add(q.globalId);
+      merged.push(q);
+    }
+    fs.writeFileSync(dest, JSON.stringify({ course: COURSE, keypointId: kp.id, name: kp.name, parent: kp.parent, count: kp.count, rounds, collectedAt: new Date().toISOString(), questions: merged }, null, 0));
     files += 1;
-    totalQ += got.length;
-    state.collected = (state.collected || 0) + got.length;
+    totalQ += merged.length;
+    state.collected = (state.collected || 0) + merged.length;
     state.done = state.done || {};
     state.done[String(kp.id)] = got.length;
     saveState();
