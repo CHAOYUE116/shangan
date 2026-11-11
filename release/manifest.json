@@ -2,10 +2,10 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.3.10",
-    "versionCode": 80,
+    "version": "0.3.13",
+    "versionCode": 83,
     "code": 80,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
     "sources": [
       {
         "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.3.10-release.apk",
@@ -16,8 +16,10 @@
         "kind": "github"
       }
     ],
-    "size": 152241396,
-    "sha256": "e192d943adc8fd599d6a6de7fa05ad2f0100a70e485e96eab558272e74d355a6"
+    "size": 150303708,
+    "sha256": "0b917b18cff6674fce7f95f7ef459729acbed1e1a01ddec8683f23692a2c2903",
+    "name": "shangan-0.3.13-release.apk",
+    "note": "答题体验对齐：答对自动翻页、背题模式、未完成角标、模块完成度；引擎按用时/难度安排复习并混排到期题；考试成绩汇总条、首页到期卡、时政已读、回顾页今日复习入口"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
