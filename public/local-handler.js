@@ -207,6 +207,23 @@ export function createLocalHandler({ query, records, store, ai }) {
       }
       return map;
     }
+    // 每个章节做过多少道「不同」的题（题库页模块完成度用）：{ "章节名": { n, ok, last } }
+    if (route === 'GET /records/chapters') {
+      const all = await store.getAll('records');
+      const map = {};
+      const seen = {};
+      for (const r of all) {
+        const ch = r.chapter;
+        if (!ch) continue;
+        const e = map[ch] || (map[ch] = { n: 0, ok: 0, last: 0 });
+        const k = String(r.question_id);
+        if (!seen[ch]) seen[ch] = new Set();
+        if (!seen[ch].has(k)) { seen[ch].add(k); e.n += 1; }
+        if (r.is_correct === 1 && seen[ch].has(k)) e.ok += 0; // ok 只统计首次，避免重复加
+        if ((r.created_at || 0) > e.last) e.last = r.created_at || 0;
+      }
+      return map;
+    }
     // 来源分组总览（5 大模块 + 未分类）
     if (route === 'GET /records/wrong/groups') return records.groups('wrong');
     if (route === 'GET /favorites/groups') return records.groups('favorites');

@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.10';
+const APP_VERSION = '0.3.11';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -937,12 +937,14 @@ async function openLibrary(subject) {
   S.tab = 'library';
   $('#view').innerHTML = '<div class="spinner"></div>';
   try {
-    const [chapters, categories] = await Promise.all([
+    const [chapters, categories, chapDone] = await Promise.all([
       api('/api/chapters?subject=' + encodeURIComponent(next)),
       api('/api/categories?subject=' + encodeURIComponent(next)),
+      api('/api/records/chapters').catch(() => ({})),
     ]);
     S.lib.chapters = chapters || [];
     S.lib.categories = categories || [];
+    S.lib.chapDone = chapDone || {};
     go('library');
   } catch (e) { toast(e.message); }
 }
@@ -960,6 +962,15 @@ function renderLibrary() {
   const total = groupSum || subj.questions || 0;
   const wrong = (S.stats && S.stats.wrong) || 0;
   const shortName = subject.split('·')[1] || subject;
+  // 模块完成度：records 里按 chapter 聚合出的「做过多少道不同的题」
+  const chapDone = S.lib.chapDone || {};
+  const doneOf = (name) => {
+    const direct = chapDone[name];
+    if (direct) return direct.n || 0;
+    let n = 0;
+    for (const k of Object.keys(chapDone)) if (k.startsWith(name) || name.startsWith(k)) n += chapDone[k].n || 0;
+    return n;
+  };
   return `
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
   <h1 class="page-title">按方向练习</h1>
@@ -989,9 +1000,13 @@ function renderLibrary() {
   </button>
   <div class="section-head"><h2 class="section-title">选择科目</h2><span class="module-count">${esc(currentScheme().name)}</span></div>
   <div class="chips nowrap">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}${notInScheme(s.subjectName) ? ' ·不考' : ''}</button>`).join('')}</div>
-  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${subj.done || 0} 题已做</span></div>
+  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneOf(g.group), 0)} 题已做</span></div>
   <div class="card module-card">
-    ${groups.map((g, i) => `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部"><div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count">${g.total} 题</div><div class="module-bar"><i style="width:${Math.min(100, g.total / 70)}%"></i></div></div>${(g.subs || []).filter((x) => x.total > 0 && x.name !== '全部').map((x) => `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count">${x.total} 题</div></div>`).join('')}`).join('') || '<div class="empty-state">暂无专项数据</div>'}
+    ${groups.map((g, i) => {
+      const dn = doneOf(g.group);
+      const pct = g.total ? Math.min(100, Math.round((dn / g.total) * 100)) : 0;
+      return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部"><div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${(g.subs || []).filter((x) => x.total > 0 && x.name !== '全部').map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('')}`;
+    }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
   <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="subject-random">本科目随机 20 题</button>`;
 }
@@ -1108,9 +1123,15 @@ function renderPapers() {
   <div class="paper-list">${list.slice(0, S.lib.show).map((p) => {
     const d = (S.lib.done || {})[p.id];
     const rate = d && d.n >= 3 ? Math.round((d.ok / d.n) * 100) : null;
+    const qn = Number(p.questionCount || p.questions || 0);
+    // 进过这份卷但没做满 → 「未完成 n/N」；做满了才叫「做过」。粉笔列表就是这么分的，
+    // 我们之前只有「做过」，做到一半退出再回来根本认不出哪套没做完。
+    const doneTag = !d ? '' : (qn && d.n < qn
+      ? `<span class="tag warn">未完成 ${d.n}/${qn}</span>`
+      : `<span class="tag done">做过 ${d.n} 题${rate == null ? '' : ` · ${rate}%`}</span>`);
     return `
     <div class="paper-item" data-act="paper" data-id="${p.id}" data-name="${esc(p.name || '')}" data-subject="${esc(p.subject || '')}">
-      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${kindOf(p.name) === '模拟' ? 'warn' : 'ok'}">${kindOf(p.name)}</span>${d ? `<span class="tag done">做过 ${d.n} 题${rate == null ? '' : ` · ${rate}%`}</span>` : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
+      <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${kindOf(p.name) === '模拟' ? 'warn' : 'ok'}">${kindOf(p.name)}</span>${d ? doneTag : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
       <div class="paper-title">${esc(p.name)}</div>
       <div class="paper-meta">${p.questionCount} 题${p.difficulty ? ` · 难度 ${p.difficulty}` : ''}</div>
     </div>`; }).join('') || '<div class="empty-state">没有匹配的试卷</div>'}</div>
@@ -2298,6 +2319,8 @@ function renderMe() {
   <div class="card"><div class="theme-row"><button class="chip ${theme === 'light' ? 'active' : ''}" data-theme-set="light">日间白</button><button class="chip ${theme === 'dark' ? 'active' : ''}" data-theme-set="dark">夜间墨</button><button class="chip" data-theme-set="auto">跟随系统</button></div>
     <div class="opt-row"><span class="opt-label">正文字号</span><div class="chips"><button class="chip ${(S.settings.fs === 's') ? 'active' : ''}" data-fs="s">小</button><button class="chip ${(S.settings.fs !== 's' && S.settings.fs !== 'l') ? 'active' : ''}" data-fs="m">中</button><button class="chip ${S.settings.fs === 'l' ? 'active' : ''}" data-fs="l">大</button></div></div>
     <div class="opt-row"><span class="opt-label">点选项立即判对错<div class="opt-hint">关掉后要先点「确认答案」</div></span><button class="switch ${S.settings.instant ? 'on' : ''}" data-instant><i></i></button></div>
+    <div class="opt-row"><span class="opt-label">答对自动下一题<div class="opt-hint">停 1.2 秒再翻页；答错会停在解析上</div></span><button class="switch ${S.settings.autoNext ? 'on' : ''}" data-auto-next><i></i></button></div>
+    <div class="opt-row"><span class="opt-label">背题模式<div class="opt-hint">不答题，直接看题和解析；考前扫一遍用</div></span><button class="switch ${S.settings.recite ? 'on' : ''}" data-recite><i></i></button></div>
   </div>`;
 }
 
@@ -2510,6 +2533,24 @@ function renderPractice() {
   if (flagEl) flagEl.classList.toggle('on', !!(P.flagged || {})[P.idx]);
   const body = $('#p-body'); const acts = $('#p-actions');
   const options = Array.isArray(q.options) ? q.options : [];
+  // 背题模式：不答题，直接连题带解析一起看。答案从 /api/question 取（按题干缓存），
+  // 拿不到就退化成「只有题干 + 解析」，不影响阅读。
+  if (S.settings.recite && !P.exam) {
+    const at = P.idx;
+    if (q.__ans === undefined) {
+      q.__ans = null;
+      api('/api/question?id=' + encodeURIComponent(q.id)).then((full) => {
+        if (!full) return;
+        q.__ans = { answer: full.answer || '', answerIndex: Number.isFinite(full.answerIndex) ? full.answerIndex : -1 };
+        if (S.practice.open && S.practice.idx === at) renderPractice();
+      }).catch(() => {});
+    }
+    const ai = q.__ans && q.__ans.answerIndex >= 0 ? q.__ans.answerIndex : -1;
+    const fb = { correct: ai >= 0 ? [ai] : [], selected: [], ok: true };
+    body.innerHTML = `<div class="card-sub" style="margin:-4px 0 10px;color:var(--brand)">背题模式 · 直接看答案和解析</div>${renderQuestionBlock(q, fb)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}`;
+    acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
+    return;
+  }
   if (P.exam || !P.confirmed) {
     body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
@@ -2543,6 +2584,18 @@ async function confirmAnswer() {
     saveCurrentAnswer();
     renderPractice();
     saveSession();
+    // 答对才自动翻页：先让人看到「✓ 答对了」停 1.2 秒；答错必须停在解析上，
+    // 否则连错的题一闪而过，复盘等于没有。考试模式一律不自动跳（会吞掉检查时间）。
+    if (r.ok && !P.exam && S.settings.autoNext) {
+      clearTimeout(S.autoNextTimer);
+      const at = P.idx;
+      S.autoNextTimer = setTimeout(() => {
+        const C = S.practice;
+        if (!C || !C.open || !C.confirmed || C.idx !== at) return;
+        if (C.idx >= C.qs.length - 1) { toast('这轮做完了，点「完成本轮」看报告'); return; }
+        nextQuestion();
+      }, 1200);
+    }
     // 拉取深度解析（考点/秒杀/陷阱/母题），拿到后补渲染
     if (!S.deepCache) S.deepCache = {};
     if (!S.deepCache[q.id]) {
@@ -2692,6 +2745,10 @@ document.addEventListener('click', (e) => {
   if (fsBtn) { applyFontSize(fsBtn.dataset.fs); go('me'); return; }
   const instBtn = e.target.closest('[data-instant]');
   if (instBtn) { S.settings.instant = !S.settings.instant; saveSettings(); go('me'); toast(S.settings.instant ? '已开启：点选项直接判对错' : '已关闭：点完选项还要按确认'); return; }
+  const anBtn = e.target.closest('[data-auto-next]');
+  if (anBtn) { S.settings.autoNext = !S.settings.autoNext; saveSettings(); go('me'); toast(S.settings.autoNext ? '已开启：答对停一下自动翻页' : '已关闭：每题都要自己点下一题'); return; }
+  const rcBtn = e.target.closest('[data-recite]');
+  if (rcBtn) { S.settings.recite = !S.settings.recite; saveSettings(); go('me'); toast(S.settings.recite ? '已开启背题模式：不答题，直接看解析' : '已回到做题模式'); return; }
   if (e.target.closest('[data-confirm]')) { confirmAnswer(); return; }
   if (e.target.closest('[data-next]')) { nextQuestion(); return; }
   if (e.target.closest('[data-prev]')) { prevQuestion(); return; }
@@ -3785,7 +3842,7 @@ function handleAndroidBack() {
 
 /* ---------- 用户偏好（即时判定 / 字号） ---------- */
 const SETTINGS_KEY = 'sg_settings_v1';
-const DEF_SETTINGS = { instant: true, fs: 'm' };
+const DEF_SETTINGS = { instant: true, fs: 'm', autoNext: true, recite: false };
 function loadSettings() {
   try { return Object.assign({}, DEF_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
   catch { return Object.assign({}, DEF_SETTINGS); }
