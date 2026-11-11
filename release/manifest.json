@@ -4,7 +4,7 @@
   "app": {
     "version": "0.4.3",
     "versionCode": 88,
-    "code": 86,
+    "code": 88,
     "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.3-release.apk",
     "sources": [
       {
@@ -19,7 +19,7 @@
     "size": 150310062,
     "sha256": "ced87cbd64bfa964cc00fd8acfe7a3ae469f30fe318aa17e4d5fe050ef2c9f47",
     "name": "shangan-0.4.3-release.apk",
-    "note": "时政列表加序号与分割线、已读置灰；仓库整理与数据导出"
+    "note": "时政正文按主题分段（序号+分割线），列表取消月内序号"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",

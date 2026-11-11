@@ -93,10 +93,13 @@ const repoManifest = path.join(ROOT, 'release', 'manifest.json');
 const distManifest = path.resolve(ROOT, '..', 'dist', 'release', 'manifest.json');
 const m = JSON.parse(fs.readFileSync(repoManifest, 'utf8').replace(/^\uFEFF/, ''));
 const dl = `https://github.com/${OWNER}/${REPO}/releases/download/${TAG}/${apkName}`;
+const code = Number(arg('code', (m.app || {}).versionCode || 0));
 m.app = {
   ...(m.app || {}),
   version: arg('version', (m.app || {}).version),
-  versionCode: Number(arg('code', (m.app || {}).versionCode || 0)),
+  versionCode: code,
+  // 老字段 code 与 versionCode 必须同步：客户端两个都读过，只改一个会出现「版本 0.4.3、code 还是上一版」
+  code,
   name: apkName,
   size: apkBytes,
   sha256: apkSha,
@@ -107,6 +110,7 @@ m.app = {
   ],
 };
 m.note = arg('note', m.note);
+m.app.note = arg('note', m.app.note || m.note);
 for (const f of [repoManifest, distManifest]) {
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, JSON.stringify(m, null, 2));
