@@ -156,6 +156,9 @@ for (const p of [DIST_MANIFEST, REPO_MANIFEST]) {
     ],
     ...(NOTE ? { note: NOTE } : {}),
   };
+  // 根级 note 之前一直是手写的「App 0.3.10：…」，发了新版本也忘了改，
+  // 更新弹窗里会显示旧文案——这里一并覆盖掉
+  if (NOTE) m.note = `App ${VERSION}：${NOTE}`;
   fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n', 'utf8');
   log(`  ✓ ${p}`);
 }
