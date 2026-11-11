@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.5.3",
-    "versionCode": 93,
-    "code": 93,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.3-release.apk",
+    "version": "0.5.4",
+    "versionCode": 94,
+    "code": 94,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.3-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.3-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.4-release.apk"
       }
     ],
-    "size": 150319608,
-    "sha256": "1cc89e7abd73225548829a8a7de52f8cd5220b21483ff0a42177ec2adbebb0ec",
-    "name": "shangan-0.5.3-release.apk",
-    "note": "App 0.5.3：后台下载时弹层不再丢进度；进度条放大加动画"
+    "size": 150320339,
+    "sha256": "eb7ab0fc1b779812890ca07a5735d00a604fee8620be7d965fa7f83e63d655a7",
+    "name": "shangan-0.5.4-release.apk",
+    "note": "App 0.5.4：判断题补正确/错误选项、多选题支持多选"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.5.3：后台下载时弹层不再丢进度；进度条放大加动画"
+  "note": "App 0.5.4：判断题补正确/错误选项、多选题支持多选"
 }
