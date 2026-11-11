@@ -46,6 +46,44 @@ function yearCond(year) {
   const n = Number.isInteger(y) && y >= 3 ? y : 10;
   return ` AND ${YEAR_OF} BETWEEN ${NOW_YEAR - n + 1} AND ${NOW_YEAR}`;
 }
+/**
+ * 章节题量（从 papers.chapters 的 JSON 聚合）。
+ *
+ * 为什么不用 `questions JOIN papers GROUP BY chapter`：那张表 14 万行，
+ * 手机上（ARMS 模拟器实测）单次要 21s，行测章节接口整条链路 103s。
+ * papers 只有 3,614 行且自带每卷每章的 questionCount，扫全表 ≈ 0.3s。
+ * 牺牲的是「卷内声明题量 vs 实际入库题量」的 1% 误差（卷子有题目缺失时），
+ * 用于展示足够；真要精确到题，走 chapters() 里 questions 那条兜底。
+ */
+function chapterTotalsFromPapers(tiku, subject, cond) {
+  let rows = [];
+  try {
+    rows = tiku.all(
+      `SELECT chapters FROM papers WHERE subjectName = ? AND chapters IS NOT NULL AND chapters <> '' ${cond}`,
+      subject
+    ) || [];
+  } catch (e) {
+    rows = [];
+  }
+  const map = new Map();
+  let parsed = 0;
+  for (const r of rows) {
+    let arr;
+    try { arr = JSON.parse(r.chapters || '[]'); } catch (e) { continue; }
+    if (!Array.isArray(arr) || !arr.length) continue;
+    parsed += 1;
+    for (const c of arr) {
+      const name = c && c.name ? String(c.name).trim() : '';
+      if (!name) continue;
+      map.set(name, (map.get(name) || 0) + (Number(c.questionCount) || 0));
+    }
+  }
+  if (!parsed) return null;
+  return [...map.entries()]
+    .map(([chapter, c]) => ({ chapter, c }))
+    .sort((a, b) => b.c - a.c);
+}
+
 // 难度过滤（与 server diffCond 相同，粉笔 difficulty 1-9）：random/缺省不限难度（含未标注）
 function diffCond(difficulty) {
   if (difficulty === 'random' || difficulty == null || difficulty === '') return '';
@@ -673,15 +711,17 @@ export function createLocalApi(tiku, practice, stats = {}) {
   const api = {
     /** 科目列表（与 /api/subjects 同构；done 来自本地记录） */
     subjects() {
+      // 用 papers 聚合：3,614 行扫表 ≈ 0.3s。原来的 papers LEFT JOIN questions
+      // + COUNT(DISTINCT questionId) 在手机上要 46s，直接把冷启动拖到 50s。
+      // 代价是「卷内声明题量」与实库题数约有 1% 差异（个别卷有题没入库）。
       const rows = tiku.all(`
-        SELECT tp.subjectName,
-               COUNT(DISTINCT tp.id) AS papers,
-               COUNT(DISTINCT tq.questionId) AS questions
-        FROM papers tp
-        LEFT JOIN questions tq ON tq.paperId = tp.id
-        WHERE (tp.subjectName = '事业编·公基'
-           OR CAST(substr(tp.name, MAX(1, instr(tp.name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO})
-        GROUP BY tp.subjectName
+        SELECT subjectName,
+               COUNT(*) AS papers,
+               SUM(COALESCE(questionCount, 0)) AS questions
+        FROM papers
+        WHERE (subjectName = '事业编·公基'
+           OR CAST(substr(name, MAX(1, instr(name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO})
+        GROUP BY subjectName
       `);
       // 综应只保留 A 类：主界面题目数按分类树口径（question_categories），与专项练习一致
       const zongyingN = Number(tiku.get(`SELECT COUNT(DISTINCT qc.question_id) AS n FROM question_categories qc
@@ -700,7 +740,21 @@ export function createLocalApi(tiku, practice, stats = {}) {
     /** 考点列表（粉笔 keypoints） */
     keypoints(subject) {
       if (!subject) return [];
-      return tiku.all(
+      // 三表 join 在手机上 ≈11s（kp 46k 行 × 回表），但考点是静态数据：
+      // 按科目缓存 7 天，第一次慢、之后秒开。没 localStorage 的环境（Node 端）不缓存。
+      const CK = 'sg_kp_cache_v1';
+      const cacheGet = () => {
+        try {
+          const raw = globalThis.localStorage && globalThis.localStorage.getItem(CK);
+          const all = raw ? JSON.parse(raw) : null;
+          const hit = all && all[subject];
+          if (hit && Array.isArray(hit.v) && Date.now() - (hit.t || 0) < 7 * 86400000) return hit.v;
+        } catch (e) { /* 缓存坏了就当没有 */ }
+        return null;
+      };
+      const cached = cacheGet();
+      if (cached) return cached;
+      const rows = tiku.all(
         `SELECT kp.kpName AS name, COUNT(DISTINCT kp.questionId) AS questions
          FROM question_keypoints kp
          JOIN questions q ON q.questionId = kp.questionId
@@ -711,6 +765,13 @@ export function createLocalApi(tiku, practice, stats = {}) {
          ORDER BY questions DESC`,
         subject
       );
+      try {
+        const raw = globalThis.localStorage && globalThis.localStorage.getItem(CK);
+        const all = raw ? JSON.parse(raw) || {} : {};
+        all[subject] = { t: Date.now(), v: rows };
+        globalThis.localStorage.setItem(CK, JSON.stringify(all));
+      } catch (e) { /* 存不下就算了 */ }
+      return rows;
     },
 
     categories(subject) {
@@ -1048,7 +1109,9 @@ export function createLocalApi(tiku, practice, stats = {}) {
     chapters(subject, mock) {
       if (!subject) throw new Error('缺少 subject');
       const cond = mockCond(mock);
-      const totals = tiku.all(`
+      // 优先走 papers 聚合（≈0.3s）；老库没有 chapters 字段时退回 questions 精确统计
+      const totals = chapterTotalsFromPapers(tiku, subject, `${cond}${yearCond('10')}`)
+        || tiku.all(`
         SELECT q.chapter, COUNT(*) c FROM questions q JOIN papers p ON p.id = q.paperId
         WHERE p.subjectName = ? ${cond}${yearCond('10')} GROUP BY q.chapter ORDER BY c DESC
       `, subject);
@@ -1102,16 +1165,24 @@ export function createLocalApi(tiku, practice, stats = {}) {
         rate: (() => { const w = arr.filter((c) => c.rate != null); return w.length ? Math.round(w.reduce((s, c) => s + c.rate, 0) / w.length) : null; })(),
       });
       let groups;
+      // 预计算题量（tools/build-qc-counts.mjs 生成、app.js 启动时 fetch 进来）：
+      // 有就直接用，省掉 9 万行 qc 表 join（手机上 13–103 秒）。没有就退回查库。
+      const qcPre = (globalThis.__QC_COUNTS__ && globalThis.__QC_COUNTS__.subjects
+        && globalThis.__QC_COUNTS__.subjects[subject]) || null;
       if (isGongji) {
         // 公基：题量按「组」聚合（question_categories.sub 为空串），不套年份过滤（公基卷跨 2015-2024）
         const gt = new Map();
-        for (const r of practice.all(`
+        if (qcPre && qcPre.group) {
+          for (const [k, v] of Object.entries(qcPre.group)) gt.set(k, Number(v) || 0);
+        } else {
+          for (const r of practice.all(`
           SELECT qc.category, COUNT(DISTINCT qc.question_id) c FROM question_categories qc
           JOIN questions q ON q.questionId = qc.question_id
           WHERE qc.subject = ?
           GROUP BY qc.category
         `, subject)) {
-          gt.set(r.category, Number(r.c) || 0);
+            gt.set(r.category, Number(r.c) || 0);
+          }
         }
         const catDoneGj = statOf('catStats').get(subject) || new Map();
         const gd = new Map();
@@ -1129,25 +1200,33 @@ export function createLocalApi(tiku, practice, stats = {}) {
         });
       } else if (isXingce) {
         const idxMap = new Map();
-        for (const r of practice.all(`
+        if (qcPre && qcPre.idx) {
+          for (const [k, v] of Object.entries(qcPre.idx)) idxMap.set(k, Number(v) || 0);
+        } else {
+          for (const r of practice.all(`
           SELECT qc.category, qc.sub, COUNT(DISTINCT qc.question_id) c FROM question_categories qc
           JOIN questions q ON q.questionId = qc.question_id
           JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
           WHERE qc.subject = ?
           GROUP BY qc.category, qc.sub
         `, subject)) {
-          idxMap.set(`${r.category}|${r.sub}`, r.c);
+            idxMap.set(`${r.category}|${r.sub}`, r.c);
+          }
         }
         // 分类真数：某些题的 sub 没归进词表，按 category 兜底，避免总数凭空少一截
         const groupReal = new Map();
-        for (const r of practice.all(`
+        if (qcPre && qcPre.group) {
+          for (const [k, v] of Object.entries(qcPre.group)) groupReal.set(k, Number(v) || 0);
+        } else {
+          for (const r of practice.all(`
           SELECT qc.category, COUNT(DISTINCT qc.question_id) c FROM question_categories qc
           JOIN questions q ON q.questionId = qc.question_id
           JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
           WHERE qc.subject = ?
           GROUP BY qc.category
         `, subject)) {
-          groupReal.set(r.category, r.c);
+            groupReal.set(r.category, r.c);
+          }
         }
         // 已做 = 该分类索引下的做题记录数（与总题量同源：question_categories，口径同 chapterStats）
         const catDone = statOf('catStats').get(subject) || new Map();
@@ -1166,6 +1245,9 @@ export function createLocalApi(tiku, practice, stats = {}) {
         const nodeStats = (group, sub2) => {
           if (essayFromIndex) {
             const okCount = statOf('subStats').get(subject)?.get(`${group}|${sub2}`) ?? null;
+            // 预计算表里同一个 category|sub 的题数（综应 105 个 sub，逐个查库就是 105 × 回表）
+            const pre = qcPre && qcPre.idx ? qcPre.idx[`${group}|${sub2}`] : undefined;
+            if (pre != null) return { total: Number(pre) || 0, done: okCount ?? null, rate: null };
             const r = practice.get(`
               SELECT COUNT(DISTINCT qc.question_id) c FROM question_categories qc
               JOIN questions q ON q.questionId = qc.question_id

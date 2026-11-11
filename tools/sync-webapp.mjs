@@ -35,6 +35,7 @@ const FILES = [
   ['public/next/app.js', 'app.js'],
   ['public/next/style.css', 'style.css'],
   ['public/next/sw-local.js', 'sw-local.js'],
+  ['public/next/qc-counts.json', 'qc-counts.json'],
   ['public/local-bootstrap.js', 'local-bootstrap.js'],
   ['public/local-api.js', 'local-api.js'],
   ['public/local-handler.js', 'local-handler.js'],

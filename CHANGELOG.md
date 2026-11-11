@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## App 0.5.5
+
+一次以「手机上到底有多慢」为起点的体检。查到的问题和验收数据都在下面。
+
+- **冷启动 47–54 秒 → 2.3 秒**（模拟器实测 `__BOOT__`：`home-rendered` 49,618ms → 2,293ms）。
+  - 根因：`/api/subjects` 用 `papers LEFT JOIN questions` + `COUNT(DISTINCT questionId)` 统计题量，14 万行 join 在手机上要 **46.7 秒**，而首页 `Promise.all` 必须等它。
+  - 改成对 `papers`（3,614 行）聚合它的 `questionCount`：同样数据，**46,684ms → 12ms**。
+- **题库页「暂无专项数据」**：`/api/chapters?subject=公务员·行测` 要 **103.7 秒**（品类题量走 `question_categories JOIN questions JOIN papers`），页面在 spinner 里等不到结果。
+  - 新增 `tools/build-qc-counts.mjs`：构建期把「分类/子类题量」算成 11 KB 的 `qc-counts.json` 随 Web 资源发出，启动时读进内存；`local-queries` 优先用它，**15,292ms → 55ms**（首次冷读 1.4 秒）。
+  - 章节题量（`questions GROUP BY chapter`）同样改成解析 `papers.chapters` 的 JSON 聚合（21.4 秒 → 0.3 秒）。
+  - 考点列表（三表 join，11 秒）加 7 天本地缓存，第二次秒开。
+- **错题本数字对不上**：我的页写「错题 62」，错题本里只有 25 道。25 是当前考试组合内的，62 是全部科目的；现在训练卡会补一句「另有 37 道属于当前考试组合以外的科目」，不再让人以为是丢数据。
+- 顺手记下但本轮没动的（见 README「已知问题」）：`allowBackup=true`、`usesCleartextTraffic=true`、未被使用的 `CAMERA` 权限、无自动化测试。
+
 ## App 0.5.3
 
 - **弹层没进度条，通知栏却正常**：真因不是画得细。`UpdateManager.reset()` 无条件 `set("idle", 0, "")`，而前端每次打开弹层都会先 reset；此时后台线程还在下载，`start()` 见 `worker.isAlive()` 就直接返回 —— 弹层永远停在 0%，通知栏那条进度照走。

@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.4';
+const APP_VERSION = '0.5.5';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1338,9 +1338,14 @@ function renderReview() {
   const chapChips = tab === 'wrong' && chapList.length > 1
     ? `<div class="chips chap-chips"><button class="chip ${!S.review.chapter ? 'active' : ''}" data-act="review-chap" data-c="">全部 ${list.length}</button>${chapList.map(([c, n]) => `<button class="chip ${S.review.chapter === c ? 'active' : ''}" data-act="review-chap" data-c="${esc(c)}">${esc(c)} ${n}</button>`).join('')}</div>`
     : '';
+  // 全部错题（跨科目）与当前组合口径的题数会不一样：换个档案后，别的科目的错题被藏起来了。
+  // 不解释清楚就会出现「我的说 62 道、错题本说 25 道」的割裂感，这里直接说明差额去哪了。
+  const allWrong = Number(S.stats && S.stats.wrong) || 0;
+  const otherWrong = !S.review.chapter && allWrong > shown.length ? allWrong - shown.length : 0;
+  const otherHint = otherWrong > 0 ? `<i class="wrong-other">另有 ${otherWrong} 道属于当前考试组合以外的科目</i>` : '';
   return `${head}
   ${chapChips}
-  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · ${S.review.chapter ? `「${esc(S.review.chapter)}」共 ` : '错题本共 '}${shown.length} 道 · ${dueLine(shown)}` : `${S.review.chapter ? `「${esc(S.review.chapter)}」` : '错题本'} <b>${shown.length}</b> 道 · ${dueLine(shown)}`}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button><div class="training-foot"><span>做对的题自动移出错题本</span><button class="switch ${S.settings.dropFixed !== false ? 'on' : ''}" data-drop-fixed aria-label="做对的题自动移出错题本"><i></i></button></div></section>` : ''}
+  ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · ${S.review.chapter ? `「${esc(S.review.chapter)}」共 ` : '错题本共 '}${shown.length} 道 · ${dueLine(shown)}` : `${S.review.chapter ? `「${esc(S.review.chapter)}」` : '错题本'} <b>${shown.length}</b> 道 · ${dueLine(shown)}`}${otherHint}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button><div class="training-foot"><span>做对的题自动移出错题本</span><button class="switch ${S.settings.dropFixed !== false ? 'on' : ''}" data-drop-fixed aria-label="做对的题自动移出错题本"><i></i></button></div></section>` : ''}
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
   <div class="card list-card">
     ${shown.length ? shown.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
@@ -4570,6 +4575,20 @@ function bindAndroidBack() {
     try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ }
   }
   mark('bridge-ready');
+
+  // 分类题量预计算表（tools/build-qc-counts.mjs 生成，11 KB）：
+  // 读进来之后 /api/chapters 不用再查 9 万行 question_categories（手机上 13–103 秒）。
+  // 失败也不要紧，local-queries 会退回查库，只是慢。
+  try {
+    const r = await fetch('qc-counts.json');
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.subjects) {
+        window.__QC_COUNTS__ = j;
+        mark('qc-counts');
+      }
+    }
+  } catch { /* ignore */ }
 
   // 首屏只等最少的数据。错题回填和摊平都能挪到后台，
   // 它们要读几百条记录，卡在前面会让白屏多两三秒。
