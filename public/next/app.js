@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.4.1';
+const APP_VERSION = '0.4.3';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2096,7 +2096,6 @@ async function openPolitics() {
         const pq = (x.practice || []).length;
         const isRead = !unreadOf(x, idx);
         return `<div class="pol-item ${isRead ? 'read' : ''}" data-act="politics-open" data-idx="${idx}">
-          <div class="pol-item-no">${i + 1}</div>
           <div class="pol-card-r">
             <div class="pol-card-t">${esc(t)}${isRead ? '<span class="pol-read-tag">已读</span>' : ''}</div>
             ${sum ? `<div class="pol-card-s">${esc(sum)}</div>` : ''}
@@ -2177,23 +2176,40 @@ function openPoliticsDetail(idx) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // 正文是「1 / 标题 / 正文…」这种结构，标题单独成行、编号单独成行。
-  // 认出小标题就加粗，认出编号就单独起段，长文章才看得下去。
-  const blocks = [];
+  // 正文是「1 / 标题 / 正文… / 2 / 标题 / 正文…」这种结构：编号单独成行、标题紧跟一行。
+  // 按编号切成一个个主题，每个主题带序号，主题之间用分割线隔开。
+  const para = (s) => (/^[一二三四五六七八九十]+是/.test(s)
+    ? `<p class="pol-p"><b>${esc(s.slice(0, 3))}</b>${esc(s.slice(3))}</p>`
+    : `<p class="pol-p">${esc(s)}</p>`);
+  const secs = [];
+  let cur = null;
+  const loose = [];
   for (let i = 0; i < raw.length; i++) {
     const s = raw[i];
-    if (/^\d{1,2}$/.test(s) && raw[i + 1] && raw[i + 1].length <= 40) {
-      blocks.push(`<h3 class="pol-h3">${esc(raw[i + 1])}</h3>`);
+    const isNo = /^\d{1,2}$/.test(s);
+    const isHead = isNo && raw[i + 1] && raw[i + 1].length <= 40 && !/^\d{1,2}$/.test(raw[i + 1]);
+    if (isHead) {
+      if (cur) secs.push(cur);
+      cur = { no: s, title: raw[i + 1], body: [] };
       i++;
       continue;
     }
-    if (/^[一二三四五六七八九十]+是/.test(s)) blocks.push(`<p class="pol-p"><b>${esc(s.slice(0, 3))}</b>${esc(s.slice(3))}</p>`);
-    else blocks.push(`<p class="pol-p">${esc(s)}</p>`);
+    if (cur) cur.body.push(s);
+    else loose.push(s);
   }
+  if (cur) secs.push(cur);
+
+  const intro = loose.length ? `<div class="pol-sec-lead">${loose.map(para).join('')}</div>` : '';
+  const body = secs.length
+    ? intro + `<div class="pol-secs">${secs.map((x) => `<section class="pol-sec">
+        <div class="pol-sec-h"><span class="pol-sec-no">${esc(x.no)}</span><h3 class="pol-h3">${esc(x.title)}</h3></div>
+        ${x.body.map(para).join('')}
+      </section>`).join('')}</div>`
+    : intro || '<p class="pol-p">暂无正文</p>';
 
   sheet(`<div class="sheet-head"><b>${esc(polTitle(it.title))}</b><button class="sheet-close">✕</button></div>
-    <div class="pol-detail-meta"><span>${esc(it.date || '')}</span><span>${Number(it.chars) || 0} 字</span></div>
-    <div class="pol-body">${blocks.join('')}${renderPolPractice(it, idx)}</div>
+    <div class="pol-detail-meta"><span>${esc(it.date || '')}</span><span>${secs.length ? secs.length + ' 个主题 · ' : ''}${Number(it.chars) || 0} 字</span></div>
+    <div class="pol-body">${body}${renderPolPractice(it, idx)}</div>
     <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="close-sheet">关闭</button>`);
 }
 

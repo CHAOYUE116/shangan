@@ -37,9 +37,17 @@ _auth-rollback-backup/
 app-assets/
 backup/
 粉笔/
-# 题库与材料已获授权随仓库分发（tiku.db 以 tiku.db.part-* 分卷形式入库，不匹配 *.db）
-!materials.db
-!tiku-index.db
+# 题库主库以 data/tiku-quality.jsonl.gz 形式分发（见「仓库里的数据」），分卷旧库不再入库
+tiku.db.part-*
+materials.db
+tiku-index.db
+practice.db
+
+# ===== 发布产物：走 GitHub Releases，不进仓库 =====
+dist/
+release/delta-*
+release/images.db*
+release/tiku_app.db*
 
 # ===== 敏感文件（切勿提交！）=====
 cookie*.txt
@@ -137,8 +145,6 @@ research-fenbi-raw/
 # 更新清单本身要进仓库（App 从 raw/jsDelivr 读它），大文件仍走 Release
 !release/manifest.json
 !release/politics.json
-!release/delta-*.json.gz
-!dist/release/manifest.json
 
 # 题库图片（从 images.db 动态加载，仓库里不需要）
 public/tarzan-img/
@@ -149,6 +155,15 @@ public/tarzan-img/
 /diag-*.mjs
 /make-icons*.mjs
 /patch3.mjs
+/backfill-chapters.mjs
+/check-sydw.mjs
+/ev.mjs
+/launch-build.mjs
+/watchdog.mjs
+/quiz-compose-design.md
+/push.err
+/启动.bat
+/手机安装使用说明.md
 /BUILD_MANUAL.md
 /RELEASE_NOTES.md
 /app-mobile-plan.md
@@ -159,3 +174,13 @@ public/tarzan-img/
 /icon-preview/
 /shots/
 /docs/design/*.png
+/docs/GitHub-*.md
+/docs/performance-optimization-*.md
+/docs/smart-paper-optimization-*.md
+/docs/更新公告-*.md
+/docs/笔记功能-*.md
+/docs/解析补爬方案.md
+/docs/题库预处理提示词-*.md
+/docs/plans/
+/docs/superpowers/
+/release/*.meta.json
