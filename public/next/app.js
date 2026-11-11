@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.3.13';
+const APP_VERSION = '0.3.14';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -405,6 +405,8 @@ function loadSession() {
     const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     if (!s || !Array.isArray(s.ids) || !s.ids.length) return null;
     if (Date.now() - (s.ts || 0) > 3 * 86400000) return null;
+    // 档案换了考试组合之后，旧科目（如公务员·行测）的现场不该再出现在首页
+    if (s.subject && notInScheme(s.subject)) return null;
     return s;
   } catch { return null; }
 }
@@ -751,7 +753,11 @@ function renderHome() {
     title = remain > 0 ? `今天还剩 <em>${remain}</em> 道` : `复习 <em>${Math.min(due, 15)}</em> 道到期题`;
     const tmr = reviewCountOn(1);
     const st = streakDays();
-    sub = `到期 <b>${due}</b> 道` + (rq > 0 && remain > 0 ? `（先复习 ${rq} 道）` : '')
+    // 把「还剩 18 道」拆开写，否则下面的「新题 15 道」和它看起来自相矛盾
+    const newN = Math.max(0, remain - rq);
+    sub = (remain > 0
+      ? (rq > 0 ? `= 复习 <b>${rq}</b> 道 + 新题 <b>${newN}</b> 道` : `今天要做 <b>${remain}</b> 道新题`)
+      : `到期 <b>${due}</b> 道`)
       + (tmr > 0 ? ` · 明天还有 ${tmr} 道` : '')
       + (st > 1 ? ` · 已连续 <b>${st}</b> 天` : '')
       + ` · 弱项是<b>${esc(topWeak)}</b>`;
@@ -760,7 +766,8 @@ function renderHome() {
   } else if (remain > 0) {
     title = `今天还剩 <em>${remain}</em> 道`;
     const rq = reviewQuota();
-    sub = `今天已做 <b>${today}</b> 题` + (rq > 0 ? ` · 其中复习 <b>${rq}</b> 道` : '') + ` · 从<b>${esc(topWeak)}</b>开始`;
+    sub = (rq > 0 ? `= 复习 <b>${rq}</b> 道 + 新题 <b>${Math.max(0, remain - rq)}</b> 道` : `今天要做 <b>${remain}</b> 道新题`)
+      + ` · 从<b>${esc(topWeak)}</b>开始`;
     cta = '开始做题';
     act = 'daily-task';
   } else {
@@ -784,14 +791,12 @@ function renderHome() {
     <div class="hero-barfoot"><span>${over ? `今日 ${today} 题 · 目标已完成` : `今日任务 ${shown} / ${goal}`}</span><span>${over ? '✓' : `还差 ${goal - today} 题`}</span></div>
     <button class="btn btn-primary btn-block hero-btn" data-act="${act}">${cta}</button>
   </section>
-  ${due > 0 && remain > 0 ? `<button class="home-alt" data-act="daily-new"><span>还是做点新的？<b>今日新题 ${Math.min(remain, 15)} 道</b></span><span class="home-alt-r">约 10 分钟 ›</span></button>` : ''}
-  ${due > 0 ? (() => {
-    // 到期复习原来只藏在 hero 的副标题里，做完新题就看不见了。单独给一张卡，
-    // 位置放在「时政/资料库/模考」快捷入口之前，翻屏第一眼就能看到。
+  ${remain <= 0 && due > 0 ? (() => {
+    // 今日任务已完成时才单独露这张卡；任务没做完时 hero 里已经包含复习，两张卡并列会让人犯选择困难
     const tmr = reviewCountOn(1);
-    return `<button class="home-alt due-card" data-act="review-train"><span>到期复习 <b>${due} 道</b>${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
+    return `<button class="home-alt due-card" data-act="review-train"><span>再复习 <b>${due} 道</b>到期题${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
   })() : ''}
-  ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n} 题 · 正确率 ${yd.rate}%</span></div>` : ''}
+  ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n < 5 ? `${yd.n} 题 · 刚起步` : `${yd.n} 题 · 正确率 ${yd.rate}%`}</span></div>` : ''}
   <div class="quick-row three">
     <button class="quick-card" data-act="politics">
       <span class="quick-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('lightbulb', 18)}</span>
@@ -799,7 +804,7 @@ function renderHome() {
     </button>
     <button class="quick-card" data-act="feishu">
       <span class="quick-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('book', 18)}</span>
-      <span class="quick-main"><b>资料库</b><i>飞书知识库</i></span>
+      <span class="quick-main"><b>资料库</b><i>讲义与知识点</i></span>
     </button>
     <button class="quick-card" data-act="papers">
       <span class="quick-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('folder', 18)}</span>
@@ -1226,9 +1231,16 @@ function renderReview() {
     if (seenQ.has(id)) return false;
     seenQ.add(id);
     return true;
+  }).filter((it) => {
+    // 错题按当前考试组合过滤：换档案后别的科目的错题不再混进来（收藏/笔记是用户主动存的，保留）
+    if (tab !== 'wrong') return true;
+    const s = it && it.subject;
+    return !s || !notInScheme(s);
   });
   const tabs = [['wrong', '错题'], ['fav', '收藏'], ['notes', '笔记']];
-  const dueN = dueIds().length;
+  // 到期数也要跟着过滤，否则会出现「到期 6 道」但列表里只有 3 道
+  const listIds = new Set(list.map((it) => String(it && (it.questionId != null ? it.questionId : it.question_id))));
+  const dueN = tab === 'wrong' ? dueIds().filter((id) => listIds.has(String(id))).length : dueIds().length;
   return `
   <div class="topline"><span class="eyebrow">回顾</span></div>
   <h1 class="page-title">把错题变成会的题</h1>
@@ -1423,7 +1435,7 @@ function renderExamResult() {
       ${g.list.map(rowOf).join('')}
     </section>`).join('') : '<div class="empty-state">这个筛选下没有题目</div>';
   return `<div class="subpage-head"><button class="icon-btn" data-act="exam-result-back">‹</button><div class="subpage-title">考试报告</div><span style="width:38px"></span></div>
-  <div class="card-sub" style="margin:-6px 0 14px">${esc(R.title)} · 用时 ${fmtTime(R.used)} · 平均每题 ${fmtTime(avgSec)}</div>
+  <div class="card-sub" style="margin:-6px 0 14px">${esc(R.title)} · 用时 ${fmtTime(R.used)} · 平均每题 ${fmtTime(avgSec)}${R.fromHistory ? ' · 历史成绩' : ''}</div>
   <div class="card" style="text-align:center;padding:20px 16px 16px">
     <div style="font-size:44px;font-weight:780;letter-spacing:-.04em;line-height:1">${score}<span style="font-size:18px;font-weight:600;color:var(--text-3)"> / 100</span></div>
     <div class="card-sub" style="margin-top:6px">答对 ${R.right} · 答错 ${wrong} · 未答 ${unanswered}</div>
@@ -2903,6 +2915,7 @@ document.addEventListener('click', (e) => {
       return;
     }
     if (a === 'exam-history') { openExamHistory(); return; }
+    if (a === 'hist-detail') { openHistDetail(Number(act.dataset.ts)); return; }
   if (a === 'exam-trend') { openExamTrend(); return; }
   if (a === 'group') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&group=${encodeURIComponent(act.dataset.group)}&sub=${encodeURIComponent(act.dataset.sub)}&n=15&mock=0&year=10&difficulty=random`, act.dataset.group, S.lib.subject); return; }
   if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=15&mock=0&year=10&difficulty=random`, '随机练习', S.lib.subject); return; }
@@ -3429,6 +3442,15 @@ async function submitExam() {
     kind: P.paperId ? '整卷' : '随机',
     year: P.paperYear || 0,
     region: P.paperRegion || '',
+    // 逐题存档：只存 id / 对错 / 选项 / 用时，几十 KB；靠它才能事后回看这一场的逐题解析
+    items: P.qs.map((q, i) => ({
+      id: q.id,
+      ch: q.chapter || '',
+      ok: !!P.answers[i]?.feedback?.ok,
+      sel: P.answers[i]?.selected == null ? null : Number(P.answers[i].selected),
+      ans: q.answerIndex == null ? null : Number(q.answerIndex),
+      cost: Number((P.qCost || {})[i]) || 0,
+    })),
     mods: [...new Map(P.qs.map((q, i) => {
       const k = q.chapter || '未分类';
       const m = { name: k, total: 0, right: 0 };
@@ -3493,14 +3515,39 @@ function openExamHistory() {
     const score = Math.round((r.right / (r.total || 1)) * 1000) / 10;
     const d = new Date(r.ts);
     const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    return `<div class="hist-row">
+    const canOpen = Array.isArray(r.items) && r.items.length;
+    return `<div class="hist-row${canOpen ? ' openable' : ''}"${canOpen ? ` data-act="hist-detail" data-ts="${r.ts}"` : ''}>
       <div class="hist-main"><div class="hist-title">${esc(r.title || '模考')}</div>
-      <div class="hist-sub">${when} · ${esc(r.kind || '随机')} · ${r.total} 题 · 用时 ${fmtTime(r.used || 0)}</div></div>
+      <div class="hist-sub">${when} · ${esc(r.kind || '随机')} · ${r.total} 题 · 用时 ${fmtTime(r.used || 0)}${canOpen ? ' · 点开复盘' : ''}</div></div>
       <div class="hist-score"><b>${score}</b><span>${r.right}/${r.total} · ${rate}%</span></div>
     </div>`;
   }).join('');
   sheet(`<div class="sheet-head"><b>模考成绩单</b><button class="sheet-close">✕</button></div>
     <div style="max-height:62vh;overflow-y:auto">${rows || '<div class="empty-state">还没有模考记录<br><span class="muted">交卷一次就会出现在这里</span></div>'}</div>`);
+}
+/* 打开某一场的逐题复盘：从本地存档恢复（题目本体从题库按 id 取，不用联网） */
+async function openHistDetail(ts) {
+  const rec = loadExamHistory().find((x) => Number(x.ts) === Number(ts));
+  if (!rec) { toast('这条记录已不在本地'); return; }
+  if (!Array.isArray(rec.items) || !rec.items.length) { toast('这次模考没有存逐题记录'); return; }
+  const qs = await fetchQuestions(rec.items.map((i) => i.id));
+  const byId = new Map(qs.map((q) => [String(q.id), q]));
+  const items = rec.items.map((it) => {
+    const q = byId.get(String(it.id));
+    if (!q) return null;
+    const ai = it.ans != null ? Number(it.ans) : q.answerIndex != null ? Number(q.answerIndex) : null;
+    const a = it.sel == null ? null : { selected: Number(it.sel), confirmed: true, feedback: { ok: !!it.ok, correct: ai == null ? [] : [ai] } };
+    return { q, a };
+  }).filter(Boolean);
+  if (!items.length) { toast('这些题已不在当前题库里'); return; }
+  S.examResult = {
+    title: rec.title, subject: rec.subject, right: rec.right, total: rec.total, used: rec.used || 0,
+    kind: rec.kind || '随机', year: rec.year || 0, region: rec.region || '',
+    flagged: [], costs: rec.items.map((i) => Number(i.cost) || 0), items, fromHistory: true,
+  };
+  reviewFilter = S.examResult.right < S.examResult.total ? 'wrong' : 'all';
+  closeSheet();
+  go('exam');
 }
 
 /* 真题整卷模考：把一份真卷原样做一遍，计时交卷 */
