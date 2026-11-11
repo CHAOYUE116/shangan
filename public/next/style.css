@@ -1347,3 +1347,17 @@ html[data-theme="dark"] .data-m b { color: #D8E8DC; }
 .chap-chips { margin: -2px 0 12px; overflow-x: auto; flex-wrap: nowrap; }
 .chap-chips::-webkit-scrollbar { display: none; }
 .training-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-3); }
+
+/* ---------- 主观题 AI 批改（申论/综应） ---------- */
+.grade-box { margin-top: 14px; padding: 14px; border: 1px solid var(--line, #EDEFF3); border-radius: 14px; background: var(--card, #fff); }
+.grade-h { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.grade-h b { font-size: 14.5px; }
+.grade-sub { color: var(--muted, #8A90A0); font-size: 12px; line-height: 1.5; }
+.grade-input { width: 100%; box-sizing: border-box; min-height: 132px; line-height: 1.65; font-size: 14px; resize: vertical; }
+.grade-acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.grade-card { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line, #EDEFF3); }
+.grade-score { font-size: 20px; font-weight: 750; color: var(--brand, #3557F4); margin-bottom: 8px; letter-spacing: .2px; }
+.grade-body { font-size: 13.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+.grade-foot { margin-top: 10px; color: var(--muted, #8A90A0); font-size: 11.5px; }
+html[data-theme="dark"] .grade-box { background: #1C1F26; border-color: #2A2E37; }
+html[data-theme="dark"] .grade-card { border-top-color: #2A2E37; }

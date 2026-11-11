@@ -166,11 +166,16 @@ async function createAndFetch(kp, round) {
       globalId: String(s.globalId || s.id || ''),
       questionId: s.id || null,
       content: richToText(s.content),
+      // 选项在 accessories[0].options（[{type:101, options:["A项文字",…]}]），不取就是 4 个空选项
+      options: (Array.isArray(s.accessories) ? s.accessories.find((a) => a && Array.isArray(a.options) && a.options.length) || {} : {}).options || [],
+      optionType: (Array.isArray(s.accessories) ? (s.accessories.find((a) => a && a.type) || {}).type : '') || '',
+      type: s.type || null,
       material: s.materialId && matById.get(String(s.materialId)) ? richToText(matById.get(String(s.materialId)).content || matById.get(String(s.materialId)).text) : '',
       materialRaw: s.materialId ? (matById.get(String(s.materialId)) || null) : null,
       solution: richToText(s.solution),
       correctAnswer: s.correctAnswer || null,
       keypoints: s.keypoints || null,
+      source: s.source || '',
       analysisExist: !!s.solution,
     }));
     return { questions: qs, round };

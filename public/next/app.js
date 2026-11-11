@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.4.3';
+const APP_VERSION = '0.4.4';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -426,8 +426,15 @@ function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch { 
 function saveCurrentAnswer() {
   const P = S.practice;
   if (!P.qs.length) return;
-  if (P.selected != null || P.confirmed) {
-    P.answers[P.idx] = { selected: P.selected, confirmed: P.confirmed, feedback: P.feedback, ai: P.ai, chat: P.aiChat || [], cached: P.aiCached };
+  // 主观题的作答文本也要落盘，否则切题/退出就丢
+  const box = document.querySelector('#grade-input');
+  if (box && typeof box.value === 'string') {
+    const cur = P.answers[P.idx] || {};
+    P.answers[P.idx] = { ...cur, text: box.value };
+  }
+  const cur = P.answers[P.idx] || {};
+  if (P.selected != null || P.confirmed || cur.text || cur.grade) {
+    P.answers[P.idx] = { ...cur, selected: P.selected, confirmed: P.confirmed, feedback: P.feedback, ai: P.ai, chat: P.aiChat || [], cached: P.aiCached };
   }
 }
 function loadAnswerState() {
@@ -2733,10 +2740,10 @@ function renderPractice() {
     return;
   }
   if (P.exam || !P.confirmed) {
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${P.selected == null ? 'disabled style="opacity:.45"' : ''}>确认答案</button>`;
-    else acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-show-answer>查看参考答案</button>`;
+    else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
   } else {
     const fb = P.feedback || {};
     // 进阶解析（考点/秒杀/步骤/陷阱/母题），来源 question_deep，按题缓存
@@ -3076,6 +3083,12 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (a === 'correction') { openCorrection(); return; }
+  if (a === 'ai-grade') { aiGrade(); return; }
+  if (a === 'show-answer') {
+    const q = currentQ();
+    sheet(`<div class="sheet-head"><b>参考答案</b><button class="sheet-close">✕</button></div><div class="ai-out">${esc(q?.analysis || '暂无参考答案')}</div>`);
+    return;
+  }
   if (a === 'correction-save') {
     const q = currentQ();
     const text = ($('#correction-text')?.value || '').trim();
@@ -3758,6 +3771,80 @@ function scrollAi(target = 'card') {
     const el = document.querySelector(target === 'chat' ? '.ai-chat' : '.ai-card');
     if (el) el.scrollIntoView({ block: 'center' });
   }, 40);
+}
+/**
+ * 主观题（申论/综应）作答 + AI 批改面板。
+ * 批改走后端 /api/ai/grade，用的是「申论批改 AI」那个 agent（role=shenlun-grader），
+ * 它挂的内置技能就是 shenlun-master，会在 callChat 里自动注入 SKILL.md 全文。
+ */
+function gradeBox(q) {
+  const P = S.practice;
+  const saved = P.answers[P.idx] || {};
+  const g = saved.grade;
+  const sk = S.graderSkill || null;
+  const skLine = sk
+    ? `技能 ${esc(sk.name)}${sk.loaded ? `（已装载${sk.files ? ' ' + sk.files + ' 个文件' : ''}）` : '（批改时自动注入）'}`
+    : '内置技能 shenlun-master';
+  const needKey = !!(g && /api_key|未配置/.test(g.content || ''));
+  return `<div class="grade-box">
+    <div class="grade-h"><b>AI 批改</b><span class="grade-sub">写下你的作答，按阅卷标准逐点给分；用的是${skLine}</span></div>
+    <textarea class="field grade-input" id="grade-input" rows="6" placeholder="把作答写在这里（分条、带序号更容易采分）">${esc(saved.text || '')}</textarea>
+    <div class="grade-acts">
+      <button class="btn btn-ghost btn-sm" data-act="show-answer">看参考答案</button>
+      <button class="btn btn-primary btn-sm" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : '批改这份作答'}</button>
+    </div>
+    ${P.gradeLoading ? '<div class="ai-loading"><span class="spinner ai-spinner"></span><span>AI 正在按阅卷标准批改…</span></div>' : ''}
+    ${g ? `<div class="grade-card">${g.score ? `<div class="grade-score">${esc(g.score)}</div>` : ''}<div class="grade-body">${aiRichText(g.content || '')}</div><div class="grade-foot">${g.fullScore ? `满分 ${g.fullScore} 分 · ` : ''}${skLine}</div>${needKey ? '<button class="btn btn-ghost btn-sm" data-act="ai" style="margin-top:10px">去配 AI Key →</button>' : ''}</div>` : ''}
+  </div>`;
+}
+async function aiGrade() {
+  const P = S.practice;
+  const q = currentQ();
+  if (!q || P.gradeLoading) return;
+  const box = document.querySelector('#grade-input');
+  const text = (box?.value || '').trim();
+  if (text.length < 10) {
+    toast('作答太短了，先写几句再批改');
+    box?.focus();
+    return;
+  }
+  P.answers[P.idx] = { ...(P.answers[P.idx] || {}), text };
+  P.gradeLoading = true;
+  renderPractice();
+  try {
+    // 内置技能没装就先装（装失败也继续：resolveSkillLocal 会直接读 bundle 兜底）
+    await ensureBuiltinSkills().catch(() => 0);
+    // 记一下批改 agent 挂的是哪套技能、有没有装载成功，渲染在卡片脚注里
+    if (!S.graderSkill) {
+      const ags = await api('/api/ai/agents').catch(() => []);
+      const gd = (ags || []).find((x) => x.role === 'shenlun-grader');
+      S.graderSkill = { name: gd?.skill || 'shenlun-master', loaded: !!gd?.skill_loaded, files: gd?.skill_loaded?.files || 0 };
+    }
+    const r = await api('/api/ai/grade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionId: q.id, content: text }),
+    });
+    const cur = P.answers[P.idx] || { text };
+    // 本地接口返回 { notice, result, fullScore }；服务端返回 { content, fullScore }
+    const content = r?.result || r?.content || '';
+    if (!content) {
+      const why = r?.notice || r?.error || '没有拿到批改结果';
+      P.answers[P.idx] = { ...cur, grade: { content: `批改没跑起来：${why}`, score: '' } };
+      toast(why);
+    } else {
+      const m = /【评分】\s*([^\n]{1,40})/.exec(content);
+      P.answers[P.idx] = { ...cur, grade: { content, score: m ? m[1].trim() : '', fullScore: r.fullScore || '' } };
+    }
+  } catch (e) {
+    P.answers[P.idx] = { ...(P.answers[P.idx] || {}), grade: { content: `批改失败：${e.message}`, score: '' } };
+    toast('批改失败：' + e.message);
+  } finally {
+    P.gradeLoading = false;
+    saveCurrentAnswer();
+    saveSession();
+    renderPractice();
+  }
 }
 async function aiExplain() {
   const q = currentQ();
