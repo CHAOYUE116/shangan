@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2054,10 +2054,14 @@ let _politicsSrc = '';
  */
 const POLITICS_URLS = (() => {
   const ts = Date.now();
-  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/release/politics.json?t=${ts}`;
+  const path = 'release/politics.json';
+  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/${path}?t=${ts}`;
   return [
     `https://gh-proxy.com/https://${raw}`,
+    `https://ghfast.top/https://${raw}`,
+    `https://raw.gitmirror.com/CHAOYUE116/shangan/main/${path}?t=${ts}`,
     `https://${raw}`,
+    `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/${path}?t=${ts}`,
   ];
 })();
 
@@ -2332,17 +2336,27 @@ function openInApp(url, title) {
 
 /* ---------- 题库在线更新 ---------- */
 // 换成你自己的仓库地址；GitHub 直连不稳时用镜像
-// 顺序：gh-proxy（国内可达且无缓存）→ raw（直连）→ jsDelivr（@main 有 12 小时缓存，只作兜底）
-// 每个地址带时间戳，避免任何一层拿到旧 manifest
-const UPDATE_MANIFEST_URLS = (() => {
-  const ts = Date.now();
-  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/release/manifest.json?t=${ts}`;
+//
+// 为什么有 7 个源：raw.githubusercontent 在国内时通时不通，gh-proxy 这类公共反代
+// 偶尔 502/限速。原生层会并发跑「第一波」（反代 + raw 镜像 + 直连，12 秒封顶），
+// 全挂了才跑「第二波」CDN —— 因为 jsDelivr 的 @main 有 12 小时缓存，
+// 让它跟直连一起赛跑，它反而最快，拿到的却是半天前的清单（会误判"已是最新"）。
+// 每个地址都带时间戳，避免任何一层拿到旧 manifest。
+const MANIFEST_PATH = 'release/manifest.json';
+function manifestUrls(fresh) {
+  const ts = fresh || Date.now();
+  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/${MANIFEST_PATH}?t=${ts}`;
   return [
     `https://gh-proxy.com/https://${raw}`,
+    `https://ghfast.top/https://${raw}`,
+    `https://ghproxy.net/https://${raw}`,
+    `https://raw.gitmirror.com/CHAOYUE116/shangan/main/${MANIFEST_PATH}?t=${ts}`,
     `https://${raw}`,
-    `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/release/manifest.json?t=${ts}`,
+    `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/${MANIFEST_PATH}?t=${ts}`,
+    `https://fastly.jsdelivr.net/gh/CHAOYUE116/shangan@main/${MANIFEST_PATH}?t=${ts}`,
   ];
-})();
+}
+const UPDATE_MANIFEST_URLS = manifestUrls();
 
 function checkUpdate(mode) {
   if (!window.AppUpdate) { toast('在线更新只在 App 内可用'); return; }
@@ -2355,10 +2369,12 @@ function checkUpdate(mode) {
     <div id="upd-body" style="padding:4px 0 16px"><div class="card-sub">${onlyApp ? '正在检查 App 新版本…' : '正在检查题库更新…'}</div>
     <div class="p-bar" style="margin-top:12px"><i id="upd-bar" style="width:0%"></i></div></div>`);
   AppUpdate.reset();
-  AppUpdate.start(JSON.stringify(UPDATE_MANIFEST_URLS));
+  AppUpdate.start(JSON.stringify(manifestUrls()));
 
   const t0 = Date.now();
   let reloading = false;
+  let autoRetried = false;
+  let lastState = '';
   clearInterval(checkUpdate._t);
   checkUpdate._t = setInterval(() => {
     let s;
@@ -2370,6 +2386,12 @@ function checkUpdate(mode) {
     const finished = s.state === 'done' && !s.hasPending;
     const stuck = s.state === 'checking' && Date.now() - t0 > 45000;
     const curVer = s.currentVersionName || APP_VERSION;
+    // 从 checking 掉进 error：多半是某次 DNS/反代抽风，自动再试一次（换新时间戳）
+    if (s.state === 'error' && lastState === 'checking' && !autoRetried && !s.hasPending) {
+      autoRetried = true;
+      setTimeout(() => { try { AppUpdate.start(JSON.stringify(manifestUrls())); } catch { /* ignore */ } }, 1200);
+    }
+    lastState = s.state;
 
     let body;
 
@@ -2414,7 +2436,8 @@ function checkUpdate(mode) {
         ${(stuck || s.state === 'error') ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重新检查</button>' : ''}`;
     } else {
       const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
-      let line = esc(s.message || '处理中…');
+      // 用缓存时原生已经把说明拼进 message 了，这里去掉，避免和下面的诊断行重复
+      let line = esc(String(s.message || '处理中…').replace(/（网络不稳，用的是本机 \d+ 分钟前的清单）$/, ''));
       if (stuck) line = '检查超时 —— 换个网络或点下面重试';
       body = `
         <div class="card-sub">${line}</div>
@@ -2422,6 +2445,16 @@ function checkUpdate(mode) {
         <div class="card-sub" style="margin-top:8px">题库版本：${ver}</div>
         ${canApply ? '<button class="btn btn-primary btn-block" style="margin-top:14px" id="upd-apply">立即更新（' + esc(s.remoteVersion) + '）</button>' : ''}
         ${s.state === 'error' || stuck ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重试</button>' : ''}`;
+    }
+
+    // 诊断行：告诉用户这次清单是从哪个源拿的；如果用了本机缓存，说明网络没通
+    const srcNote = s.cachedManifest
+      ? `网络没连上更新源，用的是本机缓存清单（${Number(s.cacheAgeMin) || 0} 分钟前）`
+      : (s.manifestSource
+        ? `清单来源：${esc(s.manifestSource)}${String(s.manifestSource).includes('jsDelivr') ? '（CDN 有缓存，版本号可能滞后几小时）' : ''}`
+        : '');
+    if (srcNote && !finished) {
+      body += `<div class="card-sub" style="margin-top:10px;font-size:12px;opacity:.72">${srcNote}</div>`;
     }
 
     box.innerHTML = body;
@@ -4506,8 +4539,7 @@ async function silentTikuCheck() {
   try { local = JSON.parse(AppUpdate.status()); } catch { return; }
   if (!local) return;
   const ts = Date.now();
-  const raw = 'raw.githubusercontent.com/CHAOYUE116/shangan/main/release/manifest.json?t=' + ts;
-  const urls = ['https://gh-proxy.com/https://' + raw, 'https://' + raw];
+  const urls = manifestUrls(ts).filter((u) => !u.includes('jsdelivr'));   // 静默检查只用无缓存源
   for (const u of urls) {
     try {
       const ctl = new AbortController();

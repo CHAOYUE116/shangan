@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## App 0.5.1
+
+- **「检查更新」时好时坏**：manifest 只有 3 个源（gh-proxy / raw 直连 / jsDelivr），国内到 raw 时通时不通、公共反代偶尔 502，全挂就是一句「检查失败」。现在源扩到 7 个（`manifestUrls()`：gh-proxy、ghfast、ghproxy.net、raw.gitmirror、raw 直连、cdn/fastly jsDelivr），`POLITICS_URLS` 同步加。
+- **jsDelivr 会污染判断**：`@main` 是 12 小时缓存，和直连一起并发赛跑时它最快返回，却是半天前的清单 → 误判「已是最新」。`UpdateManager.raceManifest()` 拆两波：第一波只跑非 CDN 源（8 秒），全失败才跑 CDN（5 秒）；拿到 CDN 结果还要和本机缓存比 `tiku.dbVersion`，缓存更新就用缓存。
+- **慢源拖死等待**：原来 `join` 所有线程，快源 1 秒回来了也要等慢源超时（实测 10 秒+）。改成轮询 `got`，谁先回立刻返回（实测 0.75 秒）。
+- **全源失败就等于没有更新**：新增 manifest 磁盘缓存（`getCacheDir()/update-manifest-cache.json`，写临时文件再 rename，30 天失效），全挂时用它继续走流程；`status()` 增 `manifestSource` / `cachedManifest` / `cacheAgeMin`，弹层显示「清单来源：加速镜像」或「用的是本机缓存清单（N 分钟前）」。
+- **断网白等 20 秒**：新增 `hasNetwork()`（`ConnectivityManager.getActiveNetwork` + `NET_CAPABILITY_INTERNET`），没网直接走缓存。
+- 一次失败自动重试一次（`checkUpdate` 里 `lastState === 'checking' → error` 时换新时间戳重跑）。
+
 ## App 0.5.0
 
 - **搜索只搜题干**：`local-queries.js` 的 `search()` 原来只有 `WHERE q.content LIKE ?`。复习时想找的往往是「哪道题讲过这个说法」，而这句话在解析里——搜不到。现在题干、解析两条查询各跑一次再合并，结果带「题干命中 / 解析命中」标签，解析命中给 1200 字摘要，前端关键词高亮；题干命中的排在前面。
