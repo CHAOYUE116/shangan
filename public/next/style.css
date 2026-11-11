@@ -1412,3 +1412,31 @@ html[data-theme="dark"] mark.kw { background: #6B5A12; color: #FFE9A3; }
 .filter-hint { font-weight: 400; color: var(--text-3); margin-left: 6px; font-size: 11.5px; }
 html[data-theme="dark"] .segmented.seg-sm { background: #23262E; }
 html[data-theme="dark"] .segmented.seg-sm button.active { background: #2E323C; }
+
+/* ---------- 基础测评（能力画像） ---------- */
+.diag-card .training-kicker { color: var(--brand); }
+.diag-hero { text-align: center; padding: 20px 16px 18px; }
+.diag-hero .rbig { font-size: 42px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.diag-hero .rbig i { font-size: 18px; font-style: normal; font-weight: 600; margin-left: 2px; }
+.diag-hero .rlab { margin-top: 6px; color: var(--muted, #8A90A0); font-size: 12.5px; }
+.diag-hero .diag-lead { margin-top: 12px; font-size: 13.5px; line-height: 1.6; text-align: left; color: var(--text, #1D2330); }
+.diag-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; }
+.diag-row + .diag-row { border-top: 1px solid var(--line, #EDEFF3); }
+.diag-main { flex: 1; min-width: 0; }
+.diag-name { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.diag-name .tag { font-size: 11px; padding: 1px 6px; }
+.diag-bar { margin-top: 7px; height: 6px; border-radius: 999px; background: var(--soft, #EDEFF3); overflow: hidden; }
+.diag-bar i { display: block; height: 100%; border-radius: 999px; }
+.diag-bar i.lv-red { background: #E4574F; }
+.diag-bar i.lv-yellow { background: #E0A32E; }
+.diag-bar i.lv-green { background: #2FA36B; }
+.diag-pct { width: 58px; text-align: right; font-size: 14px; font-weight: 700; }
+.diag-pct span { display: block; font-size: 11px; font-weight: 500; color: var(--muted, #8A90A0); margin-top: 2px; }
+.kp-diag-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 0; background: none; border: 0; border-top: 1px solid var(--line, #EDEFF3); font-size: 14px; text-align: left; color: var(--text, #1D2330); }
+.kp-diag-row:first-child { border-top: 0; }
+.kp-diag-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kp-diag-row em { font-style: normal; color: var(--brand); font-weight: 700; }
+.kp-diag-row .chev { font-style: normal; color: var(--muted, #8A90A0); }
+html[data-theme="dark"] .diag-bar { background: #23272F; }
+html[data-theme="dark"] .diag-row + .diag-row,
+html[data-theme="dark"] .kp-diag-row { border-top-color: #2A2E37; }

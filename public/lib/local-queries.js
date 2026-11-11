@@ -875,7 +875,9 @@ export function createLocalApi(tiku, practice, stats = {}) {
     /** 随机出题（与 /api/practice 同构；支持章节/树节点/题组） */
     practice(subject, { chapter, chapters, group, sub, mock, n = 10, year, difficulty, custom, keypoint } = {}) {
       if (!subject) throw new Error('缺少 subject');
-      const chList = chapters ? chapters.split(',').map((s) => s.trim()).filter(Boolean) : (chapter ? [chapter] : null);
+      const chList = Array.isArray(chapters)
+        ? chapters.map((s) => String(s).trim()).filter(Boolean)
+        : chapters ? String(chapters).split(',').map((s) => s.trim()).filter(Boolean) : (chapter ? [chapter] : null);
       // 自定义刷题（custom=1）：题量由面板控制，不走随机练习的 15 题/申论 2 题规则
       const max = custom ? n : practiceMax(subject, group, chList);
       // 自定义刷题：多抽 3 倍候选（材料组整组剔除后仍能凑满），再按面板题量裁剪

@@ -126,13 +126,16 @@ if (missing.length) {
   process.exit(1);
 }
 
-// 同步后清掉 webapp/app-assets 里的 .gz，避免 Duplicate resources
+// 同步后清掉 webapp/app-assets 里的大文件：
+//   .gz  → WebView 不认，还会 Duplicate resources
+//   *.db  → 库由 android/app/src/main/assets 根目录那份提供（NativeDbBridge 从那儿拷），
+//           webapp/app-assets 再放一份会让 APK 里出现两个 400 MB 的库，包直接大一倍
 if (withAssets) {
   const gzDir = path.join(WEBAPP, 'app-assets');
   if (fs.existsSync(gzDir)) {
-    for (const f of fs.readdirSync(gzDir).filter((n) => n.endsWith('.gz'))) {
+    for (const f of fs.readdirSync(gzDir).filter((n) => n.endsWith('.gz') || n.endsWith('.db'))) {
       fs.unlinkSync(path.join(gzDir, f));
-      console.log(`  → 删除 ${f}（.gz 不能进 assets）`);
+      console.log(`  → 删除 ${f}（不进 WebView 资源）`);
     }
   }
 }

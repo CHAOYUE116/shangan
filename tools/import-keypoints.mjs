@@ -32,6 +32,8 @@ const DIR = path.resolve(ROOT, '..', 'research', 'fenbi-keypoint', COURSE);
 const DB = path.resolve(arg('db', path.join(ROOT, 'app-assets', 'tiku_app.db')));
 const APPLY = flag('apply');
 const DRY = !APPLY;
+// 只导入带选项的题（等重采补齐选项后再进库），但考点映射照写
+const REQUIRE_OPTIONS = flag('require-options');
 
 const SUBJECT = {
   syzc: '事业编·职测',
@@ -85,7 +87,7 @@ const hasCat = db.prepare('SELECT 1 FROM question_categories WHERE question_id =
 const hasKp = db.prepare('SELECT 1 FROM question_keypoints WHERE questionId = ? AND kpName = ? LIMIT 1');
 
 const stat = {
-  files: files.length, questions: 0, unique: 0, inserted: 0, existed: 0, noOptions: 0,
+  files: files.length, questions: 0, unique: 0, inserted: 0, existed: 0, noOptions: 0, skippedNoOpt: 0,
   kpRows: 0, kpSkipped: 0, catRows: 0, chars: 0, optChars: 0,
 };
 
@@ -122,6 +124,10 @@ for (const [qid, info] of byKp) {
   const exist = seenQ.get(qid);
   if (exist) {
     stat.existed += 1;
+  } else if (REQUIRE_OPTIONS && !opts.length) {
+    // 这次重采还没跑到这个考点，选项是空的 —— 先别插进去。
+    // 空选项的题进库等于给用户一道没法答的题，等重采补齐下一版再进。
+    stat.skippedNoOpt += 1;
   } else {
     stat.inserted += 1;
     if (!DRY) {
@@ -159,7 +165,7 @@ const mb = (n) => (n / 1048576).toFixed(2) + ' MB';
 const pages = db.prepare('PRAGMA page_count').get().page_count;
 const psize = db.prepare('PRAGMA page_size').get().page_size;
 console.log(`${DRY ? '[试算]' : '[写入]'} 考点 ${stat.files} 个 / 题 ${stat.questions} 行 / 唯一 ${stat.unique} 题`);
-console.log(`  新增 ${stat.inserted} 题 · 已存在 ${stat.existed} 题（只补考点）· 无选项 ${stat.noOptions} 题`);
+console.log(`  新增 ${stat.inserted} 题 · 已存在 ${stat.existed} 题（只补考点）· 无选项 ${stat.noOptions} 题${REQUIRE_OPTIONS ? `（其中 ${stat.skippedNoOpt} 题因缺选项未入库）` : ''}`);
 console.log(`  考点映射 +${stat.kpRows} 行（已存在跳过 ${stat.kpSkipped}）· 分类 +${stat.catRows} 行`);
 console.log(`  文本 ${mb(stat.chars * 3)} + 选项 ${mb(stat.optChars * 3)}（按 UTF-8 三字节估）`);
 console.log(`  库文件 ${mb(pages * psize)} · ${DB}`);

@@ -100,12 +100,12 @@ async function api(path, opts) {
   return r.json();
 }
 
-function toast(msg) {
+function toast(msg, ms) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), 1800);
+  t._t = setTimeout(() => t.classList.remove('show'), ms || 1800);
 }
 function sheet(html) {
   const w = $('#sheet');
@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.6';
+const APP_VERSION = '0.6.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -286,6 +286,12 @@ async function fetchPool(subject, need, types = '1,2,3') {
 function dailySubject() {
   // 取本场考试权重最高的科目（原来写死「事业编→职测」，公基/综应永远轮不到）
   return schemeSubjects()[0].subject;
+}
+
+// 按考点抽题（走了 /api/practice 的 keypoint 分支），带难度档
+async function fetchByKp(subject, kp, n, difficulty = 'random') {
+  const url = `/api/practice?subject=${encodeURIComponent(subject)}&keypoint=${encodeURIComponent(kp)}&n=${Math.max(2, n)}&mock=0&year=10&difficulty=${difficulty}&types=1,2,3`;
+  try { return (await api(url)) || []; } catch { return []; }
 }
 
 /* ---------- 复习排期（本机） ---------- */
@@ -641,17 +647,61 @@ function saveKpStats(m) {
   try { localStorage.setItem(KP_STATS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
 }
 
-function kpRecord(name, done, right) {
+function kpRecord(name, done, right, subject) {
   if (!name || !done) return null;
   const m = loadKpStats();
   const cur = m[name] || { done: 0, right: 0 };
   const before = cur.done ? Math.round((cur.right / cur.done) * 100) : null;
   cur.done += done;
   cur.right += right;
+  // 记下科目：同一个考点名在不同科目里都可能出现，按科目抽题时不能串科
+  if (subject) cur.sub = subject;
   m[name] = cur;
   saveKpStats(m);
   const now = Math.round((cur.right / cur.done) * 100);
   return { name, rate: now, before, done: cur.done, right: cur.right };
+}
+
+/* ---------- 基础测评（能力画像） ---------- */
+// 测评是「先验」：新装的头几天没有做题历史，每日任务只能瞎抽；
+// 做完一次测评，引擎至少知道该先补哪几块。历史一旦攒够（考点 8 题），记录就顶掉它。
+const DIAG_KEY = 'sg_diag_v1';
+const DIAG_SKIP_KEY = 'sg_diag_skipped';
+function loadDiag() {
+  try { return JSON.parse(localStorage.getItem(DIAG_KEY) || 'null'); } catch { return null; }
+}
+function saveDiag(d) {
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify(d)); } catch { /* 存不下就只留内存 */ }
+  S.diag = d;
+}
+function diagAgeDays() {
+  const d = S.diag || loadDiag();
+  if (!d || !d.at) return null;
+  return Math.max(0, Math.floor((Date.now() - d.at) / 86400000));
+}
+
+// 考点权重：先看本机记录（够 8 题），不够再用测评结果。
+// 返回按正确率升序（最弱的在前）。
+function weakKpList(subject) {
+  const out = new Map();
+  const stats = loadKpStats() || {};
+  for (const [name, s] of Object.entries(stats)) {
+    if (!s || !s.done || s.done < 8) continue;
+    if (subject && s.sub && s.sub !== subject) continue;
+    if (subject && !s.sub) continue; // 老数据没记科目，宁可不猜
+    out.set(name, { name, rate: s.right / s.done, n: s.done, src: 'record' });
+  }
+  const d = S.diag || loadDiag();
+  for (const k of (d && d.kps) || []) {
+    if (subject && k.sub && k.sub !== subject) continue;
+    if (out.has(k.name)) continue;
+    out.set(k.name, { name: k.name, rate: k.ok / Math.max(1, k.n), n: k.n, src: 'diag', sub: k.sub });
+  }
+  return [...out.values()].sort((a, b) => a.rate - b.rate);
+}
+// 正确率 → 难度档（对应 local-queries 的 XINGCE_DIFFICULTY）
+function diffBandFor(rate) {
+  return rate < 0.4 ? 'easy' : rate > 0.8 ? 'hard' : 'balanced';
 }
 
 function kpRate(name) {
@@ -749,6 +799,13 @@ function renderHome() {
   const pct = Math.min(100, Math.round((today / goal) * 100));
   const weak = weakPoints();
   const topWeak = (weak[0] && weak[0].name) || '按模块轮换';
+  // 考点级重点：记录够 8 题就用记录，否则用测评结果（见 weakKpList）
+  const kpFocus = (() => {
+    try { return weakKpList(dailySubject()).slice(0, 2); } catch { return []; }
+  })();
+  const focusLine = kpFocus.length
+    ? `今日重点：<b>${kpFocus.map((k) => esc(k.name)).join('、')}</b>${kpFocus[0].src === 'diag' ? '（测评给的）' : `（${Math.round(kpFocus[0].rate * 100)}%）`}`
+    : '';
   const yd = yesterdayStat();
   const resume = loadSession();
 
@@ -804,6 +861,7 @@ function renderHome() {
     return `<button class="home-alt due-card" data-act="review-train"><span>再复习 <b>${due} 道</b>到期题${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
   })() : ''}
   ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}
+  ${focusLine ? `<div class="home-yday"><span>${focusLine}</span><span data-act="diag-view" class="link-sm">看画像 ›</span></div>` : ''}
   ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n < 5 ? `${yd.n} 题 · 刚起步` : `${yd.n} 题 · 正确率 ${yd.rate}%`}</span></div>` : ''}
   <div class="quick-row three">
     <button class="quick-card" data-act="politics">
@@ -1390,6 +1448,7 @@ function examPresets() {
 function renderExam() {
   if (S.examResult) return renderExamResult();
   if (S.planView) return renderPlan();
+  if (S.diagResult) return renderDiagResult();
   // 整卷列表借住在考试 tab 里：它是最像真考试的东西，所以排第一，而不是塞进题库
   if (S.examPapers) return renderPapers({ host: 'exam' });
   const presets = examPresets();
@@ -1403,6 +1462,16 @@ function renderExam() {
   <section class="training-card exam-hero" style="cursor:pointer" data-act="exam-papers"><div class="training-kicker">首选</div><div class="training-title">真题整卷</div><div class="training-sub">按地区、年份挑一份真卷 · 按真题时长计时 · 交卷出成绩单</div><button class="btn btn-primary btn-block" data-act="exam-papers">选一份卷子</button></section>
   <section class="banner small">${artClock()}<div class="banner-copy"><div class="banner-kicker">${esc(S.profile.examType)} · ${esc(S.profile.province)}</div><div class="banner-title small">距离大考还有 ${daysLeft()} 天</div><div class="banner-sub">按卷型练，比盲目刷题更稳</div></div></section>
   <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
+  ${(() => {
+    const d = S.diag || loadDiag();
+    const age = diagAgeDays();
+    if (!d || !d.modules || !d.modules.length) {
+      return `<section class="training-card diag-card" data-act="diag-start"><div class="training-kicker">先摸摸底</div><div class="training-title">基础测评 · 约 25 分钟</div><div class="training-sub">六个模块各抽几道题，测出哪块最弱。做完之后，每日任务就按这个顺序给你推题。</div><button class="btn btn-ghost btn-block" data-act="diag-start">开始测评</button></section>`;
+    }
+    const w = d.modules[0];
+    const stale = age != null && age >= 30;
+    return `<section class="training-card diag-card" data-act="diag-view"><div class="training-kicker">${stale ? '该重测了' : '上次测评'}</div><div class="training-title">最该补：${esc(w.name)} ${Math.round(w.rate * 100)}%</div><div class="training-sub">${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前测的'} · ${d.total} 题 · 答对 ${d.right}${stale ? ' · 隔了一个月，建议重测一次' : ''}</div><button class="btn btn-ghost btn-block" data-act="diag-view">看能力画像</button></section>`;
+  })()}
   <div class="section-head"><h2 class="section-title">随机组卷</h2><span class="muted" style="font-size:12px">不挑卷子，按题量直接开考</span></div>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
   ${hist.length ? (() => {
@@ -3053,7 +3122,7 @@ async function finishPractice() {
   const delta = Number.isFinite(prevRate) && answered ? rate - prevRate : null;
   localStorage.setItem('sg_last_round_rate', String(rate));
   const ins = roundInsight(P);
-  const kpInfo = P.kp ? kpRecord(P.kp, answered, right) : null;
+  const kpInfo = P.kp ? kpRecord(P.kp, answered, right, P.subject) : null;
   const usedSec = Math.round(P.elapsed || 0);
   let extra = '';
   if (daily && due === 0 && remain > 0) {
@@ -3535,6 +3604,29 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'smart-paper') { openSmartPaper(); return; }
   if (a === 'smart-start') { startSmartPaper(); return; }
+  if (a === 'diag-start') { startDiag(false); return; }
+  if (a === 'diag-view') {
+    S.diagResult = S.diag || loadDiag();
+    if (!S.diagResult) { startDiag(false); return; }
+    go('exam'); return;
+  }
+  if (a === 'diag-redo') { startDiag(false); return; }
+  if (a === 'diag-close') { S.diagResult = null; go('exam'); return; }
+  if (a === 'kp-practice') {
+    const kp = act.dataset.kp;
+    const subject = act.dataset.subject || S.lib.subject || dailySubject();
+    if (!kp) return;
+    startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(subject)}&keypoint=${encodeURIComponent(kp)}&n=10&mock=0&year=10&difficulty=random`, kp, subject, 'kp');
+    return;
+  }
+  if (a === 'kp-subject') {
+    const subject = act.dataset.subject;
+    if (!subject) return;
+    S.lib.subject = subject;
+    S.lib.kpSubject = (S.lib.kpSubjects || []).some((x) => x.subject === subject) ? subject : subject;
+    openKeypoints(subject);
+    return;
+  }
 });
 
 document.addEventListener('change', (e) => {
@@ -3606,20 +3698,41 @@ async function buildNewQuestions(n) {
   const qs = [];
   const seen = new Set();
   let short = [];
+  const focus = [];
   for (const p of plan) {
-    try {
-      // 只抽客观题（单选/多选/判断）：综应、申论大部分是主观题，抽进每日任务等于给用户发作文题
-      const got = await fetchPool(p.subject, p.n);
-      let hit = 0;
-      for (const q of got || []) {
+    let hit = 0;
+    // 先补最弱的考点：70% 的新题从「你在这正确率最低」的考点里抽，
+    // 剩下的随机补齐——全按弱项抽会偏科，考场上一科崩了照样过不了。
+    const weak = weakKpList(p.subject).slice(0, 3);
+    const wantKp = weak.length ? Math.round(p.n * 0.7) : 0;
+    for (const w of weak) {
+      if (hit >= wantKp) break;
+      const take = Math.max(2, Math.ceil(wantKp / Math.min(weak.length, 3)));
+      const rows = await fetchByKp(p.subject, w.name, take, diffBandFor(w.rate));
+      let got = 0;
+      for (const q of rows) {
         const id = q.id ?? q.questionId;
         if (id == null || seen.has(id)) continue;
-        seen.add(id); qs.push(q); hit++;
-        if (hit >= p.n) break;
+        seen.add(id); qs.push(q); hit++; got++;
+        if (hit >= wantKp || got >= take) break;
       }
-      if (hit < p.n) short.push({ subject: p.subject, n: p.n - hit });
-    } catch { short.push({ subject: p.subject, n: p.n }); }
+      if (got) focus.push({ name: w.name, rate: Math.round(w.rate * 100), sub: p.subject, src: w.src });
+    }
+    if (hit < p.n) {
+      try {
+        // 只抽客观题（单选/多选/判断）：综应、申论大部分是主观题，抽进每日任务等于给用户发作文题
+        const got = await fetchPool(p.subject, p.n - hit);
+        for (const q of got || []) {
+          const id = q.id ?? q.questionId;
+          if (id == null || seen.has(id)) continue;
+          seen.add(id); qs.push(q); hit++;
+          if (hit >= p.n) break;
+        }
+      } catch { /* ignore */ }
+    }
+    if (hit < p.n) short.push({ subject: p.subject, n: p.n - hit });
   }
+  S.dailyFocus = focus.slice(0, 3);
   // 某科客观题不够（典型是综应），缺额按权重转给其余科目，别让用户少做题
   for (const s of short) {
     const donors = plan.filter((x) => x.subject !== s.subject);
@@ -3647,6 +3760,121 @@ async function buildNewQuestions(n) {
   const list = qs.slice(0, n);
   return list;
 }
+/* ---------- 基础测评：组卷 ---------- */
+// 每个模块（chapter）抽 6 题，按「2 易 + 3 中 + 1 难」分层，
+// 目的是排序「哪块最弱」，不是报分数——36 题的样本算不出可信的总分。
+async function buildDiagPaper() {
+  const subject = dailySubject();
+  let chapters = [];
+  try { chapters = await api('/api/chapters?subject=' + encodeURIComponent(subject)); } catch { chapters = []; }
+  const mods = (chapters || []).filter((g) => g && Number(g.total) > 0).slice(0, 6);
+  const qs = [];
+  const seen = new Set();
+  for (const g of mods) {
+    let rows = [];
+    try {
+      // 用 chapters（数组形式，走 IN 匹配）而不是 chapter：handler 会把 chapters 拆成数组，
+      // 顺便修掉了 practice() 里对数组调 .split() 的崩溃（以前只有这个参数会炸）
+      rows = await api(`/api/practice?subject=${encodeURIComponent(subject)}&chapters=${encodeURIComponent(g.group)}&n=20&mock=0&year=10&difficulty=random&types=1,2,3`);
+    } catch { rows = []; }
+    if (!rows.length) continue;
+    const easy = rows.filter((q) => (Number(q.difficulty) || 0) <= 3);
+    const mid = rows.filter((q) => (Number(q.difficulty) || 0) >= 4 && (Number(q.difficulty) || 0) <= 5);
+    const hard = rows.filter((q) => (Number(q.difficulty) || 0) >= 6);
+    // 库里难度分布很不均（职测大量题都标 5），按 2/3/1 分层的模块经常凑不满 6 题，
+    // 所以先按分层挑，剩下的用其他难度补足——只挑出 3 题的模块，判级会太抖。
+    const pick = [...easy.slice(0, 2), ...mid.slice(0, 3), ...hard.slice(0, 1)];
+    const used = new Set(pick.map((q) => String(q.id ?? q.questionId)));
+    for (const q of rows) {
+      if (pick.length >= 6) break;
+      const k = String(q.id ?? q.questionId);
+      if (used.has(k)) continue;
+      used.add(k); pick.push(q);
+    }
+    let took = 0;
+    for (const q of pick) {
+      const k = String(q.id ?? q.questionId);
+      if (seen.has(k)) continue;
+      seen.add(k); qs.push(q); took++;
+      if (took >= 6) break;
+    }
+  }
+  return { subject, qs };
+}
+
+async function startDiag(fromOnboard) {
+  toast('正在按模块抽题，几秒钟…');
+  const { subject, qs } = await buildDiagPaper();
+  if (!qs.length) { toast('暂时组不出测评题，可以先用每日任务练着'); return; }
+  startPractice(qs, '基础测评', subject, 'diag');
+  const P = S.practice;
+  // 测评走考试态：不即时判分、不做解析卡，交卷后一次性出画像
+  P.exam = true;
+  P.limitSec = qs.length * 50;
+  P.remaining = P.limitSec;
+  P.fromOnboard = !!fromOnboard;
+  saveSession();
+  renderPractice();
+}
+
+function buildDiagReport(P, used) {
+  const byMod = new Map();
+  const byKp = new Map();
+  let right = 0;
+  P.qs.forEach((q, i) => {
+    const ok = !!P.answers[i]?.feedback?.ok;
+    if (ok) right++;
+    const mod = q.chapter || '未分类';
+    const m = byMod.get(mod) || { name: mod, n: 0, ok: 0 };
+    m.n++; if (ok) m.ok++; byMod.set(mod, m);
+    if (q.kp) {
+      const k = byKp.get(q.kp) || { name: q.kp, sub: q.subject || P.subject, n: 0, ok: 0 };
+      k.n++; if (ok) k.ok++; byKp.set(q.kp, k);
+    }
+  });
+  const rateOf = (x) => (x.n ? x.ok / x.n : 0);
+  const modules = [...byMod.values()]
+    .map((m) => ({ ...m, rate: rateOf(m), level: rateOf(m) >= 0.7 ? 'green' : rateOf(m) >= 0.4 ? 'yellow' : 'red' }))
+    .sort((a, b) => a.rate - b.rate);
+  const kps = [...byKp.values()].map((k) => ({ ...k, rate: rateOf(k) })).sort((a, b) => a.rate - b.rate).slice(0, 8);
+  return {
+    at: Date.now(), subject: P.subject, used: Math.round(used || 0),
+    total: P.qs.length, right, modules, kps,
+  };
+}
+
+function renderDiagResult() {
+  const R = S.diagResult;
+  if (!R) return renderExam();
+  const pct = Math.round((R.right / Math.max(1, R.total)) * 100);
+  const weak = R.modules[0];
+  const lvText = { red: '要重点补', yellow: '有漏洞', green: '已掌握' };
+  return `
+  <div class="topline"><button class="icon-btn" data-act="diag-close">‹</button><span class="eyebrow">基础测评</span></div>
+  <h1 class="page-title">你的能力画像</h1>
+  <div class="card-sub" style="margin:-8px 0 14px">${esc(R.subject)} · ${R.total} 题 · 答对 ${R.right} · 用时 ${fmtTime(R.used || 0)}</div>
+  <div class="card diag-hero">
+    <div class="rbig">${pct}<i>%</i></div>
+    <div class="rlab">这次测评的正确率</div>
+    ${weak ? `<div class="diag-lead">最该补的是 <b>${esc(weak.name)}</b>（${Math.round(weak.rate * 100)}%）。已经按这个调整每日任务：新题会先从这里抽。</div>` : ''}
+  </div>
+  <div class="section-head"><h2 class="section-title">按模块看</h2><span class="muted" style="font-size:12px">红 = 先补</span></div>
+  <div class="card list-card">${R.modules.map((m) => `
+    <div class="diag-row">
+      <div class="diag-main">
+        <div class="diag-name">${esc(m.name)}<span class="tag ${m.level === 'red' ? 'warn' : m.level === 'green' ? 'ok' : ''}">${lvText[m.level]}</span></div>
+        <div class="diag-bar"><i class="lv-${m.level}" style="width:${Math.round(m.rate * 100)}%"></i></div>
+      </div>
+      <div class="diag-pct">${Math.round(m.rate * 100)}%<span>${m.ok}/${m.n}</span></div>
+    </div>`).join('')}</div>
+  ${R.kps.length ? `<div class="section-head"><h2 class="section-title">最弱的考点</h2><span class="muted" style="font-size:12px">点一下直接练</span></div>
+  <div class="card list-card">${R.kps.slice(0, 6).map((k) => `<button class="kp-diag-row" data-act="kp-practice" data-kp="${esc(k.name)}" data-subject="${esc(k.sub || R.subject)}"><span>${esc(k.name)}</span><em>${Math.round(k.rate * 100)}%</em><i class="chev">›</i></button>`).join('')}</div>` : ''}
+  <div class="home-alt" style="margin-top:14px"><span>这份测评只用来排序强弱，<b>不预测分数</b></span><span class="home-alt-r">${S.diag ? '已保存' : ''}</span></div>
+  <button class="btn btn-ghost btn-block" data-act="diag-redo" style="margin-top:12px">重新测一次</button>
+  <button class="btn btn-primary btn-block" data-act="diag-close" style="margin-top:8px">回考试</button>`;
+}
+
+
 async function startDailyTask() {
   const remain = dailyRemaining();
   if (remain <= 0) { toast('今日任务已完成，想多练可以点「继续上次」或随机练习'); return; }
@@ -3795,6 +4023,20 @@ async function submitExam() {
   }
   P.lastWrongIds = P.qs.filter((q, i) => P.answers[i]?.confirmed && !P.answers[i].feedback?.ok).map((q) => q.id);
   await attachKeypoints(P.qs);
+  const diagUsed = Math.max(0, (P.limitSec || 0) - P.remaining);
+  if (P.kind === 'diag') {
+    // 测评不进模考历史：它不是一次考试，是给引擎喂的先验
+    const rep = buildDiagReport(P, diagUsed);
+    saveDiag(rep);
+    S.diagResult = rep;
+    S.examResult = null;
+    clearSession();
+    $('#practice').hidden = true;
+    try { await refreshStats(); } catch { /* ignore */ }
+    go('exam');
+    toast('测评完成，已按结果调整每日任务的出题重点');
+    return;
+  }
   clearSession();
   $('#practice').hidden = true;
   try { await refreshStats(); } catch { /* ignore */ }
@@ -4233,17 +4475,35 @@ document.addEventListener('click', (e) => {
   if (obDate) { S.ob.draft.examDate = obDate.dataset.obDate; S.ob.draft.examName = obDate.dataset.obName; renderOnboarding(); return; }
   if (obGoal) { S.ob.draft.dailyGoal = Number(obGoal.dataset.obGoal); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-skills]')) { S.ob.draft.skills = S.ob.draft.skills === false; renderOnboarding(); return; }
-  if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(2, S.ob.step + 1); renderOnboarding(); return; }
+  if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(3, S.ob.step + 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-back]')) { S.ob.step = Math.max(0, S.ob.step - 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700)); return; }
-  if (e.target.closest('[data-ob-finish]')) {
+  if (e.target.closest('[data-ob-finish-skip]') || e.target.closest('[data-ob-finish]')) {
+    const skipDiag = !!e.target.closest('[data-ob-finish-skip]');
     const want = S.ob.draft.skills !== false;
     saveProfile(S.ob.draft);
     S.settings.skills = want;
     saveSettings();
     S.ob = null; $('#onboard').hidden = true;
     if (want) setTimeout(() => { ensureBuiltinSkills(true).catch(() => {}); }, 1200);
+    if (skipDiag) {
+      try { localStorage.setItem(DIAG_SKIP_KEY, String(Date.now())); } catch { /* ignore */ }
+      toast('先跳过测评。随时可以在「考试 → 基础测评」里补做', 4200);
+    }
     loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700));
+    return;
+  }
+  if (e.target.closest('[data-ob-diag]')) {
+    const want = S.ob.draft.skills !== false;
+    saveProfile(S.ob.draft);
+    S.settings.skills = want;
+    saveSettings();
+    S.ob = null; $('#onboard').hidden = true;
+    if (want) setTimeout(() => { ensureBuiltinSkills(true).catch(() => {}); }, 1200);
+    loadHome().catch(() => {}).then(() => {
+      go('exam');
+      setTimeout(() => { startDiag(true).catch(() => toast('测评没组出来，可以在「考试 → 基础测评」再试')); }, 400);
+    });
     return;
   }
   /* AI 配置引导 */
@@ -4307,9 +4567,17 @@ function renderOnboarding() {
   if (ob.step === 0) {
     el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第一次见面</div><div class="ob-title">你准备考什么？</div><div class="ob-sub">选好方向，题库、试卷和推荐都会跟着变</div><div class="ob-cards">${['公务员', '事业编', '三支一扶'].map((x) => `<button class="ob-card ${d.examType === x ? 'active' : ''}" data-ob-exam="${x}"><b>${x}</b><span>${x === '公务员' ? '国考 / 省考' : x === '事业编' ? '职测 / 综应 / 公基' : '公基 / 行测'}</span></button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-skip>先随便逛逛</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else if (ob.step === 1) {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 2 步 / 共 3 步</div><div class="ob-title">目标省份</div><div class="ob-sub">省考、事业单位统考的卷子按省份区分</div><div class="ob-grid">${PROVINCES.map((x) => `<button class="ob-chip ${d.province === x ? 'active' : ''}" data-ob-province="${x}">${x}</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 2 步 / 共 4 步</div><div class="ob-title">目标省份</div><div class="ob-sub">省考、事业单位统考的卷子按省份区分</div><div class="ob-grid">${PROVINCES.map((x) => `<button class="ob-chip ${d.province === x ? 'active' : ''}" data-ob-province="${x}">${x}</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
+  } else if (ob.step === 2) {
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 4 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div><div class="ob-label">AI 技能</div><button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>内置技能：申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button><div class="ob-sub" style="margin-top:6px">技能是给 AI 用的答题规范，不配 Key 也能先装着，配了就直接生效。后面在「我的 → AI 助手」随时能改</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 3 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div><div class="ob-label">AI 技能</div><button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>内置技能：申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button><div class="ob-sub" style="margin-top:6px">技能是给 AI 用的答题规范，不配 Key 也能先装着，配了就直接生效。后面在「我的 → AI 助手」随时能改</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-finish>开始使用</button></div>`;
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 4 步 / 共 4 步 · 可跳过</div><div class="ob-title">先做个基础测评？</div><div class="ob-sub">六个模块各抽几道题，约 25 分钟。测完不用自己判断强弱 —— 每日任务会先补错得多的那几块。</div>
+      <div class="ob-ai-list">
+        <div class="ob-ai-row"><b>测什么</b><span>六个模块各 6 题，由易到难</span></div>
+        <div class="ob-ai-row"><b>测完给你</b><span>模块强弱排序 + 最该补的考点</span></div>
+        <div class="ob-ai-row"><b>有什么用</b><span>新装的头几天没有做题记录，先有它，推题才不是瞎抽</span></div>
+      </div>
+      <div class="ob-hint">跳过的后果只是头几天推题更随机；随时可以在「考试 → 基础测评」里补做。</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-finish-skip>先跳过</button><button class="btn btn-primary" data-ob-diag>开始测评</button></div>`;
   }
 }
 
@@ -4602,6 +4870,7 @@ function bindAndroidBack() {
   document.documentElement.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   S.plan = loadPlan();
   S.settings = loadSettings();
+  S.diag = loadDiag();
   applyFontSize(S.settings.fs);
 
   // 先用上一次的首屏数字直出，不等任何桥、不发任何请求。

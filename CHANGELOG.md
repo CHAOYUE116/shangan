@@ -1,3 +1,20 @@
+## App 0.6.0
+
+每日任务从「按科目随机抽」改成「按薄弱考点抽、难度自适应」，并加了一个 25 分钟就能做完的基础测评来给出初始画像。
+
+- **每日任务按薄弱考点抽题**：每科先取最弱的 3 个考点，`wantKp = round(n * 0.7)` 从这些考点出题，剩余用随机题补齐。
+  - 难度跟着正确率：`diffBandFor(rate)` —— `<0.4 → easy(1–3)`、`>0.8 → hard(5–9)`、其余 `balanced(3–6)`。
+  - 薄弱名单两层来源：`kpRecord()` 累计做过 ≥8 题的考点按实际正确率；没数据的用测评先验（`sg_diag_v1`）。
+  - 考点记录补 `sub` 字段（`kpRecord(name, done, right, subject)`），同名考点跨科不再串。
+- **基础测评（能力画像）**：`buildDiagPaper()` 取 6 个 `total>0` 模块 × 6 题，按「2 易 + 3 中 + 1 难」分层，凑不满时用同模块其余难度补足（早期版本只出 14–16 题，因为库里难度大量堆在 5）。
+  - 交卷 → `buildDiagReport()` 按模块/考点聚合，≥70% 绿、≥40% 黄、其余红；`renderDiagResult()` 出画像页（总体正确率、模块条、最弱 8 个考点可点练）。
+  - 测评作答进 `records`，但**不进错题本、不计入今日任务**；不进模考历史（`P.kind === 'diag'` 分支单独处理）。
+  - 入口三处：引导页第 4 步（`data-ob-diag` / `data-ob-finish-skip`）、考试 tab 常驻卡（`diag-start` / `diag-view`）、首页「今日重点」（`diag-view`）。跳过时 toast 提示「随时可以在『考试 → 基础测评』里补做」，满 30 天提示重测。
+- **首页「今日重点」**：`weakKpList(dailySubject()).slice(0,2)` 渲染今天主要练的两个考点。
+- **题库 0.5.17**：`tools/import-keypoints.mjs` 新增 `--require-options`（缺选项的新题不入库，但已存在题照写考点映射）→ 新增 **6,963** 道带选项的考点散题、考点映射 **98,199 行 / 432 个考点**（职测）；库 411,930,624 → **430,501,888 B**。
+- **修 APK 里两份题库**：`tools/sync-webapp.mjs` 不再把 `app-assets/*.db` 同步进 `webapp/`，`NativeDbBridge` 改从 `assets/` 根目录读（`DB_ASSET_DIR = ""`）。之前打包出来 **299 MB**，现在 **148.9 MB**。
+- 顺带修：`local-queries.js` 的 `practice()` 在 `chapters` 传数组时调 `.split` 抛 `chapters.split is not a function`（改成 `Array.isArray` 分支）。
+
 ## App 0.5.6（续）
 
 - 模考入口统一：考试 tab 顶部改成「真题整卷」首选块，随机组卷降到下面；整卷列表直接住在考试 tab 里（返回回考试首页）。
