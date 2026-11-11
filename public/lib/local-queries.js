@@ -248,9 +248,12 @@ export function toQuestion(q) {
 
 /** 判分：选项索引 → 是否正确（与 server checkAnswer 相同；兼容已解析的 options 数组） */
 export function checkAnswer(q, selected) {
-  const opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
+  let opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
   const sel = (Array.isArray(selected) ? selected : [selected]).map(Number);
   const ans = String(q.answer ?? '').trim();
+  // 判断题（公基 4,115 道）库里没有选项文本，答案存成 A/B（或 0/1），answerIndex 对齐 0=正确 1=错误。
+  // 不在这里补选项的话，`Number('B')` 是 NaN，判断题永远判错。
+  if (!opts.length && q.type != null && String(q.type) === '5' && q.answerIndex >= 0) opts = ['正确', '错误'];
   if (ans.startsWith('[')) {
     let parsed = JSON.parse(ans);
     if (Array.isArray(parsed) && parsed.length && Array.isArray(parsed[0])) parsed = parsed[0];

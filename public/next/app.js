@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.5.3';
+const APP_VERSION = '0.5.4';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2818,9 +2818,29 @@ function renderMaterial(q) {
 // 题型标签：以前一律写死「单项选择」，多选题、判断题都跟着错标。
 // 题干自带「(不定项选择)」这类前缀时以它为准，并把前缀从正文里去掉，免得一行里两次题型。
 const TYPE_PREFIX = /^[（(]\s*(不定项选择|多项选择|单项选择|单选|多选|判断)\s*[）)]\s*/;
+const JUDGE_OPTS = ['正确', '错误'];
+/** 题库里判断题（type 5）没有选项文本，答案存成 0/1。
+ *  不补选项的话，判断题会被当成主观题渲染成「AI 批改」框 —— 公基 3,655 道全废。 */
+function optionsOf(q) {
+  const o = Array.isArray(q.options) ? q.options : [];
+  if (o.length) return o;
+  const ai = Number(q.answerIndex);
+  if (String(q.type ?? '') === '5') return JUDGE_OPTS;
+  if (ai >= 0 && /^[01]$/.test(String(q.answer ?? '').trim())) return JUDGE_OPTS;
+  return o;
+}
+/** 多选题：type 2，或多答案存在 answer 里（"0,2,3"）。 */
+function isMultiOf(q) {
+  if (String(q.type ?? '') === '2') return true;
+  const ans = String(q.answer ?? '').trim();
+  return /^[\d,\s]+$/.test(ans) && ans.includes(',');
+}
+const selArr = (s) => (Array.isArray(s) ? s : s == null ? [] : [s]);
+const hasSel = (s) => (Array.isArray(s) ? s.length > 0 : s != null && s !== '');
 function typeTagOf(q, options) {
-  if (!options.length) return '主观题';
   const t = String(q.type ?? '');
+  if (t === '5') return '判断题';
+  if (!options.length) return '主观题';
   if (t === '2') return '多项选择';
   if (t === '3') return '判断';
   const m = String(q.content || '').match(TYPE_PREFIX);
@@ -2846,7 +2866,7 @@ function refStatLine(ref) {
 }
 function renderQuestionBlock(q, fb) {
   const P = S.practice;
-  const options = Array.isArray(q.options) ? q.options : [];
+  const options = optionsOf(q);
   const opts = options.map((o, i) => {
     const correct = (fb?.correct || []).includes(i);
     const picked = (fb?.selected || []).includes(i);
@@ -2872,7 +2892,7 @@ function renderPractice() {
   const flagEl = $('#p-flag-btn');
   if (flagEl) flagEl.classList.toggle('on', !!(P.flagged || {})[P.idx]);
   const body = $('#p-body'); const acts = $('#p-actions');
-  const options = Array.isArray(q.options) ? q.options : [];
+  const options = optionsOf(q);
   // 背题模式：不答题，直接连题带解析一起看。答案从 /api/question 取（按题干缓存），
   // 拿不到就退化成「只有题干 + 解析」，不影响阅读。
   if (S.settings.recite && !P.exam) {
@@ -2892,9 +2912,12 @@ function renderPractice() {
     return;
   }
   if (P.exam || !P.confirmed) {
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${options.length ? '单项选择' : '主观题'}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${options.map((o, i) => `<button class="option ${P.selected === i ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}`;
+    const picked = selArr(P.selected);
+    const multi = isMultiOf(q) && !P.exam;
+    const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
-    else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${P.selected == null ? 'disabled style="opacity:.45"' : ''}>确认答案</button>`;
+    else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
   } else {
     const fb = P.feedback || {};
@@ -2914,7 +2937,7 @@ function renderPractice() {
 }
 async function confirmAnswer() {
   const P = S.practice; const q = currentQ();
-  if (P.selected == null || P.confirmed) return;
+  if (!hasSel(P.selected) || P.confirmed) return;
   tickQCost();
   try {
     const r = await api('/api/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, selected: P.selected }) });
@@ -2950,7 +2973,7 @@ async function confirmAnswer() {
         })
         .catch(() => {});
     }
-    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [P.selected], correct: r.ok, costMs: qCostOf(P.idx), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(P.selected), correct: r.ok, costMs: qCostOf(P.idx), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
     // 参照统计（本地口径）：这道题所在考点上你的历史正确率、这道题你常错在哪个选项。
     // 明确不是「全站正确率」——离线题库没有别人数据，标成全站就是编数字。
     const atIdx = P.idx;
@@ -3088,7 +3111,18 @@ document.addEventListener('click', (e) => {
   const opt = e.target.closest('[data-opt]');
   if (opt) {
     const P2 = S.practice;
-    P2.selected = Number(opt.dataset.opt);
+    const idx = Number(opt.dataset.opt);
+    if (isMultiOf(currentQ())) {
+      // 多选题：点一下加进去，再点一下取消，不自动判分（判分要整组对比）
+      const cur = selArr(P2.selected).slice();
+      const at = cur.indexOf(idx);
+      if (at >= 0) cur.splice(at, 1); else cur.push(idx);
+      cur.sort((a, b) => a - b);
+      P2.selected = cur;
+      saveCurrentAnswer(); saveSession(); renderPractice();
+      return;
+    }
+    P2.selected = idx;
     saveCurrentAnswer(); saveSession(); renderPractice();
     // 练习模式默认点选项即判定（少点一次），考试模式必须留到交卷
     if (!P2.exam && !P2.confirmed && S.settings.instant) confirmAnswer();
@@ -3693,13 +3727,13 @@ async function submitExam() {
   for (let i = 0; i < P.qs.length; i++) {
     const q = P.qs[i];
     const a = P.answers[i];
-    if (!a || a.selected == null) continue;
+    if (!a || !hasSel(a.selected)) continue;
     try {
       const r = await api('/api/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, selected: a.selected }) });
       P.answers[i] = { ...a, confirmed: true, feedback: r };
       if (r.ok) right++;
       updateReview(q.id, !!r.ok, Number((P.qCost || {})[i]) || 0, q.difficulty);
-      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: [a.selected], correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0, autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(a.selected), correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0, autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
     } catch { /* 单题判分失败不阻塞交卷 */ }
   }
   P.lastWrongIds = P.qs.filter((q, i) => P.answers[i]?.confirmed && !P.answers[i].feedback?.ok).map((q) => q.id);
