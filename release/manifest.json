@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.4.0",
-    "versionCode": 85,
-    "code": 85,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
+    "version": "0.4.1",
+    "versionCode": 86,
+    "code": 86,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.1-release.apk",
     "sources": [
       {
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.1-release.apk",
         "kind": "gh-proxy"
       },
       {
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.0-release.apk",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/shangan-0.4.1-release.apk",
         "kind": "github"
       }
     ],
-    "size": 150308583,
-    "sha256": "e4d2d4a2de1fabc933da3ae06acc75b2cd260b1bd7574d25d5ba18348f991541",
-    "name": "shangan-0.4.0-release.apk",
-    "note": "报告下钻考点级、错题本按模块筛选、订正即移出、每题参照正确率与易错项"
+    "size": 150308831,
+    "sha256": "93c92ebf64f96896cc867a59b889a2c816520b371ded3d73fb62d2a833c10d20",
+    "name": "shangan-0.4.1-release.apk",
+    "note": "时政列表加序号与分割线、已读置灰；仓库整理与数据导出"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.4.0：报告下钻考点级、错题本按模块筛选、订正即移出、每题参照正确率与易错项"
+  "note": "App 0.4.1：时政列表加序号与分割线、已读置灰；仓库整理与数据导出"
 }
