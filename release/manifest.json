@@ -2,23 +2,23 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.4.2",
-    "versionCode": 87,
+    "version": "0.4.3",
+    "versionCode": 88,
     "code": 86,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.2-release.apk",
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.3-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.2-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.3-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.2-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.4/shangan-0.4.3-release.apk"
       }
     ],
-    "size": 150309709,
-    "sha256": "98d662f21b11ac4e13a2aedc60125b97a96d629ef55e9ee74f633280ab62b0e2",
-    "name": "shangan-0.4.2-release.apk",
+    "size": 150310062,
+    "sha256": "ced87cbd64bfa964cc00fd8acfe7a3ae469f30fe318aa17e4d5fe050ef2c9f47",
+    "name": "shangan-0.4.3-release.apk",
     "note": "时政列表加序号与分割线、已读置灰；仓库整理与数据导出"
   },
   "tiku": {
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.4.2：内置技能默认开启、时政分割线与序号"
+  "note": "App 0.4.3：时政正文按主题分段（序号+分割线）"
 }
