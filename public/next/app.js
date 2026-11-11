@@ -1146,10 +1146,14 @@ async function runSearch() {
   }
 }
 
-async function loadPapers() {
+async function loadPapers(opts = {}) {
+  // 同一套列表现在有两个落地页：题库里的「按试卷练习」和考试 tab 的「真题整卷」。
+  // host 决定渲染完后停在哪个 tab，也决定顶部返回箭头往哪走。
+  const inExam = opts.host === 'exam';
   if (!S.lib.subject || !visibleSubjects().some((s) => s.subjectName === S.lib.subject)) S.lib.subject = defaultSubject();
   if (!S.lib.subject) { toast('暂无可用科目'); return; }
   S.lib.view = 'papers';
+  S.examPapers = inExam;
   $('#view').innerHTML = '<div class="spinner"></div>';
   try {
     const [papers, categories, chapters, done] = await Promise.all([
@@ -1164,10 +1168,17 @@ async function loadPapers() {
     S.lib.done = done || {};
     S.lib.filter = { region: '全部', year: '全部', kind: '全部' };
     S.lib.show = 80;
-    go('library');
+    go(inExam ? 'exam' : 'library');
   } catch (e) { toast(e.message); }
 }
 function yearOf(name) { const m = String(name).match(/(20\d{2})/); return m ? m[1] : '其他'; }
+// 首页「模考」和考试 tab 的整卷入口都走这里：先清掉上一次的交卷结果/计划页，
+// 再把整卷列表装进考试 tab，避免停在中途的模考成绩单上。
+async function openExamPapers() {
+  S.examResult = null;
+  S.planView = false;
+  await loadPapers({ host: 'exam' });
+}
 // 「分类」这一栏原来直接用数据库里的 papers.category，可那列是采集时粉笔的 label 名，
 // 里�面混了三种维度：省份（福建/江苏/天津）、考试类型（事业单位/书记员/选调）、
 // 联考类别（联考A类/C类），还有【辅警】这种带括号的 —— 摊在一排 chip 里根本没法用。
@@ -1187,7 +1198,8 @@ function kindOf(name) {
   if (/模拟|模考|预测|押题/.test(s)) return '模拟';
   return '真题';
 }
-function renderPapers() {
+function renderPapers(opts = {}) {
+  const inExam = opts.host === 'exam' || (opts.host == null && !!S.examPapers);
   const f = S.lib.filter;
   const uniq = (arr) => [...new Set(arr)];
   const regions = ['全部', ...uniq(S.lib.papers.map((p) => regionOf(p.name))).sort((a, b) => a.localeCompare(b, 'zh'))];
@@ -1196,7 +1208,9 @@ function renderPapers() {
   const list = S.lib.papers.filter((p) => (f.region === '全部' || regionOf(p.name) === f.region) && (f.year === '全部' || yearOf(p.name) === f.year) && (f.kind === '全部' || kindOf(p.name) === f.kind));
   const chip = (key, val) => `<button class="chip ${f[key] === val ? 'active' : ''}" data-pf="${key}" data-val="${esc(val)}">${esc(val)}</button>`;
   return `
-  <div class="subpage-head"><button class="icon-btn" data-act="back-subject">‹</button><div class="subpage-title">筛选试卷</div><span style="width:38px"></span></div>
+  ${inExam
+    ? `<div class="subpage-head"><button class="icon-btn" data-act="back-exam">‹</button><div class="subpage-title">真题整卷</div><span style="width:38px"></span></div>`
+    : `<div class="subpage-head"><button class="icon-btn" data-act="back-subject">‹</button><div class="subpage-title">筛选试卷</div><span style="width:38px"></span></div>`}
   <div class="filter-group"><div class="filter-label">科目</div><div class="chips nowrap">${visibleSubjects().map((x) => `<button class="chip ${S.lib.subject === x.subjectName ? 'active' : ''}" data-pf-subject="${esc(x.subjectName)}">${esc(x.subjectName)}</button>`).join('')}</div></div>
   <div class="card-sub" style="margin:-4px 0 10px">${esc(S.lib.subject)} · 共 ${list.length} 套</div>
   <div class="filter-group"><div class="filter-label">地区</div><div class="chips nowrap">${regions.map((c) => chip('region', c)).join('')}</div></div>
@@ -1376,6 +1390,8 @@ function examPresets() {
 function renderExam() {
   if (S.examResult) return renderExamResult();
   if (S.planView) return renderPlan();
+  // 整卷列表借住在考试 tab 里：它是最像真考试的东西，所以排第一，而不是塞进题库
+  if (S.examPapers) return renderPapers({ host: 'exam' });
   const presets = examPresets();
   const weak = weakPoints();
   const last7 = ((S.stats && S.stats.last7) || []).filter((x) => x && x.d && x.c != null);
@@ -1384,10 +1400,11 @@ function renderExam() {
   <div class="topline"><span class="eyebrow">考试</span></div>
   <h1 class="page-title">模考</h1>
   <div class="card-sub" style="margin:-8px 0 16px">先独立作答，再看答案。每一次交卷都有自己的成绩单。</div>
+  <section class="training-card exam-hero" style="cursor:pointer" data-act="exam-papers"><div class="training-kicker">首选</div><div class="training-title">真题整卷</div><div class="training-sub">按地区、年份挑一份真卷 · 按真题时长计时 · 交卷出成绩单</div><button class="btn btn-primary btn-block" data-act="exam-papers">选一份卷子</button></section>
   <section class="banner small">${artClock()}<div class="banner-copy"><div class="banner-kicker">${esc(S.profile.examType)} · ${esc(S.profile.province)}</div><div class="banner-title small">距离大考还有 ${daysLeft()} 天</div><div class="banner-sub">按卷型练，比盲目刷题更稳</div></div></section>
   <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
+  <div class="section-head"><h2 class="section-title">随机组卷</h2><span class="muted" style="font-size:12px">不挑卷子，按题量直接开考</span></div>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
-  <section class="training-card" style="cursor:pointer" data-act="papers-entry"><div class="training-title">真题整卷模考</div><div class="training-sub">按地区、年份挑一份真卷 · 按卷计时 · 交卷出成绩单</div><button class="btn btn-ghost btn-block" data-act="papers-entry">选一份卷子</button></section>
   ${hist.length ? (() => {
     const scores = hist.map((r) => (r.total ? (r.right / r.total) * 100 : 0));
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -3088,9 +3105,9 @@ document.addEventListener('click', (e) => {
     go(t); return;
   }
   const pf = e.target.closest('[data-pf]');
-  if (pf) { S.lib.filter[pf.dataset.pf] = pf.dataset.val; S.lib.show = 80; $('#view').innerHTML = renderPapers(); return; }
+  if (pf) { S.lib.filter[pf.dataset.pf] = pf.dataset.val; S.lib.show = 80; $('#view').innerHTML = renderPapers({ host: S.examPapers ? 'exam' : 'library' }); return; }
   const pfs = e.target.closest('[data-pf-subject]');
-  if (pfs) { S.lib.subject = pfs.dataset.pfSubject; loadPapers(); return; }
+  if (pfs) { S.lib.subject = pfs.dataset.pfSubject; loadPapers({ host: S.examPapers ? 'exam' : 'library' }); return; }
   const libSub = e.target.closest('[data-lib-subject]');
   if (libSub) {
     // 换科目时把展开状态清掉，避免上一科展开的模块名在这一科残留
@@ -3216,10 +3233,16 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (a === 'search-open') { openQuestionById(act.dataset.id, '搜索结果'); return; }
-  if (a === 'back-subject') { goBackSmart('library'); return; }
-  if (a === 'papers') { loadPapers(); return; }
-  if (a === 'papers-entry') { loadPapers(); return; }
-  if (a === 'more-papers') { S.lib.show += 80; $('#view').innerHTML = renderPapers(); return; }
+  if (a === 'back-subject') {
+    // 从考试 tab 进来的整卷列表，返回要回考试首页，而不是掉到题库里去
+    if (S.examPapers) { S.examPapers = false; go('exam'); return; }
+    goBackSmart('library'); return;
+  }
+  if (a === 'back-exam') { S.examPapers = false; go('exam'); return; }
+  if (a === 'papers') { loadPapers({ host: S.tab === 'exam' ? 'exam' : 'library' }); return; }
+  if (a === 'papers-entry') { loadPapers({ host: S.tab === 'exam' ? 'exam' : 'library' }); return; }
+  if (a === 'exam-papers') { openExamPapers(); return; }
+  if (a === 'more-papers') { S.lib.show += 80; $('#view').innerHTML = renderPapers({ host: S.examPapers ? 'exam' : 'library' }); return; }
     if (a === 'paper') {
       const pid = act.dataset.id;
       const pname = act.dataset.name || '';
@@ -3253,7 +3276,8 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=15&mock=0&year=10&difficulty=random`, '随机练习', S.lib.subject); return; }
   if (a === 'library-exam') { startExam(10, '随堂测'); return; }
-  if (a === 'exam-hub') { go('exam'); return; }
+  // 首页那张「模考」卡：直接落到考试 tab 的整卷列表，不再先停在 tab 顶
+  if (a === 'exam-hub') { openExamPapers(); return; }
   if (a === 'review-train' || a === 'wrong-train') { reviewTrain(); return; }
   if (a === 'open-q') { openQuestionById(act.dataset.id); return; }
   if (a === 'exam') { startExam(Number(act.dataset.n) || 20, '模拟考试'); return; }
@@ -4458,6 +4482,7 @@ function goBackSmart(fallback) {
   // 这些标记会让 renderXxx() 继续渲染子页，返回前必须清掉
   S.planView = false;
   S.examResult = null;
+  S.examPapers = false;
   if (f && f.tab) {
     S.tab = f.tab;
     if (S.lib) S.lib.view = f.libView || 'subjects';
