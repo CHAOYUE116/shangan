@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-10T17:54:09.777Z",
   "app": {
-    "version": "0.5.0",
-    "versionCode": 90,
-    "code": 90,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk",
+    "version": "0.5.1",
+    "versionCode": 91,
+    "code": 91,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.0-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.5/shangan-0.5.1-release.apk"
       }
     ],
-    "size": 150315169,
-    "sha256": "21edb313232d0f8bf700f4fdf173fb45227b790c1068c00fa21eff303df45f1d",
-    "name": "shangan-0.5.0-release.apk",
-    "note": "App 0.5.0：搜索覆盖解析、筛选与高亮；批改记录落库与分数趋势"
+    "size": 150318094,
+    "sha256": "caca71065336ba092c1c09cd2c128f5cbab8156deb5757060e7d22356b41b23c",
+    "name": "shangan-0.5.1-release.apk",
+    "note": "App 0.5.1：检查更新 7 源兜底 + 本机缓存，断网也能看出有没有新版"
   },
   "tiku": {
     "dbVersion": "0.5.16-20261110-2340",
@@ -128,5 +128,5 @@
     "gzSize": 35486662
   },
   "mirrors": [],
-  "note": "App 0.5.0：搜索覆盖解析、筛选与高亮；批改记录落库与分数趋势"
+  "note": "App 0.5.1：检查更新 7 源兜底 + 本机缓存，断网也能看出有没有新版"
 }
