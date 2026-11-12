@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.6.6",
-    "versionCode": 105,
-    "code": 105,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk",
+    "version": "0.6.7",
+    "versionCode": 106,
+    "code": 106,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.7-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.7-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.7-release.apk"
       }
     ],
-    "size": 176720071,
-    "sha256": "ad60f01f42de66e4bc43571dd26520d24de0c7790a901ea02608b1ae9447bc0e",
-    "name": "shangan-0.6.6-release.apk",
-    "note": "App 0.6.6：学习统计加能力分析（六维雷达 + 估分）；修复 8,703 道题的材料显示成 [object Object]；图片库升级后不再漏更新"
+    "size": 176720383,
+    "sha256": "0b91653f7678f70a53ae32894cdeee54d0de3f41f9738056ffc67f02d16670b3",
+    "name": "shangan-0.6.7-release.apk",
+    "note": "App 0.6.7：修 0.6.6 题库打不开（chapter 为 NULL 打崩章节映射）；题库加载失败改为错误卡 + 重试"
   },
   "tiku": {
     "dbVersion": "0.5.26-20261112-2045",
@@ -59,5 +59,5 @@
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.6.6：学习统计加能力分析（六维雷达 + 估分）；修复 8,703 道题的材料显示成 [object Object]；图片库升级后不再漏更新"
+  "note": "App 0.6.7：修 0.6.6 题库打不开（chapter 为 NULL 打崩章节映射）；题库加载失败改为错误卡 + 重试"
 }
