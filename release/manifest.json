@@ -1,66 +1,66 @@
 {
- "schema": 1,
- "publishedAt": "2026-11-12T01:30:58.270Z",
- "app": {
-  "version": "0.6.2",
-  "versionCode": 99,
-  "code": 99,
-  "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.2-release.apk",
-  "sources": [
-   {
-    "name": "gh-proxy",
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.2-release.apk"
-   },
-   {
-    "name": "github",
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.2-release.apk"
-   }
-  ],
-  "size": 158894769,
-  "sha256": "209433a10d1cb1166301633180b2fc6bcfea1beb9477d0cf4592e96fcf6b5708",
-  "name": "shangan-0.6.2-release.apk",
-  "note": "App 0.6.2：题库 0.5.19（3,784 道题补答案）+ 题库页/考试页/收藏交互调整"
- },
- "tiku": {
-  "dbVersion": "0.5.22-20261112-1400",
-  "questions": 103128,
-  "full": {
-   "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz",
-   "mirrors": [
-    "https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz"
-   ],
-   "sources": [
-    "https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz",
-    "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz"
-   ],
-   "size": 124050417,
-   "rawSize": 464416768,
-   "sha256": "c86d9e8ff0b25565a8aa9376cbf4b8e4086c8f5659766e5f8eecbd453e64bee5",
-   "gzSha256": "6bc3afc926dee16c3faa3586ba7c96d2be9a17dcb64def8e37b6f21b5b799350",
-   "gz": true
+  "schema": 1,
+  "publishedAt": "2026-11-12T01:30:58.270Z",
+  "app": {
+    "version": "0.6.3",
+    "versionCode": 101,
+    "code": 101,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-prod-release.apk",
+    "sources": [
+      {
+        "name": "gh-proxy",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-prod-release.apk"
+      },
+      {
+        "name": "github",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/app-prod-release.apk"
+      }
+    ],
+    "size": 165837398,
+    "sha256": "ea473dd06e1b23c64657b5d3fdd0442ebcbbb88f2730e0e55e1caf7337dafaa4",
+    "name": "app-prod-release.apk",
+    "note": "App 0.6.3：屏蔽 3,029 道做不了的题（缺材料/图丢了/解析公式被吞/答案与解析硬矛盾/客观题没答案）"
   },
-  "delta": []
- },
- "images": {
-  "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",
-  "mirrors": [
-   "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz"
-  ],
-  "sources": [
-   {
+  "tiku": {
+    "dbVersion": "0.5.22-20261112-1400",
+    "questions": 103128,
+    "full": {
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz",
+      "mirrors": [
+        "https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz"
+      ],
+      "sources": [
+        "https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz",
+        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/tiku-0.5.22-20261112-1400/tiku_app.db.gz"
+      ],
+      "size": 124050417,
+      "rawSize": 464416768,
+      "sha256": "c86d9e8ff0b25565a8aa9376cbf4b8e4086c8f5659766e5f8eecbd453e64bee5",
+      "gzSha256": "6bc3afc926dee16c3faa3586ba7c96d2be9a17dcb64def8e37b6f21b5b799350",
+      "gz": true
+    },
+    "delta": []
+  },
+  "images": {
     "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",
-    "kind": "gh-proxy"
-   },
-   {
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",
-    "kind": "github"
-   }
-  ],
-  "size": 41893888,
-  "sha256": "e9ac65de0e65c0a71d3c9c988e5316dcb512ac1ff2a7f65402e97dac3de5d01c",
-  "gz": true,
-  "gzSize": 35486662
- },
- "mirrors": [],
- "note": "题库 0.5.22-20261112-1400：屏蔽 3,029 道做不了的题（缺材料 65 / 图丢了 1,014 / 解析公式被吞 1,531 / 答案与解析硬矛盾 180 / 客观题没答案 237）；公基补齐章节级考点、难度重算成章节内分位"
+    "mirrors": [
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz"
+    ],
+    "sources": [
+      {
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",
+        "kind": "gh-proxy"
+      },
+      {
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.16-20261110-2340/images.db.gz",
+        "kind": "github"
+      }
+    ],
+    "size": 41893888,
+    "sha256": "e9ac65de0e65c0a71d3c9c988e5316dcb512ac1ff2a7f65402e97dac3de5d01c",
+    "gz": true,
+    "gzSize": 35486662
+  },
+  "mirrors": [],
+  "note": "App 0.6.3：屏蔽 3,029 道做不了的题（缺材料/图丢了/解析公式被吞/答案与解析硬矛盾/客观题没答案）"
 }
