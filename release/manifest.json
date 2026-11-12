@@ -2,54 +2,62 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.6.4",
-    "versionCode": 102,
-    "code": 102,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.4-release.apk",
+    "version": "0.6.5",
+    "versionCode": 104,
+    "code": 104,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.4-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.4-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk"
       }
     ],
-    "size": 172029328,
-    "sha256": "64fe1eef87fc57f03a767b4fe3f624dcc44ee5ba22ab7b3a1316a84ec7544ab2",
-    "name": "shangan-0.6.4-release.apk",
-    "note": "App 0.6.4：用粉笔语料补 4,414 道题的答案/解析/材料 + 532 张公式图，坏题 3,029 → 2,139"
+    "size": 173273865,
+    "sha256": "8a1bcd5cef79f5079c72b9a25a16287a0c3beb481b33f3dc7b5f71619a08b87b",
+    "name": "shangan-0.6.5-release.apk",
+    "note": "App 0.6.5：题库 0.5.24（按题干搜题补回 1,436 道题 + 830 张公式图，坏题 2,333 → 1,399）"
   },
   "tiku": {
-    "dbVersion": "0.5.23-20261112-1520",
+    "dbVersion": "0.5.24-20261112-1745",
     "questions": 103128,
     "full": {
       "name": "tiku_app.db.gz",
-      "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.23-20261112-1520/tiku_app.db.gz",
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz",
       "mirrors": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.23-20261112-1520/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz"
       ],
       "sources": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.23-20261112-1520/tiku_app.db.gz",
-        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.23-20261112-1520/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz",
+        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz"
       ],
-      "size": 129737475,
-      "rawSize": 485773312,
-      "sha256": "65544b93a56ce0314baaab3da267556c66e5b6e0c031fd0572b5a38b137a2454",
-      "gzSha256": "5fe8ba2d202358973b77fe8b092886db0fee8845b4ceeb91cd1d06e7018afc6c",
+      "size": 130188997,
+      "rawSize": 487886848,
+      "sha256": "eb183b6b425feaf1c11c21f4d5b09cf96dc294aeb86d5fae2f4476ebc01228a2",
+      "gzSha256": "e70e5b9403b9a1f3897f79fd518f3f82e3a2d8d2c5cbc69d356022d328358248",
       "gz": true
     },
     "delta": [],
-    "note": "题库 0.5.23：用粉笔语料补 4,414 道题（材料 1,768 / 解析 2,666 / 答案 237），补齐 532 张公式图；屏蔽 2,139 道仍需重采的题（图/表未抓到、解析被吞）"
+    "note": "题库 0.5.24：用粉笔搜题接口按题干反查，补回 1,436 道题的答案/解析/材料与 830 张公式图；坏题 2,333 → 1,399（1.36%）"
   },
   "images": {
-    "size": 43126784,
-    "gzSize": 36037541,
-    "sha256": "d0b8ba1dd1643bb562d3d193dc0313df993123f767cab160ccc1b080ec12a450",
-    "gz": true,
-    "name": "images.db.gz"
+    "name": "images.db.gz",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz",
+    "mirrors": [
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz"
+    ],
+    "sources": [
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz",
+      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz"
+    ],
+    "size": 44371968,
+    "gzSize": 36821204,
+    "sha256": "ac3d58ec8c9630db906f06bf8fa5997f81cec2bfdca3e6400f7cbe6853574998",
+    "gz": true
   },
   "mirrors": [],
-  "note": "App 0.6.4：用粉笔语料补 4,414 道题的答案/解析/材料 + 532 张公式图，坏题 3,029 → 2,139"
+  "note": "App 0.6.5：题库 0.5.24（按题干搜题补回 1,436 道题 + 830 张公式图，坏题 2,333 → 1,399）"
 }
