@@ -767,7 +767,7 @@ function feedEngine(P) {
     let oc = 0;
     try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
     items.push({
-      kp, sub: P.subject || q.subject || '', chapter: q.chapter, type: q.type,
+      kp, sub: P.subject || q.subject || '', chapter: q.chapter, type: q.type, qid: q.id,
       optionCount: oc, y: a.feedback && a.feedback.ok ? 1 : 0, ts: Date.now(),
     });
   });
@@ -3157,7 +3157,7 @@ async function confirmAnswer() {
         try {
           window.__ENGINE2__.recordAnswered([{
             kp: kpName, sub: q.subject || P.subject || '', chapter: q.chapter,
-            type: q.type, optionCount: oc, y: r.ok ? 1 : 0, ts: Date.now(),
+            type: q.type, optionCount: oc, y: r.ok ? 1 : 0, ts: Date.now(), qid: q.id,
           }]);
           q.__fed = true;
         } catch { /* 实验功能失败不影响正常流程 */ }
@@ -3827,10 +3827,19 @@ async function buildNewQuestions(n) {
         ? await fetchByChapter(p.subject, w.name, poolN, band)
         : await fetchByKp(p.subject, w.name, poolN, band);
       if (labTune && Array.isArray(rows) && rows.length > take) {
+        // 0.7.2：有账本就按「这道题的预测正确率」贴近 ZPD 目标挑（每题带自己的难度估计），
+        // 没有账本（新用户/没练过这个章节）才退回按 difficulty_est 的三档目标挑。
+        const E2 = window.__ENGINE2__;
         rows = rows
           .map((q) => {
+            let oc = 0;
+            try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
+            const p = E2.predict({ sub: p.subject, chapter: q.chapter || w.name, type: q.type, optionCount: oc, qid: q.id });
             const est = Number(q.difficultyEst ?? q.difficulty) || 5;
-            return { q, score: Math.abs(est - wantEst) + Math.random() * 0.9 };
+            const score = p == null
+              ? Math.abs(est - wantEst) / 9
+              : Math.abs(p - (E2.ZPD_TARGET || 0.75));
+            return { q, score: score + Math.random() * 0.06 };
           })
           .sort((a, b) => a.score - b.score)
           .map((x) => x.q);

@@ -34,10 +34,12 @@ const DB = path.resolve(ROOT, arg('db', 'app-assets/tiku_app.db'));
 const APPLY = argv.includes('--apply');
 
 const CORPUS_DIRS = [
-  path.join(PARENT, 'research/fenbi-solutions/sydw'),
-  path.join(PARENT, 'research/fenbi-solutions/syzc'),
-  path.join(PARENT, 'research/fenbi-keypoint/syzc'),
-];
+  'research/fenbi-solutions/sydw',
+  'research/fenbi-solutions/syzc',
+  'research/fenbi-solutions/xingce',
+  'research/fenbi-solutions/zhyynl',
+  'research/fenbi-keypoint/syzc',
+].map((d) => path.join(PARENT, d)).filter((d) => fs.existsSync(d));
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const IMG_BASE = 'https://fb.fenbike.cn/api/planet/accessories/formulas?latex=';

@@ -343,9 +343,9 @@
   function loadEng() {
     try {
       const j = JSON.parse(localStorage.getItem(ENG_KEY) || 'null');
-      if (j && j.kp && typeof j.kp === 'object') return { v: 1, built: !!j.built, kp: j.kp, m: j.m || null };
+      if (j && j.kp && typeof j.kp === 'object') return { v: 2, built: !!j.built, kp: j.kp, q: j.q || {}, m: j.m || null };
     } catch { /* 坏了重建 */ }
-    return { v: 1, built: false, kp: {} };
+    return { v: 2, built: false, kp: {}, q: {} };
   }
   let ENG = loadEng();
   let saveTimer = 0;
@@ -368,6 +368,30 @@
     const ch = it.chapter || it.name || '';
     return `${sub}|${ch}`;
   }
+  /* ---------- 每题难度：题目级 b 的在线估计 ----------
+   * 调研结论是「9.8 万题 / 单用户 500 条 → 题目级难度在数学上估不出来」，
+   * 那是要求每题几十次作答的经典 IRT 口径。这里不估绝对难度，只估「这道题对这个人
+   * 比同类题偏难多少」：以章节先验为起点，用残差做收缩更新（每题单独累计次数），
+   * 一次作答只挪一点点；见过的题多了才敢让它接近观测值。
+   */
+  const B_LR = 0.35;      // 初始学习率
+  const B_SHRINK = 8;     // 见过 8 次之后学习率减半
+  function qPriorB(it) {
+    return B_SCALE * (typePrior(it.type) + chapterPrior(it.chapter));
+  }
+  function qbOf(it) {
+    const id = it.qid == null ? null : String(it.qid);
+    if (!id) return null;
+    let q = ENG.q[id];
+    if (!q) { q = ENG.q[id] = { b: qPriorB(it), n: 0 }; }
+    return { id, q };
+  }
+  /** 这道题的难度估计（没记录过就用章节/题型先验） */
+  function bEstimate(it) {
+    const got = qbOf(it);
+    return got ? got.q.b : qPriorB(it);
+  }
+
   function stOf(kp) {
     let s = ENG.kp[kp];
     if (!s) s = ENG.kp[kp] = { t: 0, rd: 1.2, n: 0, ok: 0, last: 0, b: null, c: null, pw: 0 };
@@ -378,7 +402,8 @@
   function feedOne(it) {
     if (!it || (!it.kp && !it.chapter)) return;
     const s = stOf(bucketOf(it));
-    const b = B_SCALE * (typePrior(it.type) + chapterPrior(it.chapter));
+    const got = qbOf(it);
+    const b = got ? got.q.b : qPriorB(it);
     const c = guessOf(it.type, it.optionCount);
     // 这个考点「做到过的题」的平均难度/平均蒙对率：用来算「下次给你出这个考点，你大概能做对多少」
     s.b = s.b == null ? b : 0.7 * s.b + 0.3 * b;
@@ -398,6 +423,12 @@
     const K = K_GAIN * (s.rd / (s.rd + 0.5));
     // 用带难度的残差更新，θ 才是「能力」而不是「正确率」
     s.t = clamp(s.t + K * (it.y - p) / Math.max(0.35, 1 - c), -4, 4);
+    // 同一次作答也给「这道题」记一笔：模型高估了你（p 大而你错）→ 这题比同类的难 → b 上抬
+    if (got) {
+      const lr = B_LR / (1 + got.q.n / B_SHRINK);
+      got.q.b = clamp(got.q.b + lr * (p - it.y), -2.5, 2.5);
+      got.q.n += 1;
+    }
     s.rd = Math.max(0.18, s.rd * 0.985);
     s.n = (s.n || 0) + 1;
     if (it.y) s.ok = (s.ok || 0) + 1;
@@ -420,6 +451,7 @@
     const recs = await api('/api/records/recent?limit=4000');
     const list = (Array.isArray(recs) ? recs : recs.list || []).slice().reverse();
     ENG.kp = {};
+    ENG.q = {};
     ENG.m = { n: 0, zpd: 0, convHit: 0, convTrial: 0, sumP: 0 };
     if (list.length) {
       const ids = [...new Set(list.map((r) => String(r.questionId)))];
@@ -430,7 +462,7 @@
         if (!kp) continue;
         feedOne({
           kp, sub: r.subject || '', chapter: m.chapter || r.chapter, type: m.type ?? r.type,
-          optionCount: m.optionCount, y: r.correct ? 1 : 0, ts: parseTime(r.time),
+          optionCount: m.optionCount, y: r.correct ? 1 : 0, ts: parseTime(r.time), qid: r.questionId,
         });
       }
     }
@@ -448,6 +480,15 @@
 
   const ready = () => !!(ENG.built && Object.keys(ENG.kp).length);
   // 预期正确率（含蒙对率与题型难度）：出题挑难度档要用它，不是裸 sigmoid(θ)
+  /** 对「具体一道题」的预期正确率：章节 θ + 这道题的难度 */
+  const predict = (it) => {
+    if (!it) return null;
+    const s = ENG.kp[bucketOf(it)];
+    if (!s || !s.n) return null;
+    const c = guessOf(it.type, it.optionCount);
+    return c + (1 - c) * sig(s.t - bEstimate(it));
+  };
+
   const ability = (kp) => {
     const s = ENG.kp[kp];
     if (!s) return null;
@@ -530,8 +571,9 @@
   function stats() {
     const n = Object.keys(ENG.kp).length;
     const ev = Object.values(ENG.kp).reduce((s, x) => s + (x.n || 0), 0);
-    return { kps: n, events: ev, built: ENG.built, eval: evalStats() };
+    const qn = Object.values(ENG.q || {}).filter((x) => x.n > 0).length;
+    return { kps: n, qs: qn, events: ev, built: ENG.built, eval: evalStats() };
   }
 
-  window.__ENGINE2__ = { ready, ensure, rebuild, recordAnswered, weakList, pick, evalStats, ability, stats, KEY: ENG_KEY, ZPD_TARGET };
+  window.__ENGINE2__ = { ready, ensure, rebuild, recordAnswered, weakList, pick, evalStats, ability, predict, bEstimate, stats, KEY: ENG_KEY, ZPD_TARGET };
 })();
