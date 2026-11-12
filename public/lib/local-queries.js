@@ -125,15 +125,32 @@ function diffCond(difficulty) {
   return ` AND q.difficulty BETWEEN ${d.min} AND ${d.max}`;
 }
 const XINGCE_DIFF_EST = { easy: { min: 1, max: 4 }, balanced: { min: 5, max: 6 }, hard: { min: 7, max: 9 }, random: { min: 1, max: 9 } };
+
+// 坏题过滤：q_bad=1 表示「这道题现在没法做」（缺材料/图丢了/解析里公式被吞/答案与解析硬矛盾/客观题没答案），
+// 由 tools/flag-bad-questions.mjs 打标。这里只过滤、不删数据 —— 拿到原图重采之后把 q_bad 改回 0 就恢复。
+let USE_BAD = false;
+let BAD_PROBED = false;
+function probeBad(tiku) {
+  if (BAD_PROBED || !tiku) return USE_BAD;
+  try {
+    USE_BAD = (tiku.all("SELECT name FROM pragma_table_info('questions') WHERE name = 'q_bad'") || []).length > 0;
+  } catch { USE_BAD = false; }
+  BAD_PROBED = true;
+  return USE_BAD;
+}
+/** 别名固定用 q；对没打标的库返回空串，行为与之前完全一致 */
+function badCond(alias = 'q') {
+  return USE_BAD ? ` AND COALESCE(${alias}.q_bad, 0) = 0` : '';
+}
 const Q_CAT_INDEX = (withSub, dc = '') => withSub
   ? `SELECT qc.question_id FROM question_categories qc
      JOIN questions q ON q.questionId = qc.question_id
      JOIN papers p ON p.id = q.paperId
-     WHERE qc.category = ? AND qc.sub = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`
+     WHERE qc.category = ? AND qc.sub = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc}${badCond('q')} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`
   : `SELECT qc.question_id FROM question_categories qc
      JOIN questions q ON q.questionId = qc.question_id
      JOIN papers p ON p.id = q.paperId
-     WHERE qc.category = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`;
+     WHERE qc.category = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc}${badCond('q')} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`;
 
 // ============ 智能组卷（行测）本地版常量（与 server.mjs 同构） ============
 // 行测考情基准：市地/执法 130 题 / 120 分钟；官方模块序与题量；score 为机构通行单题分值估算
@@ -358,7 +375,8 @@ export function checkAnswer(q, selected) {
 /** 随机出题（与 server randomQuestions 相同；tiku 为适配器；year: 'all'|'3'|'5'|'10'，缺省近十年；difficulty: 'easy'|'balanced'|'hard'|'random'） */
 function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
   probeEst(tiku);
-  const cond = mockCond(mock) + yearCond(year === undefined ? '10' : year) + diffCond(difficulty);
+  probeBad(tiku);
+  const cond = mockCond(mock) + yearCond(year === undefined ? '10' : year) + diffCond(difficulty) + badCond('q');
   const chList = Array.isArray(chapters) ? chapters.filter(Boolean) : (chapters ? [chapters] : []);
   const chCond = chList.length ? `AND q.chapter IN (${chList.map(() => '?').join(',')}) ` : '';
   const where = `p.subjectName = ? ${chCond}${cond}`;
@@ -920,6 +938,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
     /** 随机出题（与 /api/practice 同构；支持章节/树节点/题组） */
     practice(subject, { chapter, chapters, group, sub, mock, n = 10, year, difficulty, custom, keypoint } = {}) {
     probeEst(tiku);
+    probeBad(tiku);
       if (!subject) throw new Error('缺少 subject');
       const chList = Array.isArray(chapters)
         ? chapters.map((s) => String(s).trim()).filter(Boolean)
@@ -936,7 +955,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
           `SELECT kp.questionId FROM (${KP_SOURCE(tiku)}) kp
            JOIN questions q ON q.questionId = kp.questionId
            JOIN papers p ON p.id = q.paperId
-           WHERE kp.kpName = ? AND p.subjectName = ?
+           WHERE kp.kpName = ? AND p.subjectName = ?${badCond('q')}
            GROUP BY kp.questionId ORDER BY RANDOM() LIMIT ?`,
           keypoint, subject, fetchN
         ).map((r) => r.questionId);

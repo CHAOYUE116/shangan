@@ -188,3 +188,4 @@ public/tarzan-img/
 # 质量审计产物（CSV/xlsx 体积大，按需本地生成）
 /report/
 
+.gh-token

@@ -1,3 +1,11 @@
+## App 0.6.3（题库质量：做不了的题先不显示）
+
+- 新增 `tools/flag-bad-questions.mjs`：按六条规则给题打标，写 `questions.q_bad` / `q_bad_reason`（不动任何原字段，改回 0 即可恢复）
+  - 缺材料 65 · 图丢了 1,014 · 解析里公式被吞 1,531 · 答案与解析硬矛盾 180 · 图片键缺失 2 · 客观题没答案 237 = **3,029 道（2.94%）**
+- 出题侧全部过滤（`public/lib/local-queries.js` 的 `probeBad()` + `badCond()`）：随机出题、章节出题、模块出题、考点出题都不再抽到这些题；按 id 单取仍可读（错题回顾不受影响）
+- 题库升到 `0.5.22-20261112-1400`（464 MB / 124 MB gz）。**本轮只发全量包，不发增量** —— 增量格式不带 `q_bad`/`difficulty_est`/`question_keypoints_ext`，带不动这些修复
+- 明细清单：`report/bad-questions-20261112.csv`（3,029 行，含问题类型/科目/章节/题干）
+
 ## App 0.7.0（实验版，仅 lab 包，不进正式版）
 
 - **数据层先修**：新建 `question_keypoints_ext`（49,838 道无考点客观题挂到章节级考点，公基 0→8 个、行测 72%→100%）；难度改成「章节内分位」写 `difficulty_est/difficulty_b/diff_band`（老 `difficulty` 不动），三档齐的章节从 0/111 变 31/31
