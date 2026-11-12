@@ -33,6 +33,7 @@ const withAssets = !process.argv.includes('--no-assets');
 const FILES = [
   ['public/next/index.html', 'index.html'],
   ['public/next/app.js', 'app.js'],
+  ['public/next/lab.js', 'lab.js'],
   ['public/next/style.css', 'style.css'],
   ['public/next/sw-local.js', 'sw-local.js'],
   ['public/next/qc-counts.json', 'qc-counts.json'],

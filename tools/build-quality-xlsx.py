@@ -8,7 +8,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REP = os.path.join(ROOT, "report")
-DAY = "20261111"
+DAY = os.environ.get("QDAY", "20261112")
 OUT = os.path.join(REP, f"题库质量清单-{DAY}.xlsx")
 
 SHEETS = [

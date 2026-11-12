@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.1';
+const APP_VERSION = '0.6.2';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1071,12 +1071,11 @@ function renderLibrary() {
   return `
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
   <h1 class="page-title">刷题</h1>
-  <div class="card-sub" style="margin:-8px 0 12px">${esc(subject)} · 共 ${total} 题</div>
-  <div class="chips nowrap" style="margin-bottom:10px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}${notInScheme(s.subjectName) ? ' ·不考' : ''}</button>`).join('')}</div>
-  <div class="lib-mode-row">
-    <span class="lib-mode-label">做题方式</span>
+  <div class="lib-head">
+    <div class="lib-head-sub">${esc(subject)} · 共 ${total} 题</div>
     <div class="segmented seg-sm"><button class="${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div>
   </div>
+  <div class="chips nowrap" style="margin-bottom:10px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
   <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneOf(g.group), 0)} 题已做</span></div>
   <div class="card module-card">
     ${groups.map((g, i) => {
@@ -1088,9 +1087,10 @@ function renderLibrary() {
       return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部">${caret}<div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${open ? subs2.map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('') : ''}`;
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
-  <div class="stats-row" style="margin-top:14px">
+  <div class="stats-row three" style="margin-top:14px">
     <button class="stat stat-link" data-act="wrong-train"><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
-    <button class="stat stat-link" data-act="library-exam"><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时交卷</span></span><span class="stat-go">测 ›</span></button>
+    <button class="stat stat-link" data-act="library-exam"><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时</span></span><span class="stat-go">测 ›</span></button>
+    <button class="stat stat-link" data-act="subject-random"><span class="stat-txt"><b>随机 20 题</b><span>本${esc(shortName)} · 不计时</span></span><span class="stat-go">练 ›</span></button>
   </div>
   <button class="paper-entry" data-act="papers">
     <div class="subject-ico">${iconFor('')}</div>
@@ -1101,8 +1101,7 @@ function renderLibrary() {
     <div class="subject-ico">${iconFor('')}</div>
     <div class="continue-main"><div class="continue-title">按考点练</div><div class="continue-sub">按真题考点专项突破 · 专攻一个，练完再换</div></div>
     <span class="chev">›</span>
-  </button>
-  <button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="subject-random">本科目随机 20 题</button>`;
+  </button>`;
 }
 function openKeypoints(subject) {
   if (subject) S.lib.subject = subject;
@@ -1460,7 +1459,6 @@ function renderExam() {
   <h1 class="page-title">模考</h1>
   <div class="card-sub" style="margin:-8px 0 16px">先独立作答，再看答案。每一次交卷都有自己的成绩单。</div>
   <section class="training-card exam-hero" style="cursor:pointer" data-act="exam-papers"><div class="training-kicker">首选</div><div class="training-title">真题整卷</div><div class="training-sub">按地区、年份挑一份真卷 · 按真题时长计时 · 交卷出成绩单</div><button class="btn btn-primary btn-block" data-act="exam-papers">选一份卷子</button></section>
-  <section class="banner small">${artClock()}<div class="banner-copy"><div class="banner-kicker">${esc(S.profile.examType)} · ${esc(S.profile.province)}</div><div class="banner-title small">距离大考还有 ${daysLeft()} 天</div><div class="banner-sub">按卷型练，比盲目刷题更稳</div></div></section>
   <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
   ${(() => {
     const d = S.diag || loadDiag();
@@ -1468,9 +1466,10 @@ function renderExam() {
     if (!d || !d.modules || !d.modules.length) {
       return `<section class="training-card diag-card" data-act="diag-start"><div class="training-kicker">先摸摸底</div><div class="training-title">基础测评 · 约 25 分钟</div><div class="training-sub">六个模块各抽几道题，测出哪块最弱。做完之后，每日任务就按这个顺序给你推题。</div><button class="btn btn-ghost btn-block" data-act="diag-start">开始测评</button></section>`;
     }
+    // 测过之后就没什么存在感了：收成一行，别一直占着大块版面
     const w = d.modules[0];
     const stale = age != null && age >= 30;
-    return `<section class="training-card diag-card" data-act="diag-view"><div class="training-kicker">${stale ? '该重测了' : '上次测评'}</div><div class="training-title">最该补：${esc(w.name)} ${Math.round(w.rate * 100)}%</div><div class="training-sub">${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前测的'} · ${d.total} 题 · 答对 ${d.right}${stale ? ' · 隔了一个月，建议重测一次' : ''}</div><button class="btn btn-ghost btn-block" data-act="diag-view">看能力画像</button></section>`;
+    return `<button class="diag-mini" data-act="diag-view"><span class="diag-mini-txt"><span class="diag-mini-top"><b>基础测评</b> · ${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前'}</span><span class="diag-mini-sub">最该补 ${esc(w.name)} ${Math.round(w.rate * 100)}%${stale ? ' · 已过一个月，建议重测' : ''}</span></span><span class="chev">›</span></button>`;
   })()}
   <div class="section-head"><h2 class="section-title">随机组卷</h2><span class="muted" style="font-size:12px">不挑卷子，按题量直接开考</span></div>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
@@ -2741,6 +2740,7 @@ function renderMe() {
     ${window.AppUpdate ? `<div class="menu-row" data-act="update"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查题库更新</div><div class="subject-sub">只更新题库数据，不动 App</div></div><span class="chev">›</span></div>` : ''}
     ${window.AppUpdate ? `<div class="menu-row" data-act="app-update"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('save')}</div><div class="subject-main"><div class="subject-title">检查 App 新版本</div><div class="subject-sub">当前 v${APP_VERSION}${window.__NEW_APP_VER ? ` · 有新版本 ${esc(window.__NEW_APP_VER)}` : ''}</div></div><span class="chev">›</span></div>` : ''}
     <div class="menu-row" data-act="about"><div class="menu-ico">${iconSvg('info')}</div><div class="subject-main"><div class="subject-title">关于上岸</div><div class="subject-sub">v${APP_VERSION} · 题库数据仅个人学习使用</div></div><span class="chev">›</span></div>
+    ${window.__LAB__ ? `<div class="menu-row" data-act="lab-open"><div class="menu-ico" style="background:rgba(224,163,46,.14);color:#B87B14">${iconSvg('lightbulb')}</div><div class="subject-main"><div class="subject-title">实验室 · 自学习引擎</div><div class="subject-sub">测试版专用 · 用自己的记录回测能力模型</div></div><span class="chev">›</span></div>` : ''}
   </div>`;
 }
 
@@ -3010,7 +3010,9 @@ function renderPractice() {
     const picked = selArr(P.selected);
     const multi = isMultiOf(q) && !P.exam;
     const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : `<div class="q-tools"><button class="link-sm" data-act="fav-toggle">☆ 收藏</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`}`;
+    const faved = S.favIds && S.favIds.has(String(q.id));
+    const tools = `<div class="q-tools"><button class="link-sm ${faved ? 'on' : ''}" data-act="fav-toggle" aria-pressed="${faved}">${faved ? '★ 已收藏' : '☆ 收藏'}</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
@@ -3343,7 +3345,7 @@ document.addEventListener('click', (e) => {
     }
     startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&group=${encodeURIComponent(act.dataset.group)}&sub=${encodeURIComponent(act.dataset.sub)}&n=15&mock=0&year=10&difficulty=random`, act.dataset.group, S.lib.subject); return;
   }
-  if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=15&mock=0&year=10&difficulty=random`, '随机练习', S.lib.subject); return; }
+  if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=20&mock=0&year=10&difficulty=random`, '随机 20 题', S.lib.subject); return; }
   if (a === 'library-exam') { startExam(10, '随堂测'); return; }
   // 首页那张「模考」卡：直接落到考试 tab 的整卷列表，不再先停在 tab 顶
   if (a === 'exam-hub') { openExamPapers(); return; }
@@ -3382,12 +3384,24 @@ document.addEventListener('click', (e) => {
   if (a === 'fav-toggle') {
     const q = currentQ();
     if (!q) return;
-    api('/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || S.practice.subject, chapter: q.chapter }) })
-      .then(() => toast('收藏已更新'))
+    const id = String(q.id);
+    if (!S.favIds) S.favIds = new Set();
+    const faved = S.favIds.has(id);
+    api('/api/favorites', {
+      method: faved ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionId: q.id, subject: q.subject || S.practice.subject, chapter: q.chapter }),
+    })
+      .then(() => {
+        if (faved) S.favIds.delete(id); else S.favIds.add(id);
+        toast(faved ? '已取消收藏' : '已收藏，在「回顾 → 收藏」里能找到');
+        renderPractice();
+      })
       .catch((err) => toast(err.message));
     return;
   }
   if (a === 'note-edit') { openNoteEditor(); return; }
+  if (a === 'lab-open') { if (window.__LAB_OPEN__) window.__LAB_OPEN__(); else toast('这个版本没带实验室'); return; }
   if (a === 'note-search') { openNoteSearch(); return; }
   if (a === 'similar') {
     const q = currentQ();
@@ -4927,6 +4941,12 @@ function bindAndroidBack() {
   setTimeout(async () => {
     try { await ensureReviewBackfill(); } catch { /* ignore */ }
     try { spreadLegacyReviews(15); } catch { /* ignore */ }
+    // 收藏状态：做题页的「☆ 收藏 / ★ 已收藏」靠它，取一次就够（几百条）
+    try {
+      const d = await api('/api/favorites?limit=800');
+      const list = d.list || d || [];
+      S.favIds = new Set((Array.isArray(list) ? list : []).map((f) => String(f.questionId ?? f.id)));
+    } catch { /* ignore */ }
   }, 0);
 
   setTimeout(() => { try { if (window.AndroidSplash) window.AndroidSplash.hide(); } catch { /* ignore */ } }, 1500);

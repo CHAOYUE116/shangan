@@ -665,7 +665,6 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .ana-h > span:first-child { flex: 1; min-width: 0; }
 .weak-btn, [data-act="smart-paper"] { background: #fff; border: 1px solid rgba(47,91,234,.28); color: #2f5bea; font-weight: 600; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
 [data-act="smart-paper"]:active { background: rgba(47,91,234,.08); }
-.quick-row.three .quick-card { flex-direction: column; align-items: flex-start; gap: 7px; }
 .kp-row { display: flex; align-items: center; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line); }
 .kp-row:last-child { border-bottom: 0; }
 .kp-main { flex: 1; min-width: 0; }
@@ -1396,6 +1395,9 @@ html[data-theme="dark"] mark.kw { background: #6B5A12; color: #FFE9A3; }
 /* ---------- 0.5.5 收尾：题库/我的/做题页的小结构 ---------- */
 .lib-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 6px; }
 .lib-mode-label { font-size: 12px; color: var(--text-3); }
+/* 科目 + 共 N 题 与「做题 / 背题」同一条水平线：那一行右侧正好是切换 */
+.lib-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -8px 0 12px; }
+.lib-head-sub { font-size: 12.5px; color: var(--text-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .segmented.seg-sm { display: flex; padding: 3px; border-radius: 10px; background: var(--soft); }
 .segmented.seg-sm button { min-width: 52px; min-height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font-size: 13px; }
 .segmented.seg-sm button.active { background: var(--card, #fff); color: var(--text); font-weight: 650; box-shadow: var(--shadow); }
@@ -1407,8 +1409,17 @@ html[data-theme="dark"] mark.kw { background: #6B5A12; color: #FFE9A3; }
 .stat-txt b { font-size: 14px; font-weight: 650; color: var(--text); }
 .stat-txt span { font-size: 11.5px; color: var(--text-3); }
 .stat-go { flex: none; font-size: 12px; color: var(--brand); font-weight: 600; }
-.q-tools { display: flex; gap: 16px; justify-content: flex-end; margin: 10px 2px 2px; }
-.q-tools .link-sm { border: 0; background: transparent; color: var(--text-3); font-size: 12.5px; padding: 6px 2px; }
+/* 三张并排时要更紧：字号收一点、内边距收一点，避免「随机 20 题」被挤成两行 */
+.stats-row.three { gap: 8px; }
+.stats-row.three .stat-link { padding: 11px 10px; gap: 4px; flex-direction: column; align-items: flex-start; }
+.stats-row.three .stat-txt b { font-size: 13.5px; }
+.stats-row.three .stat-txt span { font-size: 11px; }
+.stats-row.three .stat-go { font-size: 11.5px; align-self: flex-end; margin-top: -2px; }
+.q-tools { display: flex; gap: 10px; justify-content: flex-end; margin: 12px 2px 2px; }
+.q-tools .link-sm { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--text-2); font-size: 13.5px; padding: 8px 14px; border-radius: 999px; min-height: 36px; }
+.q-tools .link-sm.on { border-color: rgba(224,163,46,.45); background: rgba(224,163,46,.12); color: #B87B14; font-weight: 600; }
+html[data-theme="dark"] .q-tools .link-sm { background: #23262E; border-color: #2E323C; }
+html[data-theme="dark"] .q-tools .link-sm.on { background: rgba(224,163,46,.16); border-color: rgba(224,163,46,.4); color: #E8B65A; }
 .filter-hint { font-weight: 400; color: var(--text-3); margin-left: 6px; font-size: 11.5px; }
 html[data-theme="dark"] .segmented.seg-sm { background: #23262E; }
 html[data-theme="dark"] .segmented.seg-sm button.active { background: #2E323C; }
@@ -1440,3 +1451,12 @@ html[data-theme="dark"] .segmented.seg-sm button.active { background: #2E323C; }
 html[data-theme="dark"] .diag-bar { background: #23272F; }
 html[data-theme="dark"] .diag-row + .diag-row,
 html[data-theme="dark"] .kp-diag-row { border-top-color: #2A2E37; }
+
+/* 测评做完之后收成一行，别再占一整块版面 */
+.diag-mini { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line, #EDEFF3); border-radius: 14px; background: var(--card, #fff); text-align: left; }
+.diag-mini-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; color: var(--text, #1D2330); }
+.diag-mini-top { font-size: 13.5px; }
+.diag-mini-txt b { font-weight: 650; }
+.diag-mini-sub { font-size: 12px; color: var(--muted, #8A90A0); }
+.diag-mini .chev { color: var(--muted, #8A90A0); font-size: 16px; }
+html[data-theme="dark"] .diag-mini { background: #1C1F26; border-color: #2A2E37; }
