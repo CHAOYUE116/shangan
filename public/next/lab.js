@@ -305,7 +305,25 @@
         <div class="lab-lab">${st.ev} 次作答 · ${st.built ? '已完成历史回放' : '还没回放历史'}</div>
       </div>
       ${top ? `<div class="lab-list">${top}</div>` : '<div class="lab-lead">还没有能力数据：做几道题或点下面「重建账本」。</div>'}
+      ${evalBlock()}
       <div class="lab-actions"><button class="lab-btn" id="lab-rebuild" style="background:var(--card,#fff);color:var(--brand,#2F5BEA);border:1px solid var(--line,#E8EBF0)">重建账本（回放历史作答）</button></div>`;
+  }
+
+  /* 评测口径（#3）：跟 AUC 不一样 —— 这两个数回答的是「出给你的题合不合手」 */
+  function evalBlock() {
+    if (!window.__ENGINE2__ || !window.__ENGINE2__.ready()) return '';
+    const e = window.__ENGINE2__.stats().eval;
+    if (!e || !e.n) return '';
+    const pct = (x) => (x == null ? '—' : Math.round(x * 100) + '%');
+    const nxt = (window.__ENGINE2__.pick && window.__ENGINE2__.pick(null, 3)) || [];
+    return `
+      <div class="lab-h">出题质量（这两个数才是「有没有用」）</div>
+      <div class="lab-list">
+        <div class="lab-row"><span>ZPD 命中率</span><em>${pct(e.zpdHit)}</em></div>
+        <div class="lab-row"><span>错题转化率</span><em>${pct(e.conversion)}</em></div>
+        <div class="lab-row"><span>平均预测正确率</span><em>${pct(e.avgP)}（目标 ${pct(e.target)}）</em></div>
+      </div>
+      ${nxt.length ? `<div class="lab-lead">下一批会优先给你练：${nxt.map((k) => esc(k)).join('、')}</div>` : ''}`;
   }
 
   window.__LAB_OPEN__ = () => {
@@ -325,7 +343,7 @@
   function loadEng() {
     try {
       const j = JSON.parse(localStorage.getItem(ENG_KEY) || 'null');
-      if (j && j.kp && typeof j.kp === 'object') return { v: 1, built: !!j.built, kp: j.kp };
+      if (j && j.kp && typeof j.kp === 'object') return { v: 1, built: !!j.built, kp: j.kp, m: j.m || null };
     } catch { /* 坏了重建 */ }
     return { v: 1, built: false, kp: {} };
   }
@@ -341,7 +359,7 @@
 
   function stOf(kp) {
     let s = ENG.kp[kp];
-    if (!s) s = ENG.kp[kp] = { t: 0, rd: 1.2, n: 0, ok: 0, last: 0 };
+    if (!s) s = ENG.kp[kp] = { t: 0, rd: 1.2, n: 0, ok: 0, last: 0, b: null, c: null, pw: 0 };
     return s;
   }
 
@@ -351,7 +369,21 @@
     const s = stOf(it.kp);
     const b = B_SCALE * (typePrior(it.type) + chapterPrior(it.chapter));
     const c = guessOf(it.type, it.optionCount);
+    // 这个考点「做到过的题」的平均难度/平均蒙对率：用来算「下次给你出这个考点，你大概能做对多少」
+    s.b = s.b == null ? b : 0.7 * s.b + 0.3 * b;
+    s.c = s.c == null ? c : 0.7 * s.c + 0.3 * c;
     const p = c + (1 - c) * sig(s.t - b);
+    // 【评测口径】ZPD 命中 + 错题转化：都在更新之前记，才对得上「当时模型认为的难度」
+    if (!ENG.m) ENG.m = { n: 0, zpd: 0, convHit: 0, convTrial: 0, sumP: 0 };
+    ENG.m.n += 1;
+    ENG.m.sumP += p;
+    if (p >= 0.6 && p <= 0.9) ENG.m.zpd += 1;
+    if (it.y) {
+      if (s.pw > 0) { ENG.m.convHit += 1; ENG.m.convTrial += 1; s.pw = 0; }
+    } else {
+      if (s.pw > 0) ENG.m.convTrial += 1;   // 之前错过，这次还是错
+      s.pw = (s.pw || 0) + 1;
+    }
     const K = K_GAIN * (s.rd / (s.rd + 0.5));
     // 用带难度的残差更新，θ 才是「能力」而不是「正确率」
     s.t = clamp(s.t + K * (it.y - p) / Math.max(0.35, 1 - c), -4, 4);
@@ -375,6 +407,7 @@
     const recs = await api('/api/records/recent?limit=4000');
     const list = (Array.isArray(recs) ? recs : recs.list || []).slice().reverse();
     ENG.kp = {};
+    ENG.m = { n: 0, zpd: 0, convHit: 0, convTrial: 0, sumP: 0 };
     if (list.length) {
       const ids = [...new Set(list.map((r) => String(r.questionId)))];
       const [meta, kpMap] = await Promise.all([loadMeta(ids), loadKp(ids)]);
@@ -401,7 +434,14 @@
   }
 
   const ready = () => !!(ENG.built && Object.keys(ENG.kp).length);
-  const ability = (kp) => (ENG.kp[kp] ? sig(ENG.kp[kp].t) : null);
+  // 预期正确率（含蒙对率与题型难度）：出题挑难度档要用它，不是裸 sigmoid(θ)
+  const ability = (kp) => {
+    const s = ENG.kp[kp];
+    if (!s) return null;
+    const b = s.b || 0;
+    const c = s.c == null ? 0.25 : s.c;
+    return c + (1 - c) * sig(s.t - b);
+  };
 
   /* 某科目下按能力升序的考点列表；p 是「按典型难度、含蒙对率」的预期正确率 */
   function weakList(subject, limit = 40) {
@@ -409,18 +449,75 @@
     for (const [kp, s] of Object.entries(ENG.kp)) {
       if (!s || !s.n) continue;
       if (subject && s.sub && s.sub !== subject) continue;
-      const p = 0.25 + 0.75 * sig(s.t);
+      const b = s.b || 0;
+      const c = s.c == null ? 0.25 : s.c;
+      const p = c + (1 - c) * sig(s.t - b);
       out.push({ name: kp, rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, src: 'engine' });
     }
     out.sort((a, b) => a.theta - b.theta || b.n - a.n);
     return out.slice(0, limit);
   }
 
+  /* ---------- 选题：ZPD（目标正确率 0.75）+ Thompson 探索 ----------
+   * tools/lab-policy.mjs 的对照实验结论：
+   *   按最弱正确率挑（现状）覆盖 32/75 个考点；按 θ 最低挑 +1.2%；
+   *   纯随机反而 +9.8%；ZPD(0.75) + 15% 探索 +14.0%（0.70/0.80 分别是 +13.3%/+13.7%，很平）。
+   * 所以目标是「你大概能做对 3/4」的考点，另外 15% 的题强制去没练过的考点，避免越练越窄。
+   */
+  const ZPD_TARGET = 0.75;
+  const EXPLORE = 0.15;
+  const rnd = () => Math.random();
+  const rndn = () => { // 标准正态
+    const u = Math.max(1e-9, rnd());
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
+  };
+  /** 返回按「离目标正确率最近」排好序的考点；subject 为空就不限科目 */
+  function pick(subject, limit = 3, opts = {}) {
+    const target = opts.target || ZPD_TARGET;
+    const all = Object.entries(ENG.kp)
+      .filter(([, s]) => s && s.sub && (!subject || s.sub === subject));
+    const unseen = all.filter(([, s]) => !s.n).map(([kp]) => kp);
+    const scored = all
+      .filter(([, s]) => s.n > 0)
+      .map(([kp, s]) => {
+        const b = s.b || 0;
+        const c = s.c == null ? 0.25 : s.c;
+        // Thompson：θ 按不确定度抽一次，等于给「还没把握的考点」一点机会
+        const tSample = s.t + rndn() * Math.min(1.5, s.rd);
+        const p = c + (1 - c) * sig(tSample - b);
+        return { name: kp, p, gap: Math.abs(p - target), theta: s.t, n: s.n, sub: s.sub };
+      })
+      .sort((a, b) => a.gap - b.gap);
+
+    const out = [];
+    // 15% 的位子留给「还没练过的考点」：只在真有未练考点时占 1 个位子（抽题是按考点成批的）
+    if (unseen.length && rnd() < (opts.explore == null ? EXPLORE : opts.explore) * 3) {
+      out.push(unseen[Math.floor(rnd() * unseen.length)]);
+    }
+    for (const x of scored) {
+      if (out.length >= limit) break;
+      if (!out.includes(x.name)) out.push(x.name);
+    }
+    return out;
+  }
+
+  /** 评测口径（#3）：ZPD 命中率 + 错题转化率，均由历史作答回放/增量累计 */
+  function evalStats() {
+    const m = ENG.m || { n: 0, zpd: 0, convHit: 0, convTrial: 0, sumP: 0 };
+    return {
+      n: m.n,
+      zpdHit: m.n ? m.zpd / m.n : null,             // 出给你的题里，预测正确率落在 60%~90% 的比例
+      conversion: m.convTrial ? m.convHit / m.convTrial : null, // 错过的考点，下次做对它 的比例
+      avgP: m.n ? m.sumP / m.n : null,              // 平均预测正确率（太低=太难，太高=太水）
+      target: ZPD_TARGET,
+    };
+  }
+
   function stats() {
     const n = Object.keys(ENG.kp).length;
     const ev = Object.values(ENG.kp).reduce((s, x) => s + (x.n || 0), 0);
-    return { kps: n, events: ev, built: ENG.built };
+    return { kps: n, events: ev, built: ENG.built, eval: evalStats() };
   }
 
-  window.__ENGINE2__ = { ready, ensure, rebuild, recordAnswered, weakList, ability, stats, KEY: ENG_KEY };
+  window.__ENGINE2__ = { ready, ensure, rebuild, recordAnswered, weakList, pick, evalStats, ability, stats, KEY: ENG_KEY, ZPD_TARGET };
 })();

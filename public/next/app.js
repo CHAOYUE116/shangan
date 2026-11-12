@@ -296,7 +296,15 @@ async function fetchByKp(subject, kp, n, difficulty = 'random') {
 
 /* ---------- 复习排期（本机） ---------- */
 const REVIEW_KEY = 'sg_review_v1';
-const INTERVALS = [0, 1, 2, 4, 7, 15, 30];
+// 记忆层档位（天）。正式版保持原表；实验版（0.7）换成更密的档位。
+// 依据 tools/lab-policy.mjs 的调度对照实验（60 个知识点 × 90 天，固定表 vs 遗忘曲线）：
+//   1/2/4/7/15/30 → 947 次复习，复习时平均保持率 64.0%
+//   1/1/2/4/9/18  → 949 次复习，平均保持率 70.8%
+// 换 FSRS（按遗忘曲线排期）达到同等 70% 保持率只需 896 次（省 7.5%），
+// 所以「换算法」收益很小，真正的问题是原档位表把保持率压在 64%——加密一档就够了。
+const INTERVALS = [0, 1, 2, 4, 7, 15, 30];            // 正式版档位
+const INTERVALS_LAB = [0, 1, 1, 2, 4, 9, 18];          // 实验版（0.7）加密档位
+function intervalsOf() { return window.__LAB__ ? INTERVALS_LAB : INTERVALS; }
 function loadReviewState() { try { return JSON.parse(localStorage.getItem(REVIEW_KEY) || '{}'); } catch { return {}; } }
 function saveReviewState(v) {
   try {
@@ -332,7 +340,8 @@ function updateReview(qid, ok, costMs, difficulty) {
     if (r.streak >= 3 && r.level >= 4) r.mastered = true;
     // 间隔按天算，但保留小数：难度 5 的第 2 档是 2×0.8=1.6 天，难度 2 的是 2×1.15=2.3 天，
     // 取整会把这两者抹平成同一个 2 天，加权就白做了。
-    r.next = Date.now() + Math.max(1, INTERVALS[Math.min(6, r.level)] * factor) * 86400000;
+    const iv = intervalsOf();
+    r.next = Date.now() + Math.max(1, iv[Math.min(6, r.level)] * factor) * 86400000;
   } else {
     r.streak = 0; r.level = 1; r.wrong = (r.wrong || 0) + 1; r.mastered = false;
     r.next = Date.now() + 86400000;
@@ -688,7 +697,21 @@ function weakKpList(subject) {
   const E2 = window.__LAB__ && window.__ENGINE2__;
   if (E2 && E2.ready()) {
     const list = E2.weakList(subject, 40);
-    if (list.length >= 3) return list;
+    if (list.length >= 3) {
+      // 0.7 起（实验版）：出题不再纯按「最弱」排，而是按 ZPD（目标正确率 0.75）+ Thompson 探索。
+      // 离线对照实验（tools/lab-policy.mjs）：最弱口径覆盖 32/75 个考点，ZPD+探索 +14%，纯随机也 +9.8%。
+      // pick 只改「顺序与选谁」，配额和难度档仍走原来的逻辑。
+      try {
+        const order = E2.pick ? E2.pick(subject, Math.min(3, list.length)) : [];
+        if (order.length) {
+          const by = new Map(list.map((x) => [x.name, x]));
+          const head = order.map((n) => by.get(n)).filter(Boolean);
+          const rest = list.filter((x) => !order.includes(x.name));
+          if (head.length) return head.concat(rest);
+        }
+      } catch { /* 挑不出来就用最弱口径 */ }
+      return list;
+    }
   }
   const out = new Map();
   const stats = loadKpStats() || {};
@@ -710,6 +733,18 @@ function weakKpList(subject) {
 function diffBandFor(rate) {
   return rate < 0.4 ? 'easy' : rate > 0.8 ? 'hard' : 'balanced';
 }
+// 0.7 实验版：难度档也按「离目标正确率差多少」调。
+// 真机实测 ZPD 命中率只有 38%、平均预测正确率 56%（目标 75%）：考点挑对了，
+// 但固定按 0.4/0.8 切档，弱考点里仍抽到偏难的题 → 预测正确率上不去。
+// 这里改成：p̂ < 0.6 用 easy、0.6~0.9 用 balanced、> 0.9 用 hard，正式版走原逻辑。
+function diffBandForKp(kp, rate) {
+  const E2 = window.__LAB__ && window.__ENGINE2__;
+  if (E2 && E2.ready() && kp) {
+    const p = E2.ability(kp);
+    if (p != null) return p < 0.6 ? 'easy' : p > 0.9 ? 'hard' : 'balanced';
+  }
+  return diffBandFor(rate);
+}
 
 // 0.7 实验版：把这一轮作答喂给能力引擎（考点级 θ），正式版直接返回
 function feedEngine(P) {
@@ -722,6 +757,7 @@ function feedEngine(P) {
     const kp = q.kp || P.kp || '';
     if (!kp) return;
     if (!a || !a.confirmed) return;
+    if (q.__fed) return;
     let oc = 0;
     try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
     items.push({
@@ -3106,6 +3142,21 @@ async function confirmAnswer() {
         .catch(() => {});
     }
     await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(P.selected), correct: r.ok, costMs: qCostOf(P.idx), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+    // 实验版（0.7）：逐题喂能力账本，答完这道账本就变，不用等整轮结束
+    if (window.__LAB__ && window.__ENGINE2__) {
+      const kpName = q.kp || P.kp || '';
+      if (kpName && !q.__fed) {
+        let oc = 0;
+        try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
+        try {
+          window.__ENGINE2__.recordAnswered([{
+            kp: kpName, sub: q.subject || P.subject || '', chapter: q.chapter,
+            type: q.type, optionCount: oc, y: r.ok ? 1 : 0, ts: Date.now(),
+          }]);
+          q.__fed = true;
+        } catch { /* 实验功能失败不影响正常流程 */ }
+      }
+    }
     // 参照统计（本地口径）：这道题所在考点上你的历史正确率、这道题你常错在哪个选项。
     // 明确不是「全站正确率」——离线题库没有别人数据，标成全站就是编数字。
     const atIdx = P.idx;
@@ -3759,7 +3810,7 @@ async function buildNewQuestions(n) {
     for (const w of weak) {
       if (hit >= wantKp) break;
       const take = Math.max(2, Math.ceil(wantKp / Math.min(weak.length, 3)));
-      const rows = await fetchByKp(p.subject, w.name, take, diffBandFor(w.rate));
+      const rows = await fetchByKp(p.subject, w.name, take, diffBandForKp(w.name, w.rate));
       let got = 0;
       for (const q of rows) {
         const id = q.id ?? q.questionId;
