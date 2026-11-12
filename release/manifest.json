@@ -2,30 +2,29 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.1",
-    "versionCode": 109,
-    "code": 109,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.1-release.apk",
+    "version": "0.7.2",
+    "versionCode": 110,
+    "code": 110,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.2-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.1-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.2-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.1-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.2-release.apk"
       }
     ],
-    "size": 194165918,
-    "sha256": "8ea424ed57c3211046929ec37bc6fe2d54e79d8eac8ac5e6920be1faf23d79e2",
-    "name": "shangan-0.7.1-release.apk",
-    "note": "App 0.7.1：修 0.7.0 引擎空转（随机题/每日任务的作答没进能力账本）；题库与界面同 0.7.0"
+    "size": 238252636,
+    "sha256": "071a55a9da0d8bd02f4d722d7e2f7a74a6f1b3920f7f3283fc4074541593f909",
+    "name": "shangan-0.7.2-release.apk",
+    "note": "题库 10.3 万 → 15.6 万（扫粉笔 id 空间补 5.3 万道）；官方难度覆盖 97%；坏题 327（0.21%）；修复题库页数字不涨的年份解析 bug"
   },
   "tiku": {
-    "dbVersion": "0.5.28-20261113-0110",
-    "questions": 103257,
+    "dbVersion": "0.5.30-20261113-0235",
+    "questions": 166040,
     "full": {
-      "name": "tiku_app.db.gz",
       "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
       "mirrors": [
         "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
@@ -34,30 +33,22 @@
         "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
         "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
       ],
-      "size": 147924198,
-      "rawSize": 612016128,
-      "sha256": "72be1448597da46b1fb282471a8ff83242fbb5fcc2596fd62bac7668df14ad7d",
-      "gzSha256": "bd1b45b0bd67c6a57eebdb563c4e6371def01e38ff3ebdfbe153d1633a95534f",
+      "size": 168321267,
+      "rawSize": 789803008,
+      "sha256": "076836ca8594b8721f524bca998363fab169e07542f2df44b01756ee25a400a1",
+      "gzSha256": "5ee3c0736abcd5f2ee374150609e9e5f4de45ba7d942623759a474f7a46959c8",
       "gz": true
     },
     "delta": [],
-    "note": "题库 0.5.28：官方难度覆盖 97% 客观题（难度↔正确率 r=−0.28，此前结构先验 r≈0）、解析回灌（综应 +194 / 公基 +12,968）、材料 [object Object] 归零、公式图补到 60,735 张、坏题降到 134（0.13%）"
+    "note": "扫粉笔 id 空间补 5.3 万道题（唯一题 15.6 万，可用 14.9 万）；官方难度覆盖 97%；坏题 327（0.21%）"
   },
   "images": {
-    "name": "images.db.gz",
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz",
-    "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz"
-    ],
-    "sources": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz",
-      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz"
-    ],
-    "size": 49721344,
-    "gzSize": 40237457,
-    "sha256": "b91ddfa3ef0f63095829b99f1471539507dac495a1c5e8d13ba5d98ea282c97e",
-    "gz": true
+    "size": 90456064,
+    "gzSize": 63979980,
+    "sha256": "c19e05a118b7e6685ee0edfb5fed30c5db60178325463ca2d5ed0841b7e0634e",
+    "gz": true,
+    "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "App 0.7.1：修 0.7.0 引擎空转（随机题/每日任务的作答没进能力账本）；题库与界面同 0.7.0"
+  "note": "题库 10.3 万 → 15.6 万（扫粉笔 id 空间补 5.3 万道）；官方难度覆盖 97%；坏题 327（0.21%）；修复题库页数字不涨的年份解析 bug"
 }
