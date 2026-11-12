@@ -1304,7 +1304,13 @@ export function createLocalApi(tiku, practice, stats = {}) {
             return { name: sub2.name, total: idxTotal, done: d?.c || 0, rate: null, chapters: [], leaves: [] };
           });
           const subSum = subs.reduce((s, x) => s + x.total, 0);
-          const total = Math.max(subSum, groupReal.get(g.group) || 0);
+          const real = groupReal.get(g.group) || 0;
+          // 扫描导入的题只有一级模块（sub 为空），树里没有对应节点 → 补一个「其他」子项，避免题目被隐藏
+          if (real > subSum) {
+            const dOther = catDone.get(`${g.group}|`);
+            subs.push({ name: '其他', total: real - subSum, done: dOther?.c || 0, rate: null, chapters: [], leaves: [] });
+          }
+          const total = Math.max(subSum, real);
           return { group: g.group, total, done: subs.reduce((s, x) => s + x.done, 0), rate: null, chapters: [], subs };
         });
       } else {

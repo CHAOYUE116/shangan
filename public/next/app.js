@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.1';
+const APP_VERSION = '0.7.2';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2776,7 +2776,7 @@ function radarSvg(mods) {
     const x = CX + Math.cos(a) * (R + 26);
     const y = CY + Math.sin(a) * (R + 20);
     const anchor = Math.abs(Math.cos(a)) < 0.3 ? 'middle' : Math.cos(a) > 0 ? 'start' : 'end';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="rp-lb">${esc(modLabel(m.chapter))}</text>`;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="rp-lb" fill="#7A8194" font-size="11" font-weight="500" style="fill:#7A8194;font-size:11px;font-weight:500">${esc(modLabel(m.chapter))}</text>`;
   }).join('');
   return `<svg class="rp-radar" viewBox="0 0 260 240" role="img" aria-label="模块能力雷达">
     ${[1, 0.75, 0.5, 0.25].map((k) => `<polygon points="${ring(k)}" class="rp-grid${k === 1 ? ' outer' : ''}" />`).join('')}

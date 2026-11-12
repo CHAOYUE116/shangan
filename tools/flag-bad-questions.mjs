@@ -100,7 +100,7 @@ if (APPLY) {
 }
 
 const rows = db.prepare(`
-  SELECT q.id, q.questionId, q.type, q.answer, q.answerIndex, q.content, q.contentHtml,
+  SELECT q.id, q.questionId, q.type, q.answer, q.answerIndex, q.content, q.contentHtml, q.options,
          q.material, q.analysis, q.analysisHtml, p.subjectName AS subject, q.chapter
   FROM questions q JOIN papers p ON p.id = q.paperId
   WHERE q.id IN (SELECT MAX(id) FROM questions GROUP BY questionId)
@@ -113,6 +113,7 @@ const REASONS = {
   R4: '答案与解析不符',
   R5: '图片键缺失',
   R6: '客观题没答案',
+  R7: '内容被平台打码',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const badRows = [];
@@ -131,6 +132,12 @@ for (const r of rows) {
 
   let reason = null;
   let detail = '';
+
+  // R7 内容被平台打码：题干/选项/材料里出现连续 ****（粉笔对未购课内容做的遮挡，两个账号取都是这样）
+  if (!reason && /\*{3,}/.test(stem + ' ' + String(r.options || '') + ' ' + material)) {
+    reason = 'R7';
+    detail = '题干或选项含 ****';
+  }
 
   // R1 缺材料：题干要求「根据材料/资料/下表」但材料为空，且题干里也没有图
   if (!reason && isObj

@@ -1468,8 +1468,8 @@ html[data-theme="dark"] .diag-mini { background: #1C1F26; border-color: #2A2E37;
 .rp-ring { width: 108px; height: 108px; flex: none; }
 .rp-ring .rp-track { fill: none; stroke: var(--line, #EDEFF3); stroke-width: 9; }
 .rp-ring .rp-val { fill: none; stroke: var(--primary); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray .5s ease; }
-.rp-ring .rp-num { font-size: 26px; font-weight: 700; fill: var(--text, #1B1F2A); }
-.rp-ring .rp-sub { font-size: 9px; fill: var(--muted, #8A90A0); }
+.rp-ring .rp-num { font-size: 26px; font-weight: 700; fill: var(--text, #1B1F2A); stroke: none; }
+.rp-ring .rp-sub { font-size: 9px; fill: var(--muted, #8A90A0); stroke: none; }
 .rp-top-txt { min-width: 0; }
 .rp-top-t { font-size: 13px; font-weight: 600; }
 .rp-top-s { font-size: 11.5px; color: var(--muted, #8A90A0); margin-top: 3px; }
@@ -1479,7 +1479,7 @@ html[data-theme="dark"] .diag-mini { background: #1C1F26; border-color: #2A2E37;
 .rp-radar .rp-spoke { stroke: var(--line, #EDEFF3); stroke-width: 1; }
 .rp-radar .rp-target { fill: rgba(240, 110, 100, .10); stroke: rgba(240, 110, 100, .55); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .rp-radar .rp-me { fill: rgba(61, 112, 245, .22); stroke: var(--primary); stroke-width: 2; }
-.rp-radar .rp-lb { font-size: 11px; font-weight: 500; fill: #7A8194; letter-spacing: 0; }
+.rp-radar .rp-lb { font-size: 11px; font-weight: 500; fill: #7A8194; stroke: none; letter-spacing: 0; }
 .rp-legend { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: var(--muted, #8A90A0); margin-top: 2px; }
 .rp-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .rp-legend i.me { background: rgba(61, 112, 245, .35); border: 1px solid var(--primary); }
