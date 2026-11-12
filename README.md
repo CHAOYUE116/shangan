@@ -32,12 +32,15 @@
 | [`CHAOYUE116/shangan`](https://github.com/CHAOYUE116/shangan)（当前仓库） | Web 前端、构建脚本、题库导出数据、**发布的 APK 与题库资产** | 使用者从这里下载 |
 | [`CHAOYUE116/shangan-app`](https://github.com/CHAOYUE116/shangan-app) | Android 壳：Capacitor 容器、原生下载/题库桥、签名配置 | 开发者 |
 
-Releases 按**大版本**建 tag，一个 tag 只放一版 APK（新版本上传后旧的自动删掉），所以 Releases 列表里不会堆一长串安装包：
+Releases 按**大版本**建 tag，同一个 tag 下**每个发布过的版本各留一个 APK**（`shangan-<版本>-release.apk`），升级记录一直保留、不删历史包；客户端只认 `manifest.json` 里最新那一版：
 
 | Tag | 放什么 | 例 |
 |---|---|---|
 | `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.4-release.apk` |
 | `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.23-20261112-1520` |
+
+> **发布约定（2026-11-12 起）**：已经发出去的包不删。`tools/release-app.mjs` 只在**同名重传**时删除旧资产，历史版本一律保留；确实要清理历史包必须显式加 `--prune`。
+> 题库大版本同理：`tiku-<dbVersion>` 的 Release 与 tag 保留，方便回滚和追溯（旧版本只在仓库体积撑不住时才清）。
 
 App 通过仓库根目录的 [`release/manifest.json`](release/manifest.json) 找更新：里面 `app.url` 指向 `v0.6` 那个 APK，`tiku.sources` 指向题库 tag 里的 `tiku_app.db.gz`。所以发版只需要改这一个 JSON，客户端查到的就是最新地址。
 

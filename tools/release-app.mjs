@@ -63,32 +63,42 @@ const apkSha = crypto.createHash('sha256').update(fs.readFileSync(APK)).digest('
 const apkName = /^app-(?:[a-z]+-)?release\.apk$/i.test(path.basename(APK))
   ? `shangan-${VERSION}-release.apk`
   : path.basename(APK);
-const body = BODY_FILE && fs.existsSync(BODY_FILE) ? fs.readFileSync(BODY_FILE, 'utf8') : arg('body', '');
+const bodyArg = BODY_FILE && fs.existsSync(BODY_FILE) ? fs.readFileSync(BODY_FILE, 'utf8') : arg('body', '');
 
 console.log(`== 1. Release ${TAG}`);
 let rel = apiJson('GET', `https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${encodeURIComponent(TAG)}`);
 if (!rel || rel.message === 'Not Found') {
   rel = apiJson('POST', `https://api.github.com/repos/${OWNER}/${REPO}/releases`, {
-    tag_name: TAG, name: NAME, body, draft: false, prerelease: false,
+    tag_name: TAG, name: NAME, body: bodyArg, draft: false, prerelease: false,
   });
   if (!rel || !rel.id) { console.error('建 Release 失败'); process.exit(1); }
   console.log('  已新建 id=' + rel.id);
 } else {
-  rel = apiJson('PATCH', `https://api.github.com/repos/${OWNER}/${REPO}/releases/${rel.id}`, { name: NAME, body });
+  // 没传 --body-file 时保留原有说明，不能拿空串覆盖掉（2026-11-12 修：曾把 v0.6 的说明清空）
+  const nextBody = bodyArg || rel.body || '';
+  rel = apiJson('PATCH', `https://api.github.com/repos/${OWNER}/${REPO}/releases/${rel.id}`, { name: NAME, body: nextBody });
   console.log('  已存在 id=' + rel.id + '，更新说明');
 }
 
 console.log(`== 2. 上传 ${apkName}（${(apkBytes / 1048576).toFixed(2)} MB）`);
 const assets = apiJson('GET', `https://api.github.com/repos/${OWNER}/${REPO}/releases/${rel.id}/assets?per_page=100`) || [];
+// 2026-11-12 起：发布过的包不再删，保留升级记录（每个版本一个 shangan-<版本>-release.apk）。
+// 只有同名文件（重传同一版本）才删，因为 GitHub 不允许同名资产；
+// 真要清理历史包，显式加 --prune。
+const PRUNE = flag('prune');
 for (const a of assets) {
-  // 这个大版本 Release 只保留最新一个 APK，避免页面里堆一串旧包
-  // app-release.apk 是早期脚本直接传 gradle 产物留下的名字，也一起清掉
   const isOldApk =
     (/^shangan-[\d.]+-release\.apk$/.test(a.name) || /^app-(?:[a-z]+-)?release\.apk$/i.test(a.name)) && a.name !== apkName;
-  if (a.name === apkName || isOldApk) {
+  if (a.name === apkName) {
     curl(['-X', 'DELETE', '-H', `Authorization: Bearer ${TOKEN}`, `https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${a.id}`]);
-    console.log('  删旧资产 ' + a.name);
+    console.log('  删同名旧资产（重传）' + a.name);
+  } else if (PRUNE && isOldApk) {
+    curl(['-X', 'DELETE', '-H', `Authorization: Bearer ${TOKEN}`, `https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${a.id}`]);
+    console.log('  删旧资产（--prune）' + a.name);
   }
+}
+if (assets.filter((a) => /^shangan-[\d.]+-release\.apk$/.test(a.name) && a.name !== apkName).length) {
+  console.log('  历史包保留：' + assets.filter((a) => /^shangan-[\d.]+-release\.apk$/.test(a.name) && a.name !== apkName).map((a) => a.name).join(', '));
 }
 curl(['-X', 'POST', '--data-binary', '@' + APK, '-H', 'Content-Type: application/octet-stream',
   '-H', `Authorization: Bearer ${TOKEN}`, '-H', 'Accept: application/vnd.github+json',
