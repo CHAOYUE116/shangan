@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.7';
+const APP_VERSION = '0.6.8';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2866,32 +2866,59 @@ function renderStatsPage() {
 function renderWeeklyReport() {
   const st = S.stats || {};
   const last = fillLast7(st.last7 || []);
-  const total = last.reduce((s, x) => s + (Number(x.c) || 0), 0);
-  const right = last.reduce((s, x) => s + (Number(x.ok) || 0), 0);
-  const active = last.filter((x) => Number(x.c) > 0).length;
-  const rate = total ? Math.round((right / total) * 100) : 0;
-  const max = Math.max(1, ...last.map((x) => Number(x.c) || 0));
-  const weak = (st.byChapter || []).filter((x) => x.c >= 3).sort((a, b) => (a.ok / a.c) - (b.ok / b.c)).slice(0, 3);
-  const d0 = last.length ? String(last[0].d) : '';
-  const d1 = last.length ? String(last[last.length - 1].d) : '';
-  const range = !last.length ? '近 7 天' : (d0 === d1 ? d0 : `${d0} ~ ${d1}`);
-  const advice = !total
-    ? '本周还没有做题记录，先完成今日任务，报告会自动生成。'
-    : rate < 50
-      ? `正确率 ${rate}%，建议先补 ${weak[0]?.chapter || '基础模块'}，每天先复习再刷新题。`
-      : active < 3
-        ? `本周只活跃 ${active} 天，建议把每日目标拆小，先保持连续。`
-        : `节奏不错：本周 ${active} 天有练习，正确率 ${rate}%，继续保持错题复盘。`;
+  const sumOf = (arr) => ({
+    c: arr.reduce((s, x) => s + (Number(x.c) || 0), 0),
+    ok: arr.reduce((s, x) => s + (Number(x.ok) || 0), 0),
+    days: arr.filter((x) => Number(x.c) > 0).length,
+  });
+  const s14 = S.stats14 && Array.isArray(S.stats14.last7) && S.stats14.last7.length >= 14 ? S.stats14.last7 : null;
+  const cur = s14 ? sumOf(s14.slice(-7)) : sumOf(last);
+  const prev = s14 ? sumOf(s14.slice(-14, -7)) : null;
+  const rate = cur.c ? Math.round((cur.ok / cur.c) * 100) : 0;
+  const prevRate = prev && prev.c ? Math.round((prev.ok / prev.c) * 100) : 0;
+  const goal = Number(S.profile.dailyGoal) || 30;
+  const hitDays = last.filter((x) => (Number(x.c) || 0) >= goal).length;
+  const by = (st.byChapter || []).filter((x) => x.c >= 3).sort((a, b) => a.ok / a.c - b.ok / b.c);
+  const weak = by[0] || null;
+  const wrongTotal = Number(S.wrongTotal) || 0;
+  const verdict = !cur.c ? '这周还没开张' : rate < 45 ? '还在打底' : rate < 65 ? '进入提分期' : '节奏稳了';
+  const line = !cur.c
+    ? '先把今天的任务做掉，报告才有东西可算。'
+    : rate < 45
+      ? `正确率 ${rate}%，先把最弱的${weak ? '「' + esc(weak.chapter) + '」' : '基础模块'}补到 50%，比刷新题划算。`
+      : rate < 65
+        ? `正确率 ${rate}%，这个分段最值钱的是错题：把错的彻底弄懂，比多刷 50 道新题涨得快。`
+        : `正确率 ${rate}%，保持节奏，重点转到限时和查漏。`;
+  const delta = (a, b) => (!prev ? '' : a - b > 0 ? `+${a - b}` : a - b < 0 ? `${a - b}` : '持平');
+  const cmp = prev
+    ? `<div class="card" style="margin-top:12px"><div class="subject-title">跟上周比</div>
+      <div class="rep-cmp">
+        <div><b>${cur.c}</b><span>做题 ${delta(cur.c, prev.c)}</span></div>
+        <div><b>${rate}%</b><span>正确率 ${delta(rate, prevRate)}</span></div>
+        <div><b>${cur.days}</b><span>活跃 ${delta(cur.days, prev.days)} 天</span></div>
+      </div></div>`
+    : '';
+  const todo = [
+    weak
+      ? `<div class="plan-stage"><div class="subject-main"><div class="subject-title">补最弱：${esc(weak.chapter)}</div><div class="subject-sub">正确率 ${Math.round((weak.ok / weak.c) * 100)}% · 做过 ${weak.c} 题</div></div><button class="btn btn-ghost btn-sm" data-act="weak" data-name="${esc(weak.chapter)}">去练</button></div>`
+      : '',
+    wrongTotal
+      ? `<div class="plan-stage"><div class="subject-main"><div class="subject-title">清错题：${wrongTotal} 道</div><div class="subject-sub">错过的题再错一次最不划算</div></div><button class="btn btn-ghost btn-sm" data-act="wrong-train">去清</button></div>`
+      : '',
+    `<div class="plan-stage"><div class="subject-main"><div class="subject-title">今日目标：${goal} 题</div><div class="subject-sub">本周达标 ${hitDays}/7 天</div></div><button class="btn btn-primary btn-sm" data-act="daily-task">开做</button></div>`,
+  ].filter(Boolean).join('');
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习报告</div><span style="width:38px"></span></div>
-  <div class="card-sub" style="margin:-6px 0 14px">${range} · 最近 7 天</div>
-  <div class="stats-row"><div class="stat"><b>${total}</b><span>本周做题</span></div><div class="stat"><b>${rate}%</b><span>正确率</span></div><div class="stat"><b>${active}</b><span>活跃天数</span></div></div>
-  <div class="card" style="margin-top:14px"><div class="subject-title">每日做题量</div>
-    <div class="rep-bars">${last.length ? last.map((x) => `<div class="rep-col"><div class="rep-v">${Number(x.c) || 0}</div><div class="rep-bar" style="height:${Math.max(6, Math.round((Number(x.c) || 0) / max * 82))}px"></div><div class="rep-d">${esc(String(x.d).slice(5))}</div></div>`).join('') : '<div class="empty-state">暂无记录</div>'}</div>
+  <div class="rp-card" style="margin-top:2px">
+    <div class="rp-verdict">${esc(verdict)}</div>
+    <div class="rp-line">${line}</div>
+    <div class="rp-meta">本周 ${cur.c} 题 · 正确率 ${rate}% · 活跃 ${cur.days} 天</div>
   </div>
-  <div class="section-head"><h2 class="section-title">薄弱模块</h2></div>
-  <div class="card">${weak.length ? weak.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div></div><div class="weak-pct">${Math.round((x.ok / x.c) * 100)}%</div><button class="btn btn-ghost btn-sm" data-act="weak" data-name="${esc(x.chapter)}">专项</button></div>`).join('') : '<div class="empty-state">做完几道题后，这里会显示薄弱模块</div>'}</div>
-  <div class="card" style="margin-top:14px"><div class="subject-title">本周建议</div><div class="ai-out" style="margin-top:8px">${esc(advice)}</div></div>
-  <button class="btn btn-primary btn-block" style="margin-top:14px" data-act="daily-task">去完成今日任务</button>`;
+  ${cmp}
+  <div class="section-head"><h2 class="section-title">这周做三件事</h2></div>
+  <div class="card">${todo || '<div class="empty-state">做完几道题后，这里会给出三步待办</div>'}</div>
+  <div class="card" style="margin-top:12px"><div class="subject-title">完整数据</div>
+    <div class="subject-sub" style="margin-top:4px">估分、六维能力图、模块正确率与趋势，都在学习统计里。</div>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" data-act="stats">打开学习统计 ›</button></div>`;
 }
 
 /* ---------- 我的 ---------- */
@@ -2923,8 +2950,8 @@ function renderMe() {
   </section>
   <div class="section-head"><h2 class="section-title">学习数据</h2></div>
   <div class="card menu-card">
-    <div class="menu-row" data-act="stats"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('chart')}</div><div class="subject-main"><div class="subject-title">学习统计</div><div class="subject-sub">章节正确率 · 近 7 天趋势</div></div><span class="chev">›</span></div>
-    <div class="menu-row" data-act="report"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('lightbulb')}</div><div class="subject-main"><div class="subject-title">学习报告</div><div class="subject-sub">本周做题 · 正确率 · 下周建议</div></div><span class="chev">›</span></div>
+    <div class="menu-row" data-act="stats"><div class="menu-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('chart')}</div><div class="subject-main"><div class="subject-title">学习统计</div><div class="subject-sub">估分 · 六维能力图 · 模块正确率</div></div><span class="chev">›</span></div>
+    <div class="menu-row" data-act="report"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('lightbulb')}</div><div class="subject-main"><div class="subject-title">学习报告</div><div class="subject-sub">本周结论 · 跟上周比 · 三步待办</div></div><span class="chev">›</span></div>
     <div class="menu-row" data-act="ai"><div class="menu-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('bot')}</div><div class="subject-main"><div class="subject-title">AI 设置</div><div class="subject-sub">解析 · 批改 · 模型与 Key</div></div><span class="chev">›</span></div>
   </div>
   <div class="section-head"><h2 class="section-title">阅读与练习</h2></div>
@@ -3676,7 +3703,7 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'close-sheet') { closeSheet(); return; }
   if (a === 'stats') { S.meView = 'stats'; go('me'); return; }
-  if (a === 'report') { S.meView = 'report'; go('me'); return; }
+  if (a === 'report') { S.meView = 'report'; go('me'); api('/api/records/stats?days=14').then((x) => { S.stats14 = x; if (S.meView === 'report') render(); }).catch(() => {}); return; }
   if (a === 'backup') { S.meView = 'backup'; go('me'); return; }
   if (a === 'about') { sheet(`<div class="sheet-head"><b>关于上岸</b><button class="sheet-close">✕</button></div><div class="card-sub">上岸 v${APP_VERSION} · 本地离线题库<br>题库与解析来源：粉笔等公开整理，仅限个人学习使用，请勿传播或商用。<br>不提供公开商店分发。</div>`); return; }
   if (a === 'ai') { openAi(); return; }

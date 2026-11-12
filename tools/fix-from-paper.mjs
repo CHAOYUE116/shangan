@@ -48,13 +48,17 @@ const DAY = new Date().toISOString().slice(0, 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- 粉笔会话 ---------------- */
-const cookiePath = path.join(ROOT, 'cookie.txt');
-const COOKIE = fs.readFileSync(cookiePath, 'utf8').trim();
-const UID = (COOKIE.match(/userid=(\d+)/) || [])[1] || '';
+const { loadAccounts, Session } = await import('./lib/fenbi.mjs');
+const ACCOUNTS = loadAccounts(ROOT);
+const sess = new Session(ACCOUNTS);
+const COOKIE = sess.acc.cookie;
+const UID = sess.uid();
+console.log('账号：' + ACCOUNTS.map((a) => a.file + '(' + a.uid + ')').join(' · '));
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const H = { cookie: COOKIE, 'user-agent': UA, referer: 'https://www.fenbi.com/', origin: 'https://www.fenbi.com' };
 const SPA = { ...H, referer: 'https://spa.fenbi.com/', origin: 'https://spa.fenbi.com' };
-const Q = `app=web&kav=131&av=134&hav=128&gav=2&apcid=0&deviceId=&userId=${UID}`;
+const Q0 = 'app=web&kav=131&av=134&hav=128&gav=2&apcid=0&deviceId=';
+const Q = () => `${Q0}&userId=${sess.uid()}`;
 const ST = `routecs=%C&type=1&kav=125&av=127&hav=125&app=web&apcid=0&deviceId=&gav=2`;
 
 const COURSE_OF = {
@@ -65,9 +69,9 @@ const COURSE_OF = {
 };
 
 async function createExercise(course, paperId) {
-  const r = await fetch(`https://tiku.fenbi.com/api/${course}/exercises?${Q}&type=1`, {
+  const r = await sess.fetch(`https://tiku.fenbi.com/api/${course}/exercises?${Q()}&type=1`, {
     method: 'POST',
-    headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: `type=1&paperId=${paperId}&exerciseTimeMode=2`,
     signal: AbortSignal.timeout(20000),
   });
@@ -77,14 +81,14 @@ async function createExercise(course, paperId) {
 }
 
 async function submitAndGetStatic(course, key) {
-  await fetch(`https://tiku.fenbi.com/combine/exercise/submit?key=${key}&routecs=${course}&${Q}`, {
+  await sess.fetch(`https://tiku.fenbi.com/combine/exercise/submit?key=${key}&routecs=${course}&${Q()}`, {
     method: 'POST',
-    headers: { ...SPA, 'content-type': 'application/json' },
+    spa: true, headers: { 'content-type': 'application/json' },
     body: '{}',
     signal: AbortSignal.timeout(20000),
   }).catch(() => null);
-  const gr = await fetch(`https://tiku.fenbi.com/combine/exercise/getSolution?format=json&key=${key}&routecs=${course}&${Q}`, {
-    headers: SPA,
+  const gr = await sess.fetch(`https://tiku.fenbi.com/combine/exercise/getSolution?format=json&key=${key}&routecs=${course}&${Q()}`, {
+    spa: true,
     signal: AbortSignal.timeout(20000),
   }).catch(() => null);
   if (!gr || gr.status !== 200) return { status: gr?.status || 0, json: null };
@@ -93,7 +97,7 @@ async function submitAndGetStatic(course, key) {
     || (gj?.data?.switchVO?.requestKey ? `https://tiku.fenbi.com/combine/static/solution?key=${gj.data.switchVO.requestKey}` : null);
   if (!url) return { status: 0, json: null };
   const full = url + (url.includes('?') ? '&' : '?') + ST.replace('%C', course);
-  const st = await fetch(full, { headers: SPA, signal: AbortSignal.timeout(25000) }).catch(() => null);
+  const st = await sess.fetch(full, { spa: true, signal: AbortSignal.timeout(25000) }).catch(() => null);
   if (!st || st.status !== 200) return { status: st?.status || 0, json: null };
   const sj = await st.json().catch(() => null);
   return { status: 200, json: sj };

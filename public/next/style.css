@@ -1495,3 +1495,12 @@ html[data-theme="dark"] .rp-radar .rp-grid { stroke: #2A2E37; }
 html[data-theme="dark"] .rp-radar .rp-spoke { stroke: #2A2E37; }
 html[data-theme="dark"] .rp-bar { background: #2A2E37; }
 html[data-theme="dark"] .rp-mod { border-bottom-color: #2A2E37; }
+
+/* ---------- 学习报告（结论页） ---------- */
+.rp-verdict { font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+.rp-line { margin-top: 8px; font-size: 14px; line-height: 1.65; color: var(--muted); }
+.rp-meta { margin-top: 10px; font-size: 12.5px; color: var(--muted-2, #98a0b3); }
+.rep-cmp { display: flex; gap: 8px; margin-top: 10px; }
+.rep-cmp > div { flex: 1; background: var(--soft, #f6f7fb); border-radius: 12px; padding: 10px 8px; text-align: center; }
+.rep-cmp b { display: block; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rep-cmp span { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
