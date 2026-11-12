@@ -1,3 +1,18 @@
+## App 0.6.4（题库质量：用粉笔语料把缺的答案/解析/材料补回来）
+
+- 新增 `tools/fill-from-corpus.mjs`：把已经采下来的粉笔语料（`../research/fenbi-solutions` + `fenbi-keypoint`，1,785 个文件 / 36,739 道题）按 `questions.questionId` 对齐，缺什么补什么
+  - 材料：`questions.material` 为空但 `q_materials` 有正文 → 搬过来 **1,768 道**（很多「根据材料…」的题就是缺这一块）
+  - 解析：解析 < 20 字而语料有解析 → 重建 `analysis` + `analysisHtml`（带公式图）**2,666 道 / 897 张公式图**
+  - 答案：客观题没答案 → 用语料 `correctAnswer` **237 道**（现在客观题缺答案 = 0）
+  - 合计动 **4,414 道题**
+- 新增 `tools/fetch-missing-images.mjs`：题干/解析/材料里引用、但 `images.db` 里没有的公式图，直接从公开接口 `https://fb.fenbike.cn/api/planet/accessories/formulas?latex=KEY` 补下来 **532 张**（`images.db` 55,837 → 56,369 行）
+- 新增 `tools/fix-answer-conflicts.mjs`：对「答案与解析矛盾」的题，拿语料 `correctAnswer` 跟解析里写死的答案对齐，只在与两者都一致时才改库
+- `tools/flag-bad-questions.mjs` 的 R3 收紧：解析 HTML 里已经有公式图的（「进价为[图]，而…」）不再算坏题
+- 坏题 **3,029（2.94%）→ 2,139（2.07%）**：缺材料 65 · 图丢了 1,014 · 公式丢了 875 · 答案与解析不符 183 · 图片键缺失 2 · 客观题没答案 0
+- 质量审计：问题行 **11,545 → 8,519**；缺答案 237 → **0**、缺解析 3,344 → **680**、缺材料 1,643 → 1,436
+- 题库升到 `0.5.23-20261112-1520`（485.8 MB / 123.7 MB gz）+ `images.db` 43.1 MB（34.4 MB gz）；**仍只发全量包**
+- 剩下 2,139 道需要重新抓原文（图表/表格没抓到、解析数字被吞），粉笔那边要先登录才能按卷重采
+
 ## App 0.6.3（题库质量：做不了的题先不显示）
 
 - 新增 `tools/flag-bad-questions.mjs`：按六条规则给题打标，写 `questions.q_bad` / `q_bad_reason`（不动任何原字段，改回 0 即可恢复）

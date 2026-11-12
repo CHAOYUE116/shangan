@@ -145,8 +145,11 @@ for (const r of rows) {
     if (mentionsImg && !hasImg(contentHtml) && !hasImg(analysisHtml) && !hasImg(material)) reason = 'R2';
   }
 
-  // R3 公式丢了：数字被吞掉
-  if (!reason && isObj && /(为元|有名|有本|为名|=名|元，而|元。故|元，则|个，则|为千克)/.test(analysis)) reason = 'R3';
+  // R3 公式丢了：数字被吞掉。
+  // 注意：如果解析 HTML 里已经有公式图（<img>），那「进价为[图]，而…」是能读的 —— 图片就是被吞掉的那个数，
+  // 这种不该算坏题（2026-11-12 用粉笔语料把解析补成带图的 HTML 之后，这一类会被大量救回来）。
+  if (!reason && isObj && !hasImg(analysisHtml)
+      && /(为元|有名|有本|为名|=名|元，而|元。故|元，则|个，则|为千克)/.test(analysis)) reason = 'R3';
 
   // R4 答案与解析不符：只认「硬矛盾」——
   //   单选/判断：解析给的字母 ≠ 库里的答案

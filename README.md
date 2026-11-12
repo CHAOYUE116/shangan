@@ -21,7 +21,7 @@
 
 **下载** [最新版 APK（Releases → v0.6）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.6)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 
-当前版本：**App 0.6.3**（`shangan-0.6.3-release.apk`，158.2 MB，Android 8.0+）· 题库 **0.5.22-20261112-1400**（156,121 行 / 103,128 道去重真题）
+当前版本：**App 0.6.4**（`shangan-0.6.4-release.apk`，164.0 MB，Android 8.0+）· 题库 **0.5.23-20261112-1520**（156,121 行 / 103,128 道去重真题，2,139 道待重采的题已屏蔽）
 
 ### 仓库与发布是怎么分工的
 
@@ -36,8 +36,8 @@ Releases 按**大版本**建 tag，一个 tag 只放一版 APK（新版本上传
 
 | Tag | 放什么 | 例 |
 |---|---|---|
-| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.3-release.apk` |
-| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.22-20261112-1400` |
+| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.4-release.apk` |
+| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.23-20261112-1520` |
 
 App 通过仓库根目录的 [`release/manifest.json`](release/manifest.json) 找更新：里面 `app.url` 指向 `v0.6` 那个 APK，`tiku.sources` 指向题库 tag 里的 `tiku_app.db.gz`。所以发版只需要改这一个 JSON，客户端查到的就是最新地址。
 
