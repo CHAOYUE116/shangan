@@ -21,7 +21,7 @@
 
 **下载** [最新版 APK（Releases → v0.6）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.6)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 
-当前版本：**App 0.6.4**（`shangan-0.6.4-release.apk`，164.0 MB，Android 8.0+）· 题库 **0.5.23-20261112-1520**（156,121 行 / 103,128 道去重真题，2,139 道待重采的题已屏蔽）
+当前版本：**App 0.6.5**（`shangan-0.6.5-release.apk`，165.3 MB，Android 8.0+）· 题库 **0.5.24-20261112-1745**（156,121 行 / 103,128 道去重真题，2,139 道待重采的题已屏蔽）
 
 ### 仓库与发布是怎么分工的
 
@@ -36,8 +36,8 @@ Releases 按**大版本**建 tag，同一个 tag 下**每个发布过的版本�
 
 | Tag | 放什么 | 例 |
 |---|---|---|
-| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.4-release.apk` |
-| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.23-20261112-1520` |
+| `v0.4` / `v0.5` / `v0.6` … | **App 安装包**，一个大版本一个 | `shangan-0.6.5-release.apk` |
+| `tiku-<题库版本>` | **题库资产**：`tiku_app.db.gz`、`images.db.gz`、增量包 | `tiku-0.5.24-20261112-1745` |
 
 > **发布约定（2026-11-12 起）**：已经发出去的包不删。`tools/release-app.mjs` 只在**同名重传**时删除旧资产，历史版本一律保留；确实要清理历史包必须显式加 `--prune`。
 > 题库大版本同理：`tiku-<dbVersion>` 的 Release 与 tag 保留，方便回滚和追溯（旧版本只在仓库体积撑不住时才清）。

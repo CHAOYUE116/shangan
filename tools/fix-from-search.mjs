@@ -150,10 +150,16 @@ function overlap(a, b) {
 async function search(course, q) {
   const url = `https://algo.fenbi.com/api/fenbi-question-search/question?q=${encodeURIComponent(q)}`
     + `&coursePrefix=${course}&offset=0&length=15&format=json&sourceType=0&${BASE_Q}`;
-  const r = await fetch(url, { headers: HEADERS });
+  const r = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15000) });
   const txt = await r.text();
   if (!r.ok) throw new Error(`search HTTP ${r.status}: ${txt.slice(0, 120)}`);
   const j = JSON.parse(txt);
+  // 粉笔搜题是按账号维度的频控：code -1 + "用户搜索频率过高" 必须当限流退避，不能当「未匹配」
+  if (j && j.code !== 1 && /频率/.test(String(j.msg || ''))) {
+    const e = new Error(String(j.msg));
+    e.rateLimit = true;
+    throw e;
+  }
   return j?.data?.items || [];
 }
 
@@ -162,8 +168,13 @@ async function getSolution(course, questionId, checkId, format = 'json') {
   const url = `https://tiku.fenbi.com/combine/question/auth/getSolution?questionIds=${questionId}`
     + `&routecs=${course}&type=6&checkId=${encodeURIComponent(checkId || '')}&format=${format}`
     + '&kav=125&av=127&hav=125&app=web&apcid=0&deviceId=&gav=2';
-  const r = await fetch(url, { headers: SPA_HEADERS });
-  const txt = await r.text();
+  let r; let txt = '';
+  try {
+    r = await fetch(url, { headers: SPA_HEADERS, signal: AbortSignal.timeout(15000) });
+    txt = await r.text();
+  } catch (e) {
+    return { status: 0, text: 'timeout: ' + String(e.message).slice(0, 60), json: null };
+  }
   let json = null;
   try { json = JSON.parse(txt); } catch { /* html */ }
   return { status: r.status, text: txt, json };
@@ -175,8 +186,13 @@ async function getStatic(json) {
   if (!u) return null;
   const full = u + (u.includes('?') ? '&' : '?')
     + 'routecs=' + ST_COURSE + '&type=1&kav=125&av=127&hav=125&app=web&apcid=0&deviceId=&gav=2';
-  const r = await fetch(full, { headers: SPA_HEADERS });
-  const txt = await r.text();
+  let r; let txt = '';
+  try {
+    r = await fetch(full, { headers: SPA_HEADERS, signal: AbortSignal.timeout(15000) });
+    txt = await r.text();
+  } catch (e) {
+    return { status: 0, text: 'timeout: ' + String(e.message).slice(0, 60) };
+  }
   if (r.status !== 200) return { status: r.status, text: txt };
   try { return { status: 200, json: JSON.parse(txt) }; } catch { return { status: 200, text: txt }; }
 }
@@ -203,7 +219,7 @@ async function fetchAsDataUrl(u) {
   const abs = u.startsWith('//') ? 'https:' + u : u;
   for (let t = 0; t < 2; t += 1) {
     try {
-      const r = await fetch(abs, { headers: { 'user-agent': HEADERS['user-agent'] } });
+      const r = await fetch(abs, { headers: { 'user-agent': HEADERS['user-agent'] }, signal: AbortSignal.timeout(20000) });
       if (!r.ok) { await sleep(400); continue; }
       const buf = Buffer.from(await r.arrayBuffer());
       const mime = (r.headers.get('content-type') || 'image/png').split(';')[0];
@@ -311,6 +327,7 @@ const rows = db.prepare(`
   LEFT JOIN papers p ON p.id = q.paperId
   JOIN (SELECT questionId, MAX(id) AS mid FROM questions GROUP BY questionId) m ON m.mid = q.id
   WHERE COALESCE(q.q_bad, 0) = 1
+    AND COALESCE(q.q_bad_reason, '') NOT LIKE '%无权%'
   ORDER BY q.questionId
 `).all();
 
@@ -345,8 +362,15 @@ for (let i = 0; i < todo.length; i += 1) {
   const course = COURSE_OF[r.subjectName] || 'syzc';
   const q = stemQuery(r.content);
   if (!q) { failN += 1; log.push({ questionId: r.questionId, ok: false, why: 'no-query' }); continue; }
-  let items = [];
-  try { items = await search(course, q); } catch (e) { failN += 1; log.push({ questionId: r.questionId, ok: false, why: 'search:' + String(e.message).slice(0, 60) }); continue; }
+  let items = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try { items = await search(course, q); break; } catch (e) {
+      if (!e.rateLimit) { items = null; log.push({ questionId: r.questionId, ok: false, why: 'search:' + String(e.message).slice(0, 60) }); break; }
+      console.log('  搜题限流（用户搜索频率过高），冷却 ' + Math.round(COOLDOWN / 1000) + 's 后重试（第 ' + (attempt + 1) + '/8 次）');
+      await sleep(COOLDOWN);
+    }
+  }
+  if (!items || !items.length) { failN += 1; if (items !== null) log.push({ questionId: r.questionId, ok: false, why: 'search-empty' }); else log.push({ questionId: r.questionId, ok: false, why: 'search-failed' }); await sleep(GAP); continue; }
   const exact = items.find((it) => Number(it.questionId) === Number(r.questionId));
   const byOverlap = items
     .map((it) => ({ it, ov: overlap(r.content, snippetText(it.stemSnippet)) }))
@@ -378,6 +402,8 @@ for (let i = 0; i < todo.length; i += 1) {
   if (rateLimited(res)) { console.log('仍然限流，先停下，稍后重跑（已完成的部分已写库）'); break; }
   if (res.status === 403) {
     noPerm += 1;
+    // 记下原因，下一轮跳过：这类题是会员/课程权限问题，重试多少次都一样
+    if (APPLY) db.prepare("UPDATE questions SET q_bad_reason = '无权查看（需会员/课程权限）' WHERE questionId = ?").run(r.questionId);
     log.push({ questionId: r.questionId, ok: false, why: 'no-perm:' + String(res.text).replace(/\s+/g, ' ').slice(0, 60) });
     await sleep(GAP);
     continue;
