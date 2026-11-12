@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>坏题标注 · __SUBJECT__</title>
+<style>
+  :root {
+    --bg: #F5F6F8; --card: #fff; --line: #E6E9EF; --text: #1B1F2A; --muted: #7A8194;
+    --brand: #3D70F5; --red: #E5484D; --amber: #E8A33D; --green: #17A673;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { position: sticky; top: 0; z-index: 9; background: #fff; border-bottom: 1px solid var(--line); padding: 10px 16px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 700; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #EEF2F7; color: #4A5262; }
+  .pill.red { background: #FDECEC; color: #B4272C; }
+  .pill.amber { background: #FEF3E2; color: #9A6B10; }
+  .pill.green { background: #E6F7EF; color: #0E7A56; }
+  .pill.blue { background: #E8EEFF; color: #2C55C0; }
+  .grow { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: #fff; color: var(--text);
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  button:hover { border-color: #C9D0DC; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.danger { background: #fff; border-color: #F3C0C2; color: #B4272C; }
+  button.on { background: #EEF2FF; border-color: var(--brand); color: var(--brand); font-weight: 600; }
+  main { max-width: 980px; margin: 16px auto 120px; padding: 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .stem { font-size: 15.5px; line-height: 1.75; }
+  .stem img, .analysis img, .material img { max-width: 100%; height: auto; vertical-align: middle; }
+  .material { margin: 12px 0; padding: 12px 14px; background: #F8FAFD; border: 1px solid #E9EEF6; border-radius: 10px; max-height: 340px; overflow: auto; }
+  .material h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  ol.opts { list-style: none; padding: 0; margin: 14px 0 0; }
+  ol.opts li { display: flex; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+  ol.opts li.right { border-color: #BFE9D4; background: #F3FBF7; }
+  ol.opts .k { width: 22px; height: 22px; flex: none; border-radius: 999px; background: #EEF2F7; color: #4A5262;
+    display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  ol.opts li.right .k { background: var(--green); color: #fff; }
+  .answer { margin-top: 10px; font-size: 13px; }
+  .answer b { color: var(--green); }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--brand); font-size: 13px; }
+  .analysis { margin-top: 10px; font-size: 14px; line-height: 1.75; color: #33384A; }
+  .panel { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 12px 16px; }
+  .panel .inner { max-width: 980px; margin: 0 auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .panel .inner .sp { flex: 1; }
+  textarea { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; resize: vertical; }
+  .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: #1B1F2A; color: #fff;
+    padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast.show { opacity: .92; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+  .bar { height: 6px; background: #EEF2F7; border-radius: 999px; overflow: hidden; width: 180px; }
+  .bar > i { display: block; height: 100%; background: var(--brand); }
+  .kbd { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; }
+  .done { opacity: .55; }
+  .tagrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+  .tagrow button { font-size: 12.5px; padding: 5px 10px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>坏题标注 · __SUBJECT__</h1>
+    <span class="pill" id="cnt"></span>
+    <span class="bar"><i id="pbar" style="width:0"></i></span>
+    <span class="pill" id="ptxt">0%</span>
+    <span class="grow"></span>
+    <button id="export" class="primary">导出标注 JSON</button>
+    <button id="copy">复制到剪贴板</button>
+    <button id="reset" class="danger">清空本页</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="pill" id="f-all" data-f="" role="button" style="cursor:pointer">全部</span>
+    <span id="filters"></span>
+    <label style="margin-left:auto;font-size:12px;color:var(--muted)">
+      <input type="checkbox" id="onlyNew" /> 只看未标注
+    </label>
+    <input id="q" placeholder="搜题号 / 题干 / 卷名" style="width:220px;padding:6px 10px;border:1px solid var(--line);border-radius:8px" />
+  </div>
+</header>
+
+<main id="main"></main>
+
+<div class="panel">
+  <div class="inner">
+    <button id="prev">← 上一题 <span class="kbd">←</span></button>
+    <button id="next">下一题 → <span class="kbd">→</span></button>
+    <span class="sp"></span>
+    <span id="state" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = /*__DATA__*/[];
+const IMGDIR = "__IMGDIR__";
+const KEY = "annot-" + DATA.subjectKey;
+
+const ACTIONS = [
+  { k: 'keep',    t: '没问题（恢复出题）', cls: 'green' },
+  { k: 'recover', t: '可救（按卷重采）',   cls: 'blue' },
+  { k: 'delete',  t: '删掉（不要了）',     cls: 'red' },
+  { k: 'fixans',  t: '答案错了（我改）',   cls: 'amber' },
+  { k: 'hide',    t: '先隐藏（暂不处理）', cls: '' },
+];
+
+let store = {};
+try { store = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { store = {}; }
+const save = () => localStorage.setItem(KEY, JSON.stringify(store));
+
+let filterKind = '';
+let onlyNew = false;
+let kw = '';
+let idx = 0;
+let list = [];
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+function counts() {
+  const c = {};
+  for (const q of DATA.items) c[q.kind] = (c[q.kind] || 0) + 1;
+  return c;
+}
+
+function rebuildList() {
+  const k = kw.trim();
+  list = DATA.items.filter((q) => {
+    if (filterKind && q.kind !== filterKind) return false;
+    if (onlyNew && store[q.id]) return false;
+    if (k && !(String(q.id).includes(k) || (q.stem || '').includes(k) || (q.paper || '').includes(k) || (q.chapter || '').includes(k))) return false;
+    return true;
+  });
+  if (idx >= list.length) idx = Math.max(0, list.length - 1);
+  render();
+}
+
+function progress() {
+  const total = DATA.items.length;
+  const done = DATA.items.filter((q) => store[q.id]).length;
+  document.getElementById('cnt').textContent = `${done} / ${total} 已标注`;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('ptxt').textContent = pct + '%';
+}
+
+function html(s) { return s || ''; }
+
+function render() {
+  const main = document.getElementById('main');
+  progress();
+  if (!list.length) { main.innerHTML = '<div class="empty">这一类没有题了（或都标注完了）</div>'; return; }
+  const q = list[idx];
+  const cur = store[q.id] || {};
+  const opts = (q.options || []).map((o, i) => {
+    const letter = String.fromCharCode(65 + i);
+    const right = q.answerLetters && q.answerLetters.includes(letter) ? ' right' : '';
+    return `<li class="${right.trim()}"><span class="k">${letter}</span><span>${html(o)}</span></li>`;
+  }).join('');
+  const acts = ACTIONS.map((a) => `<button data-act="${a.k}" class="${cur.action === a.k ? 'on' : ''}">${a.t}</button>`).join('');
+  main.innerHTML = `
+    <div class="card">
+      <div class="meta">
+        <span class="pill red">${q.kind}</span>
+        <span class="pill">题号 ${q.id}</span>
+        <span class="pill">${q.chapter || '未分章节'}</span>
+        <span class="pill">${q.typeName}</span>
+        <span class="pill">${q.paper}</span>
+        <span class="grow"></span>
+        <span>${idx + 1} / ${list.length}</span>
+      </div>
+      <div class="stem">${q.stemHtml || q.stem}</div>
+      ${q.materialHtml ? `<div class="material"><h4>材料</h4>${q.materialHtml}</div>` : ''}
+      ${!q.materialHtml && q.materialNote ? `<div class="meta" style="margin-top:10px"><span class="pill red">${q.materialNote}</span></div>` : ''}
+      ${opts ? `<ol class="opts">${opts}</ol>` : ''}
+      <div class="answer">库答案：<b>${q.answer || '（空）'}</b>
+        ${q.reason && q.reason !== q.kind ? ` <span class="pill amber">${q.reason}</span>` : ''}</div>
+      ${q.analysisHtml ? `<details ${cur.openAnalysis ? 'open' : ''}><summary>看解析</summary><div class="analysis">${q.analysisHtml}</div></details>` : '<div class="meta" style="margin-top:12px">（这道题没有解析）</div>'}
+      <div class="tagrow">${acts}</div>
+      <div style="margin-top:12px">
+        <textarea id="note" placeholder="备注（可选）：比如「图在资料分析里」「答案应为 C」">${cur.note || ''}</textarea>
+      </div>
+      <div class="meta" style="margin-top:8px">
+        <span>我的判断：<b>${cur.action ? (ACTIONS.find((a) => a.k === cur.action) || {}).t : '未标注'}</b></span>
+        <span class="grow"></span>
+        <button id="clear">清除本题标注</button>
+      </div>
+    </div>`;
+  main.querySelectorAll('[data-act]').forEach((b) => {
+    b.onclick = () => {
+      const q2 = store[q.id] || {};
+      q2.action = b.dataset.act;
+      q2.note = document.getElementById('note').value.trim();
+      q2.at = Date.now();
+      store[q.id] = q2; save();
+      toast('已标记：' + b.textContent);
+      if (onlyNew) rebuildList(); else render();
+      if (!onlyNew) { setTimeout(() => next(), 120); }
+    };
+  });
+  const note = document.getElementById('note');
+  note.onchange = () => { const q2 = store[q.id] || {}; q2.note = note.value.trim(); store[q.id] = q2; save(); };
+  document.getElementById('clear').onclick = () => { delete store[q.id]; save(); render(); };
+  document.getElementById('state').textContent = cur.action ? `第 ${idx + 1} 题已标注` : '';
+}
+
+function next() { if (idx + 1 < list.length) { idx += 1; render(); } else toast('已经是最后一题'); }
+function prev() { if (idx > 0) { idx -= 1; render(); } }
+
+document.getElementById('next').onclick = next;
+document.getElementById('prev').onclick = prev;
+document.onkeydown = (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight') { next(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft') { prev(); e.preventDefault(); }
+};
+document.getElementById('q').oninput = (e) => { kw = e.target.value; idx = 0; rebuildList(); };
+document.getElementById('onlyNew').onchange = (e) => { onlyNew = e.target.checked; idx = 0; rebuildList(); };
+
+function buildFilters() {
+  const c = counts();
+  const wrap = document.getElementById('filters');
+  wrap.innerHTML = Object.keys(c).map((k) =>
+    `<span class="pill" data-f="${k}" role="button" style="cursor:pointer">${k} ${c[k]}</span>`).join(' ');
+  const all = [document.getElementById('f-all'), ...wrap.querySelectorAll('[data-f]')];
+  const mark = () => all.forEach((el) => el.classList.toggle('on', el.dataset.f === filterKind));
+  all.forEach((el) => { el.onclick = () => { filterKind = el.dataset.f; mark(); idx = 0; rebuildList(); }; });
+  mark();
+}
+
+function exportJson() {
+  const payload = {
+    subject: DATA.subject,
+    subjectKey: DATA.subjectKey,
+    generatedAt: DATA.generatedAt,
+    annotator: 'user',
+    items: DATA.items.map((q) => {
+      const a = store[q.id];
+      if (!a) return null;
+      return { questionId: q.id, kind: q.kind, reason: q.reason, action: a.action, note: a.note || '', at: a.at || Date.now() };
+    }).filter(Boolean),
+  };
+  return JSON.stringify(payload, null, 1);
+}
+
+document.getElementById('export').onclick = () => {
+  const blob = new Blob([exportJson()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `标注-${DATA.subjectKey}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  toast('已导出，把文件发我就能应用到题库');
+};
+
+document.getElementById('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(exportJson()); toast('已复制（直接粘给我）'); }
+  catch { toast('复制失败，请用「导出」'); }
+};
+
+document.getElementById('reset').onclick = () => {
+  if (!confirm('清空本页所有标注？')) return;
+  store = {}; save(); rebuildList();
+};
+
+buildFilters();
+rebuildList();
+</script>
+</body>
+</html>
