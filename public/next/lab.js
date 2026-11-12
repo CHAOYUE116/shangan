@@ -28,6 +28,11 @@
 
   const sig = (x) => 1 / (1 + Math.exp(-x));
 
+  /* 参数来自 tools/lab-sim.mjs 的扫描（24 个模拟学生 × 1500 条作答，参数各扫 5–6 档）：
+     K 0.35→0.5 都差不多，取 0.4；难度权重 0.5–0.8 略好于 1.0，取 0.7；忘了衰减项基本没用。 */
+  const K_GAIN = 0.4;
+  const B_SCALE = 0.7;
+
   /* 题型先验：不是数据标出来的，是常识 + 题库结构定的
      判断只有对错两档、不用算，最简单；多选要凑齐，最难 */
   function typePrior(type) {
@@ -120,7 +125,7 @@
       const type = m.type ?? r.type;
       return {
         kp,
-        b: typePrior(type) + chapterPrior(m.chapter || r.chapter),
+        b: B_SCALE * (typePrior(type) + chapterPrior(m.chapter || r.chapter)),
         c: guessOf(type, m.optionCount),
         y: r.correct ? 1 : 0,
         ts: parseTime(r.time),
@@ -152,7 +157,7 @@
         out.base.push({ p: (s.ok + 0.5) / (s.n + 1), y: e.y });
       }
       // 训练：答完这道题就更新（部署时也是这个顺序）
-      const K = 0.35 * (s.rd / (s.rd + 0.5));
+      const K = K_GAIN * (s.rd / (s.rd + 0.5));
       s.t += K * (e.y - sig(s.t - e.b));   // 用带难度的残差更新，θ 才是「能力」而不是「正确率」
       s.rd = Math.max(0.18, s.rd * 0.985);
       s.n += 1;
