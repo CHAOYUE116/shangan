@@ -2,62 +2,62 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.6.5",
-    "versionCode": 104,
-    "code": 104,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk",
+    "version": "0.6.6",
+    "versionCode": 105,
+    "code": 105,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.5-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.6/shangan-0.6.6-release.apk"
       }
     ],
-    "size": 173273865,
-    "sha256": "8a1bcd5cef79f5079c72b9a25a16287a0c3beb481b33f3dc7b5f71619a08b87b",
-    "name": "shangan-0.6.5-release.apk",
-    "note": "App 0.6.5：题库 0.5.24（按题干搜题补回 1,436 道题 + 830 张公式图，坏题 2,333 → 1,399）"
+    "size": 176720071,
+    "sha256": "ad60f01f42de66e4bc43571dd26520d24de0c7790a901ea02608b1ae9447bc0e",
+    "name": "shangan-0.6.6-release.apk",
+    "note": "App 0.6.6：学习统计加能力分析（六维雷达 + 估分）；修复 8,703 道题的材料显示成 [object Object]；图片库升级后不再漏更新"
   },
   "tiku": {
-    "dbVersion": "0.5.24-20261112-1745",
-    "questions": 103128,
+    "dbVersion": "0.5.26-20261112-2045",
+    "questions": 103257,
     "full": {
       "name": "tiku_app.db.gz",
-      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz",
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz",
       "mirrors": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz"
       ],
       "sources": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz",
-        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz",
+        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz"
       ],
-      "size": 130188997,
-      "rawSize": 487886848,
-      "sha256": "eb183b6b425feaf1c11c21f4d5b09cf96dc294aeb86d5fae2f4476ebc01228a2",
-      "gzSha256": "e70e5b9403b9a1f3897f79fd518f3f82e3a2d8d2c5cbc69d356022d328358248",
+      "size": 133389905,
+      "rawSize": 514801664,
+      "sha256": "6ca4ed5a887f31b451d287c44620ce2b37381f4a774fb95779eff11f9b747864",
+      "gzSha256": "ac2e8819c7f1f8a23de75c039471859cf1800fdaac82c0dd3bae9e21a7159cea",
       "gz": true
     },
     "delta": [],
-    "note": "题库 0.5.24：用粉笔搜题接口按题干反查，补回 1,436 道题的答案/解析/材料与 830 张公式图；坏题 2,333 → 1,399（1.36%）"
+    "note": "题库 0.5.2：修复 8,703 道「材料被写成 [object Object]」；补 613 张公式图；坏题 1,347（1.30%）"
   },
   "images": {
     "name": "images.db.gz",
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz",
     "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz"
     ],
     "sources": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz",
-      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.24-20261112-1745/images.db.gz"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz",
+      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz"
     ],
-    "size": 44371968,
-    "gzSize": 36821204,
-    "sha256": "ac3d58ec8c9630db906f06bf8fa5997f81cec2bfdca3e6400f7cbe6853574998",
+    "size": 44957696,
+    "gzSize": 37117790,
+    "sha256": "ff6dc5d79ef435060dc3000d9278c5df83e00f9d3d3d5d0ed714b338124a7882",
     "gz": true
   },
   "mirrors": [],
-  "note": "App 0.6.5：题库 0.5.24（按题干搜题补回 1,436 道题 + 830 张公式图，坏题 2,333 → 1,399）"
+  "note": "App 0.6.6：学习统计加能力分析（六维雷达 + 估分）；修复 8,703 道题的材料显示成 [object Object]；图片库升级后不再漏更新"
 }
