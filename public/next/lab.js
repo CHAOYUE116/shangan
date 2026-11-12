@@ -273,7 +273,7 @@
             ${line('C', 'C · 加蒙对概率', '四选一有 25% 靠蒙')}
             ${line('D', 'D · 加遗忘', '久没练的考点算更不确定')}
           </table>
-          <div class="lab-h">最该补的考点（按能力估计升序）</div>
+          <div class="lab-h">最该补的章节（按能力估计升序）</div>
           <div class="lab-list">
             ${r.rows.slice(0, 12).map((x) => `<div class="lab-row"><span class="lab-kp">${x.kp}</span><span class="lab-m">θ ${x.theta.toFixed(2)}</span><span class="lab-m">${Math.round(x.acc * 100)}% · ${x.n} 题</span></div>`).join('')}
           </div>
@@ -296,12 +296,12 @@
       .filter(([, v]) => v && v.n)
       .sort((a, b) => a[1].t - b[1].t)
       .slice(0, 6)
-      .map(([kp, v]) => `<div class="lab-row"><span class="lab-kp">${kp}</span><span class="lab-m">θ ${v.t.toFixed(2)}</span><span class="lab-m">${v.n} 题</span></div>`)
+      .map(([kp, v]) => `<div class="lab-row"><span class="lab-kp">${labelOf(v.sub, v.ch) || kp}</span><span class="lab-m">θ ${v.t.toFixed(2)}</span><span class="lab-m">${v.n} 题</span></div>`)
       .join('');
     return `
       <div class="lab-h">当前能力账本（每日任务用的就是它）</div>
       <div class="lab-card">
-        <div class="lab-num">${st.kps}<span style="font-size:13px;font-weight:600"> 个考点</span></div>
+        <div class="lab-num">${st.kps}<span style="font-size:13px;font-weight:600"> 个章节</span></div>
         <div class="lab-lab">${st.ev} 次作答 · ${st.built ? '已完成历史回放' : '还没回放历史'}</div>
       </div>
       ${top ? `<div class="lab-list">${top}</div>` : '<div class="lab-lead">还没有能力数据：做几道题或点下面「重建账本」。</div>'}
@@ -357,6 +357,17 @@
     }, 400);
   }
 
+  /** 能力账本的账目粒度：科目 + 章节（模块）。考点太细（中位 1 题/考点），估不出 θ。 */
+  /** 「公务员·行测|判断推理」→「行测 · 判断推理」：账本按章节记，显示别带管道符 */
+  function labelOf(sub, ch) {
+    const short = String(sub || '').replace(/^公务员·/, '').replace(/^事业编·/, '');
+    return short && ch ? short + ' · ' + ch : (ch || short || '');
+  }
+  function bucketOf(it) {
+    const sub = it.sub || '';
+    const ch = it.chapter || it.name || '';
+    return `${sub}|${ch}`;
+  }
   function stOf(kp) {
     let s = ENG.kp[kp];
     if (!s) s = ENG.kp[kp] = { t: 0, rd: 1.2, n: 0, ok: 0, last: 0, b: null, c: null, pw: 0 };
@@ -365,8 +376,8 @@
 
   /* 一道题喂进去：kp 考点名、sub 科目、chapter 模块、type 题型、optionCount 选项数、y 对错 */
   function feedOne(it) {
-    if (!it || !it.kp) return;
-    const s = stOf(it.kp);
+    if (!it || (!it.kp && !it.chapter)) return;
+    const s = stOf(bucketOf(it));
     const b = B_SCALE * (typePrior(it.type) + chapterPrior(it.chapter));
     const c = guessOf(it.type, it.optionCount);
     // 这个考点「做到过的题」的平均难度/平均蒙对率：用来算「下次给你出这个考点，你大概能做对多少」
@@ -391,6 +402,8 @@
     s.n = (s.n || 0) + 1;
     if (it.y) s.ok = (s.ok || 0) + 1;
     if (it.sub) s.sub = it.sub;
+    if (it.chapter) s.ch = it.chapter;
+    if (it.kp) s.kp = it.kp;
     if (it.ts) s.last = Math.max(s.last || 0, it.ts);
   }
 
@@ -443,16 +456,17 @@
     return c + (1 - c) * sig(s.t - b);
   };
 
-  /* 某科目下按能力升序的考点列表；p 是「按典型难度、含蒙对率」的预期正确率 */
+  /* 某科目下按能力升序的「章节（模块）」列表；p 是含蒙对率的预期正确率。
+     账目粒度是章节：6204 个考点中位只有 1 道题，按考点估 θ 等于给每道题配一个能力值。 */
   function weakList(subject, limit = 40) {
     const out = [];
-    for (const [kp, s] of Object.entries(ENG.kp)) {
+    for (const [key, s] of Object.entries(ENG.kp)) {
       if (!s || !s.n) continue;
       if (subject && s.sub && s.sub !== subject) continue;
       const b = s.b || 0;
       const c = s.c == null ? 0.25 : s.c;
       const p = c + (1 - c) * sig(s.t - b);
-      out.push({ name: kp, rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, src: 'engine' });
+      out.push({ name: labelOf(s.sub, s.ch), rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, chapter: s.ch, src: 'engine' });
     }
     out.sort((a, b) => a.theta - b.theta || b.n - a.n);
     return out.slice(0, limit);
@@ -485,7 +499,7 @@
         // Thompson：θ 按不确定度抽一次，等于给「还没把握的考点」一点机会
         const tSample = s.t + rndn() * Math.min(1.5, s.rd);
         const p = c + (1 - c) * sig(tSample - b);
-        return { name: kp, p, gap: Math.abs(p - target), theta: s.t, n: s.n, sub: s.sub };
+        return { name: labelOf(s.sub, s.ch), p, gap: Math.abs(p - target), theta: s.t, n: s.n, sub: s.sub, chapter: s.ch };
       })
       .sort((a, b) => a.gap - b.gap);
 

@@ -1,36 +1,49 @@
-/* 给题库补一个「算出来的难度」——写新列，不动老字段。
+/* 结构难度估计 —— 只写新列（difficulty_est / difficulty_b / difficulty_src / diff_band），
+ * 绝不动原来的 difficulty 字段（那是历史导入的缺省值，几乎全是 5，没有信息量）。
  *
- * 背景：粉笔接口不下发每题难度（扫过 1,384 份整卷语料，difficulty 字段 100% 是 null），
- * 我们库里那个 5 是早期整卷数据的默认值 —— 单选 53% 是 5、判断题 86% 是 5，等于没标。
+ * 为什么要分位定档（2026-11-12 实测）：
+ *   原来用 est = round(5 + 1.6b)：b 的分布集中在 0.3 附近，结果 5:54,788 / 6:33,143 /
+ *   7:4,328 / 8:6，**易档(≤4)几乎为零**。而 ZPD 选题要「抽更简单的题把正确率拉回 0.75」，
+ *   没有易题就等于这条路走不通。
+ *   改成「同一章节内按 b 的排名分位」定档：每章的题自动摊到 1..9，
+ *   easy/mid/hard 三档各占约 1/3，任何模块都能抽出三档题。
  *
- * 所以这里不假装能给「真难度」，只给一个可解释的结构先验：
- *   b = 题型(判断 -0.6 / 多选 +0.8 / 不定项 +1.0 / 单选 0)
- *     + 模块(数量关系 +0.9 / 资料分析 +0.7 / 判断推理 +0.4 / 言语 +0.1 / 常识 0 / 政治理论 -0.1 / 其他 +0.2)
- *     + 0.25·ln(1 + 题干长度/60) + 0.20·ln(1 + 材料长度/300) − 0.15·ln(选项数)
+ * difficulty_est 语义：5 = 该章节的中位难度，越小越容易。
+ * diff_band：≤4 easy / 5~6 mid / ≥7 hard（按分位定档后三档大致 44% / 22% / 33%）
  *
- * 写入三列（都是新列，老 difficulty 原样保留，方便对比与回滚）：
- *   difficulty_est  1..9 的整数，给人看、给「简单/中等/困难」筛选用
- *   difficulty_b    logit，给引擎算 sigmoid 用
- *   difficulty_src  'structural'（结构先验）/ 'record'（将来按作答反推）
+ * 写入范围：同一 questionId 的所有行都写（库里有跨卷重复行，只写最新一行会导致
+ * 按 questionId join 时大量 NULL —— 上一版就是这么漏掉了 5 万多道）。
  *
  * 用法：
- *   node tools/estimate-difficulty.mjs            # 只统计，不写库
- *   node tools/estimate-difficulty.mjs --apply    # 写三列
+ *   node tools/estimate-difficulty.mjs            # 只统计
+ *   node tools/estimate-difficulty.mjs --apply    # 写库
  */
 import { DatabaseSync } from 'node:sqlite';
 
 const APPLY = process.argv.includes('--apply');
-const DB = process.env.TIKU_DB || 'app-assets/tiku_app.db';
+const argDb = (() => {
+  const i = process.argv.indexOf('--db');
+  return i > 0 ? process.argv[i + 1] : null;
+})();
+const DB = argDb || process.env.TIKU_DB || 'app-assets/tiku_app.db';
 
-const TYPE_PRIOR = (t) => (String(t) === '5' ? -0.6 : String(t) === '2' ? 0.8 : String(t) === '3' ? 1.0 : 0);
-const CH_PRIOR = (c) => {
-  const s = String(c || '');
-  if (/数量关系/.test(s)) return 0.9;
+// 题型基础难度：判断题天然容易（只有对/错），多选/不定项难
+const TYPE_PRIOR = (t) => {
+  const s = String(t ?? '');
+  if (s === '5') return -0.6;
+  if (s === '2') return 0.8;
+  if (s === '3') return 1.0;
+  return 0;
+};
+// 章节（模块）基础难度
+const CH_PRIOR = (ch) => {
+  const s = String(ch || '');
+  if (/数量关系|数学运算|数字推理/.test(s)) return 0.9;
   if (/资料分析/.test(s)) return 0.7;
-  if (/判断推理/.test(s)) return 0.4;
-  if (/言语理解/.test(s)) return 0.1;
-  if (/常识判断/.test(s)) return 0;
-  if (/政治理论/.test(s)) return -0.1;
+  if (/判断推理|图形推理|逻辑判断|逻辑推理|演绎推理|类比推理|定义判断/.test(s)) return 0.4;
+  if (/言语|语句|选词|填空|阅读|理解/.test(s)) return 0.1;
+  if (/常识判断|常识应用|基本常识|综合常识|人文常识|科技常识|地理|国情|生活常识|文化常识/.test(s)) return 0;
+  if (/政治理论|新思想|时事政治|毛中特|马克思主义/.test(s)) return -0.1;
   return 0.2;
 };
 const optCount = (s) => { try { return JSON.parse(s || '[]').length; } catch { return 0; } };
@@ -38,62 +51,81 @@ const optCount = (s) => { try { return JSON.parse(s || '[]').length; } catch { r
 const db = new DatabaseSync(DB);
 const rows = db.prepare(`
   SELECT id, questionId, chapter, type, options, length(content) stemLen,
-         (CASE WHEN material IS NULL OR length(material) < 20 THEN 0 ELSE length(material) END) matLen,
-         difficulty
+         (CASE WHEN material IS NULL OR length(material) < 20 THEN 0 ELSE length(material) END) matLen
   FROM questions
   WHERE id IN (SELECT MAX(id) FROM questions GROUP BY questionId)
+    AND type IN (1,2,3,5) AND options <> '[]'
 `).all();
 
-const hist = new Map();
-const shifts = new Map();
-let changed = 0;
-const updates = [];
+// 1) 每题一个结构难度 b
+const byQid = new Map();
 for (const r of rows) {
   const oc = optCount(r.options);
   const b = TYPE_PRIOR(r.type) + CH_PRIOR(r.chapter)
     + 0.25 * Math.log(1 + (r.stemLen || 0) / 60)
     + 0.2 * Math.log(1 + (r.matLen || 0) / 300)
     - 0.15 * Math.log(Math.max(1, oc));
-  const est = Math.max(1, Math.min(9, Math.round(5 + 1.6 * b)));
-  hist.set(est, (hist.get(est) || 0) + 1);
-  const old = Number(r.difficulty);
-  if (Number.isFinite(old) && old > 0) {
-    const d = est - old;
-    shifts.set(d, (shifts.get(d) || 0) + 1);
-    if (d !== 0) changed += 1;
-  }
-  updates.push([est, Math.round(b * 1000) / 1000, r.id]);
+  byQid.set(r.questionId, { b, chapter: r.chapter || '', type: r.type });
 }
 
-const total = rows.length;
-console.log(`去重题 ${total.toLocaleString()} 道（库 ${DB}）`);
-console.log('新难度分布（difficulty_est 1..9）：');
+// 2) 同一章节内按 b 排名 → 分位定档（保证每章三档都有）
+const byChapter = new Map();
+for (const [qid, v] of byQid) {
+  const k = v.chapter || '(未分类)';
+  if (!byChapter.has(k)) byChapter.set(k, []);
+  byChapter.get(k).push([qid, v.b]);
+}
+const est = new Map();
+for (const [, arr] of byChapter) {
+  arr.sort((a, b) => a[1] - b[1]);
+  const n = arr.length;
+  arr.forEach(([qid], i) => {
+    const p = n <= 1 ? 0.5 : i / (n - 1);        // 0..1 排名
+    est.set(qid, Math.max(1, Math.min(9, Math.ceil(p * 9))));
+  });
+}
+
+const bandOf = (e) => (e <= 4 ? 'easy' : e <= 6 ? 'mid' : 'hard');
+const hist = new Map();
+const bands = new Map();
+for (const [qid, e] of est) {
+  hist.set(e, (hist.get(e) || 0) + 1);
+  const bd = bandOf(e);
+  bands.set(bd, (bands.get(bd) || 0) + 1);
+}
+
+const total = est.size;
+console.log(`库：${DB}`);
+console.log(`客观题（去重后）：${total.toLocaleString()} 道 / 章节 ${byChapter.size} 个`);
+console.log('新难度分布（章节内分位）：');
 for (const d of [...hist.keys()].sort((a, b) => a - b)) {
   const n = hist.get(d);
   console.log(`  ${d}  ${String(n).padStart(7)}  ${((n / total) * 100).toFixed(1)}%`);
 }
-console.log(`与老 difficulty 不同的：${changed.toLocaleString()} 道（${((changed / total) * 100).toFixed(1)}%）`);
-console.log('位移分布（est − 老值）：');
-for (const d of [...shifts.keys()].sort((a, b) => a - b)) {
-  console.log(`  ${d > 0 ? '+' : ''}${d}  ${String(shifts.get(d)).padStart(7)}`);
-}
-const mean = updates.reduce((s, x) => s + x[1], 0) / (updates.length || 1);
-const sd = Math.sqrt(updates.reduce((s, x) => s + (x[1] - mean) ** 2, 0) / (updates.length || 1));
-console.log(`difficulty_b：均值 ${mean.toFixed(3)} / 标准差 ${sd.toFixed(3)}`);
+console.log('三档：', [...bands].map(([k, v]) => `${k} ${v.toLocaleString()} (${((v / total) * 100).toFixed(0)}%)`).join(' / '));
 
-if (APPLY) {
-  const cols = new Set(db.prepare("SELECT name FROM pragma_table_info('questions')").all().map((r) => r.name));
-  if (!cols.has('difficulty_est')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_est INTEGER');
-  if (!cols.has('difficulty_b')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_b REAL');
-  if (!cols.has('difficulty_src')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_src TEXT');
-  const up = db.prepare('UPDATE questions SET difficulty_est = ?, difficulty_b = ?, difficulty_src = ? WHERE id = ?');
-  db.exec('BEGIN');
-  for (const [est, b, id] of updates) up.run(est, b, 'structural', id);
-  db.exec('COMMIT');
-  const chk = db.prepare('SELECT difficulty_est e, COUNT(*) c FROM questions WHERE difficulty_est IS NOT NULL GROUP BY e ORDER BY e').all();
-  console.log('已写入 difficulty_est / difficulty_b / difficulty_src=structural');
-  console.log('库内校验：', chk.map((r) => `${r.e}:${r.c}`).join(' '));
-} else {
+if (!APPLY) {
   console.log('（只统计，没写库；要写加 --apply）');
+  db.close();
+  process.exit(0);
 }
+
+const cols = new Set(db.prepare("SELECT name FROM pragma_table_info('questions')").all().map((r) => r.name));
+if (!cols.has('difficulty_est')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_est INTEGER');
+if (!cols.has('difficulty_b')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_b REAL');
+if (!cols.has('difficulty_src')) db.exec('ALTER TABLE questions ADD COLUMN difficulty_src TEXT');
+if (!cols.has('diff_band')) db.exec('ALTER TABLE questions ADD COLUMN diff_band TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_questions_est ON questions(difficulty_est)');
+
+const up = db.prepare('UPDATE questions SET difficulty_est = ?, difficulty_b = ?, difficulty_src = ?, diff_band = ? WHERE questionId = ?');
+db.exec('BEGIN');
+for (const [qid, e] of est) up.run(e, Math.round(byQid.get(qid).b * 1000) / 1000, 'structural-chapter', bandOf(e), qid);
+db.exec('COMMIT');
+
+const chk = db.prepare('SELECT diff_band b, COUNT(*) c FROM questions WHERE diff_band IS NOT NULL GROUP BY b').all();
+const nulls = db.prepare(`SELECT COUNT(*) c FROM questions WHERE type IN (1,2,3,5) AND options <> '[]' AND diff_band IS NULL`).get().c;
+const integrity = db.prepare('PRAGMA integrity_check').get();
+console.log('已写入 difficulty_est / difficulty_b / difficulty_src / diff_band（含同一 questionId 的重复行）');
+console.log('库内校验：', chk.map((r) => `${r.b}:${r.c}`).join(' '), `| 仍为 NULL：${nulls}`);
+console.log('integrity_check：', Object.values(integrity)[0]);
 db.close();

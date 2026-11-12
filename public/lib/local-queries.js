@@ -26,9 +26,9 @@ const Q_PAPERS_BY_CATEGORY =
 const Q_PAPER_BY_ID =
   'SELECT id, subjectName, category, name, questionCount, difficulty, chapters FROM papers WHERE id = ?';
 const Q_QUESTIONS_BY_PAPER =
-  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
+  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
 const Q_QUESTION_BY_ID =
-  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
+  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, difficulty_est, diff_band, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
 const Q_MATERIALS_BY_PAPER =
   'SELECT title, idx, text FROM materials WHERE paperId = ? ORDER BY idx';
 // 考点来源：老表 question_keypoints（粉笔原样）+ 新表 question_keypoints_ext（我们自己补的，
@@ -97,13 +97,34 @@ function chapterTotalsFromPapers(tiku, subject, cond) {
     .sort((a, b) => b.c - a.c);
 }
 
-// 难度过滤（与 server diffCond 相同，粉笔 difficulty 1-9）：random/缺省不限难度（含未标注）
+// 结构难度新列 difficulty_est（1..9，章节内分位）——有它就用它筛难度。
+// 原因：老 difficulty 是历史导入的缺省值（55% 都是 5），按它筛等于没筛，
+// 实验版 ZPD 需要「能抽到明显更简单的题」，靠老列抽不出来。
+let USE_EST = false;
+let EST_PROBED = false;
+function probeEst(tiku) {
+  if (EST_PROBED || !tiku) return USE_EST;
+  try {
+    // 注意：tiku.all 是变参（all(sql, ...params)），传 [] 会被当成一个数组参数，
+    // 部分适配器会抛错 → 探测永远 false。这里不带参数调用。
+    USE_EST = (tiku.all("SELECT name FROM pragma_table_info('questions') WHERE name = 'difficulty_est'") || []).length > 0;
+  } catch { USE_EST = false; }
+  EST_PROBED = true;
+  return USE_EST;
+}
+// 难度过滤（与 server diffCond 相同）：random/缺省不限难度（含未标注）
 function diffCond(difficulty) {
   if (difficulty === 'random' || difficulty == null || difficulty === '') return '';
   const d = XINGCE_DIFFICULTY[difficulty];
   if (!d) return '';
+  if (USE_EST) {
+    // 新列的档位是「章节内分位」：≤4 易 / 5~6 中 / ≥7 难（三档约 44% / 22% / 33%）
+    const r = XINGCE_DIFF_EST[difficulty] || XINGCE_DIFF_EST.balanced;
+    return ` AND q.difficulty_est BETWEEN ${r.min} AND ${r.max}`;
+  }
   return ` AND q.difficulty BETWEEN ${d.min} AND ${d.max}`;
 }
+const XINGCE_DIFF_EST = { easy: { min: 1, max: 4 }, balanced: { min: 5, max: 6 }, hard: { min: 7, max: 9 }, random: { min: 1, max: 9 } };
 const Q_CAT_INDEX = (withSub, dc = '') => withSub
   ? `SELECT qc.question_id FROM question_categories qc
      JOIN questions q ON q.questionId = qc.question_id
@@ -292,6 +313,8 @@ export function toQuestion(q) {
     answer: q.answer,
     answerIndex: q.answerIndex,
     difficulty: q.difficulty,
+    difficultyEst: q.difficulty_est ?? null,
+    diffBand: q.diff_band ?? null,
     analysis: q.analysis ?? null,
     analysisHtml: q.analysisHtml ?? null,
   };
@@ -334,6 +357,7 @@ export function checkAnswer(q, selected) {
 
 /** 随机出题（与 server randomQuestions 相同；tiku 为适配器；year: 'all'|'3'|'5'|'10'，缺省近十年；difficulty: 'easy'|'balanced'|'hard'|'random'） */
 function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
+  probeEst(tiku);
   const cond = mockCond(mock) + yearCond(year === undefined ? '10' : year) + diffCond(difficulty);
   const chList = Array.isArray(chapters) ? chapters.filter(Boolean) : (chapters ? [chapters] : []);
   const chCond = chList.length ? `AND q.chapter IN (${chList.map(() => '?').join(',')}) ` : '';
@@ -379,7 +403,7 @@ function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
   }
   const sel = picks.slice(0, n);
   const qs = tiku.all(
-    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
+    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
      FROM questions q WHERE q.id IN (${sel.map(() => '?').join(',')})`,
     ...sel
   );
@@ -447,7 +471,7 @@ function enrichGroups(tiku, practice, rows, subject, diffFilter) {
   const allIds = [...new Set([...qids, ...[...groupMembers.values()].flat()])];
   let qs = [];
   if (allIds.length) {
-    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
+    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
   }
   const orderOf = new Map(qs.map((q) => [q.questionId, q.id]));
   const byId = new Map(qs.map((q) => [q.questionId, q]));
@@ -895,6 +919,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
 
     /** 随机出题（与 /api/practice 同构；支持章节/树节点/题组） */
     practice(subject, { chapter, chapters, group, sub, mock, n = 10, year, difficulty, custom, keypoint } = {}) {
+    probeEst(tiku);
       if (!subject) throw new Error('缺少 subject');
       const chList = Array.isArray(chapters)
         ? chapters.map((s) => String(s).trim()).filter(Boolean)
@@ -917,7 +942,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         ).map((r) => r.questionId);
         if (!ids.length) return [];
         const qs = tiku.all(
-          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml
+          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
            FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
           ...ids
         );
@@ -932,7 +957,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
           ).map((r) => r.question_id);
           if (!ids.length) return [];
           const qs = tiku.all(
-            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.analysis, q.analysisHtml
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
              FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
             ...ids
           );

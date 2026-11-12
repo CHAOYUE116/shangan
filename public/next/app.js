@@ -294,6 +294,12 @@ async function fetchByKp(subject, kp, n, difficulty = 'random') {
   try { return (await api(url)) || []; } catch { return []; }
 }
 
+/** 按「章节（模块）」抽题：实验版能力账本按章节记账，抽题也要能按章节抽 */
+async function fetchByChapter(subject, chapter, n, difficulty = 'random') {
+  const url = `/api/practice?subject=${encodeURIComponent(subject)}&chapters=${encodeURIComponent(chapter)}&n=${Math.max(2, n)}&mock=0&year=10&difficulty=${difficulty}&types=1,2,3`;
+  try { return (await api(url)) || []; } catch { return []; }
+}
+
 /* ---------- 复习排期（本机） ---------- */
 const REVIEW_KEY = 'sg_review_v1';
 // 记忆层档位（天）。正式版保持原表；实验版（0.7）换成更密的档位。
@@ -737,10 +743,10 @@ function diffBandFor(rate) {
 // 真机实测 ZPD 命中率只有 38%、平均预测正确率 56%（目标 75%）：考点挑对了，
 // 但固定按 0.4/0.8 切档，弱考点里仍抽到偏难的题 → 预测正确率上不去。
 // 这里改成：p̂ < 0.6 用 easy、0.6~0.9 用 balanced、> 0.9 用 hard，正式版走原逻辑。
-function diffBandForKp(kp, rate) {
+function diffBandForKp(subject, chapter, rate) {
   const E2 = window.__LAB__ && window.__ENGINE2__;
-  if (E2 && E2.ready() && kp) {
-    const p = E2.ability(kp);
+  if (E2 && E2.ready() && subject && chapter) {
+    const p = E2.ability(`${subject}|${chapter}`);
     if (p != null) return p < 0.6 ? 'easy' : p > 0.9 ? 'hard' : 'balanced';
   }
   return diffBandFor(rate);
@@ -3810,7 +3816,10 @@ async function buildNewQuestions(n) {
     for (const w of weak) {
       if (hit >= wantKp) break;
       const take = Math.max(2, Math.ceil(wantKp / Math.min(weak.length, 3)));
-      const rows = await fetchByKp(p.subject, w.name, take, diffBandForKp(w.name, w.rate));
+      const band = diffBandForKp(p.subject, w.name, w.rate);
+      const rows = w.src === 'engine'
+        ? await fetchByChapter(p.subject, w.name, take, band)
+        : await fetchByKp(p.subject, w.name, take, band);
       let got = 0;
       for (const q of rows) {
         const id = q.id ?? q.questionId;
