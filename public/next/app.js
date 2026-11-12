@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.7.1';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -3312,7 +3312,7 @@ async function confirmAnswer() {
     // 实验版（0.7）：逐题喂能力账本，答完这道账本就变，不用等整轮结束
     if (window.__ENGINE_ON__ && window.__ENGINE2__) {
       const kpName = q.kp || P.kp || '';
-      if (kpName && !q.__fed) {
+      if ((kpName || q.chapter) && !q.__fed) {
         let oc = 0;
         try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
         try {
