@@ -1,3 +1,19 @@
+# 更新日志
+
+## App 0.7.0（实验版，仅 lab 包）
+
+> 只发实验包 `com.kaogong.shangan.lab`（应用名「上岸实验室」），和正式版并排装；正式版不动。
+
+- **题库页二级标题有做题数**：之前只在模块级显示「3/50」，二级（新思想 / 图形推理…）恒为 0 —— `renderLibrary()` 用 `doneOf(x.name)` 按章节名匹配，二级名与章节名对不上。现在直接用 `chapters()` 按 `category|sub` 算好的 `x.done`；一级取「二级之和」与「按章节聚合」的较大值。纯 bug 修复，下个正式版会带上。
+- **公基补考点（新表 `question_keypoints_ext`）**：公基 23,053 道客观题原本 0 考点，按 8 个分类补成「公基·政治理论」等，覆盖 100%；老表 `question_keypoints` 未动，查询时两表 UNION（`local-queries.js` 的 `KP_SOURCE()`），回滚只需 DROP TABLE。
+- **难度写新列**（`difficulty_est` 1–9 / `difficulty_b` logit / `difficulty_src='structural'`）：`b = 题型先验 + 模块先验 + 0.25·ln(1+题干长/60) + 0.20·ln(1+材料长/300) − 0.15·ln(选项数)`；老 `difficulty` 原样保留。分布 4:1,530 / 5:57,591 / 6:39,673 / 7:4,328 / 8:6（SD 0.334）—— 能分题型与模块，分不了同型题的难易。
+- **能力引擎（考点级 θ）**：每考点记 θ / rd / c / last；每题按 `p = c + (1−c)·sigmoid(θ−b)`、`K = 0.4·rd/(rd+0.5)`、`θ += K·(y−p)/max(0.35,1−c)`、`rd ← max(0.18, rd×0.985)` 更新；状态存 `sg_theta_v1`，首次装好后回放历史作答（`/api/records/recent?limit=4000`）。参数由 `tools/lab-sim.mjs`（24 模拟学生 × 1500 条）扫定，不拟合个人数据。
+- **每日任务按能力抽题（lab only）**：`weakKpList()` 在 `window.__LAB__` 下优先取 `__ENGINE2__.weakList(subject)`（按 θ 升序），配额与难度档逻辑不变。实测 14 题一轮：两个最弱考点出 8 + 4 题，剩余随机补。
+- **实验室面板加「当前能力账本」**：考点数、作答次数、最弱 6 个考点的 θ，以及「重建账本（回放历史作答）」按钮。
+- **门控**：新增 `NativeDbBridge.flavor()`（返回 `BuildConfig.FLAVOR`）+ `?flavor=lab`；`build.gradle` 加 `buildFeatures { buildConfig true }`（AGP 8 默认不生成 BuildConfig）。正式版 `window.__LAB__ === false`，`lab.js` 整段不执行、`__ENGINE2__` 不存在。
+- 新增脚本：`tools/map-kp-ext.mjs`（补公基考点，`--dry/--apply/--db`）；`tools/estimate-difficulty.mjs` 改写新列。
+- 数据库版本 `0.5.20-20261112-1240`（只随实验包走，未发布题库资产）。
+
 ## App 0.6.2
 
 题库补答案 + 界面九处调整 + 自学习引擎测试包。

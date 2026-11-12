@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.2';
+const APP_VERSION = '0.7.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -683,6 +683,13 @@ function diagAgeDays() {
 // 考点权重：先看本机记录（够 8 题），不够再用测评结果。
 // 返回按正确率升序（最弱的在前）。
 function weakKpList(subject) {
+  // 0.7 实验版：走能力引擎（θ + 难度先验 + 蒙对率，见 lab.js 的 __ENGINE2__），
+  // 它有记录就优先；没记录（新装/刚升级还没回放完）再退回下面的老口径。
+  const E2 = window.__LAB__ && window.__ENGINE2__;
+  if (E2 && E2.ready()) {
+    const list = E2.weakList(subject, 40);
+    if (list.length >= 3) return list;
+  }
   const out = new Map();
   const stats = loadKpStats() || {};
   for (const [name, s] of Object.entries(stats)) {
@@ -702,6 +709,27 @@ function weakKpList(subject) {
 // 正确率 → 难度档（对应 local-queries 的 XINGCE_DIFFICULTY）
 function diffBandFor(rate) {
   return rate < 0.4 ? 'easy' : rate > 0.8 ? 'hard' : 'balanced';
+}
+
+// 0.7 实验版：把这一轮作答喂给能力引擎（考点级 θ），正式版直接返回
+function feedEngine(P) {
+  const E2 = window.__LAB__ && window.__ENGINE2__;
+  if (!E2 || !P || !Array.isArray(P.qs)) return;
+  const items = [];
+  P.qs.forEach((q, i) => {
+    const a = P.answers && P.answers[i];
+    if (!q) return;
+    const kp = q.kp || P.kp || '';
+    if (!kp) return;
+    if (!a || !a.confirmed) return;
+    let oc = 0;
+    try { oc = Array.isArray(q.options) ? q.options.length : JSON.parse(q.options || '[]').length; } catch { oc = 0; }
+    items.push({
+      kp, sub: P.subject || q.subject || '', chapter: q.chapter, type: q.type,
+      optionCount: oc, y: a.feedback && a.feedback.ok ? 1 : 0, ts: Date.now(),
+    });
+  });
+  if (items.length) { try { E2.recordAnswered(items); } catch { /* 实验功能失败不影响正常流程 */ } }
 }
 
 function kpRate(name) {
@@ -1068,6 +1096,8 @@ function renderLibrary() {
   };
   // 展开过的模块（二级标题默认收起，像粉笔那样点开再看）
   const openGroups = S.lib.openGroups || (S.lib.openGroups = {});
+  // 模块完成度：接口算好的 g.done（二级之和）与 records 按 chapter 聚合取大，两个口径都不丢
+  const doneTotal = (g) => Math.max(g.done || 0, doneOf(g.group));
   return `
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
   <h1 class="page-title">刷题</h1>
@@ -1076,15 +1106,20 @@ function renderLibrary() {
     <div class="segmented seg-sm"><button class="${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div>
   </div>
   <div class="chips nowrap" style="margin-bottom:10px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
-  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneOf(g.group), 0)} 题已做</span></div>
+  <div class="section-head"><h2 class="section-title">${esc(shortName)}模块</h2><span class="module-count">${groups.reduce((s, g) => s + doneTotal(g), 0)} 题已做</span></div>
   <div class="card module-card">
     ${groups.map((g, i) => {
-      const dn = doneOf(g.group);
+      const dn = doneTotal(g);
       const pct = g.total ? Math.min(100, Math.round((dn / g.total) * 100)) : 0;
       const subs2 = (g.subs || []).filter((x) => x.total > 0 && x.name !== '全部');
       const open = !!openGroups[g.group];
       const caret = subs2.length ? `<button class="module-caret ${open ? 'open' : ''}" data-toggle-group="${esc(g.group)}" aria-label="${open ? '收起' : '展开'}">${open ? '▾' : '▸'}</button>` : '<span class="module-caret ghost"></span>';
-      return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部">${caret}<div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${open ? subs2.map((x) => { const sd = doneOf(x.name); return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`; }).join('') : ''}`;
+      return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部">${caret}<div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${open ? subs2.map((x) => {
+        // 二级的「已做」直接用接口算好的 x.done（按 category|sub 索引统计），
+        // 之前用 doneOf(name) 是按 chapter 名匹配，二级名和 chapter 对不上，永远显示 0
+        const sd = x.done != null ? x.done : doneOf(x.name);
+        return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`;
+      }).join('') : ''}`;
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
   <div class="stats-row three" style="margin-top:14px">
@@ -3111,6 +3146,8 @@ async function finishPractice() {
   saveCurrentAnswer();
   P.open = false; clearInterval(P.timer); $('#practice').hidden = true;
   clearSession();
+  await attachKeypoints(P.qs);
+  feedEngine(P);
   const answers = Object.values(P.answers || {});
   const answered = answers.filter((a) => a.confirmed).length;
   const right = answers.filter((a) => a.feedback && a.feedback.ok).length;
@@ -4037,6 +4074,7 @@ async function submitExam() {
   }
   P.lastWrongIds = P.qs.filter((q, i) => P.answers[i]?.confirmed && !P.answers[i].feedback?.ok).map((q) => q.id);
   await attachKeypoints(P.qs);
+  feedEngine(P);
   const diagUsed = Math.max(0, (P.limitSec || 0) - P.remaining);
   if (P.kind === 'diag') {
     // 测评不进模考历史：它不是一次考试，是给引擎喂的先验
@@ -4911,6 +4949,10 @@ function bindAndroidBack() {
     try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ }
   }
   mark('bridge-ready');
+  // 0.7 实验版：能力引擎首次使用前把历史作答回放一遍（正式版没有这个对象，直接跳过）
+  if (window.__LAB__ && window.__ENGINE2__) {
+    window.__ENGINE2__.ensure().then((k) => { if (k) console.info('[engine2] 回放历史作答', k, '条'); }).catch(() => {});
+  }
 
   // 分类题量预计算表（tools/build-qc-counts.mjs 生成，11 KB）：
   // 读进来之后 /api/chapters 不用再查 9 万行 question_categories（手机上 13–103 秒）。

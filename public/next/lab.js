@@ -16,7 +16,15 @@
  */
 (function () {
   'use strict';
-  window.__LAB__ = true;
+  // 只有实验版才启用实验室：原生桥直接告诉我们当前 flavors（prod / lab），
+  // 拿不到桥时退回 URL 参数 ?flavor=lab。正式版也打包了这个文件，但会在这里直接退出，
+  // 所以正式版的菜单里不会出现「实验室」，能力引擎也不会接进每日任务。
+  const nativeFlavor = (() => {
+    try { return (window.NativeDB && window.NativeDB.flavor && window.NativeDB.flavor()) || ''; } catch (e) { return ''; }
+  })();
+  const IS_LAB = nativeFlavor === 'lab' || /(?:^|[?&])flavor=lab(?:&|$|=)/.test(location.search);
+  window.__LAB__ = IS_LAB;
+  if (!IS_LAB) return;
 
   // __LOCAL_API_PROMISE__ 是个 Promise（resolve 出 (path, opts) => Promise 的函数），不是函数本身
   const getApi = async () => {
@@ -221,10 +229,14 @@
         <div class="lab-actions">
           <button class="lab-btn" id="lab-run">开始对比</button>
         </div>
+        <div id="lab-eng"></div>
         <div id="lab-out"></div>
       </div>`;
     document.body.appendChild(host);
     host.querySelector('#lab-close').onclick = () => host.remove();
+    const engHost = host.querySelector('#lab-eng');
+    const paintEng = () => { engHost.innerHTML = engineBlock(); const rb = engHost.querySelector('#lab-rebuild'); if (rb) rb.onclick = async () => { rb.disabled = true; rb.textContent = '回放中…'; try { await rebuild(); } catch (e) { /* ignore */ } paintEng(); }; };
+    paintEng();
     host.querySelector('#lab-run').onclick = async () => {
       const out = host.querySelector('#lab-out');
       const btn = host.querySelector('#lab-run');
@@ -277,9 +289,138 @@
     return host;
   }
 
+  /* 面板顶部那块「当前能力账本」：直接读长期状态，不跑回测 */
+  function engineBlock() {
+    const st = { kps: Object.keys(ENG.kp).length, ev: Object.values(ENG.kp).reduce((a, x) => a + (x.n || 0), 0), built: ENG.built };
+    const top = Object.entries(ENG.kp)
+      .filter(([, v]) => v && v.n)
+      .sort((a, b) => a[1].t - b[1].t)
+      .slice(0, 6)
+      .map(([kp, v]) => `<div class="lab-row"><span class="lab-kp">${kp}</span><span class="lab-m">θ ${v.t.toFixed(2)}</span><span class="lab-m">${v.n} 题</span></div>`)
+      .join('');
+    return `
+      <div class="lab-h">当前能力账本（每日任务用的就是它）</div>
+      <div class="lab-card">
+        <div class="lab-num">${st.kps}<span style="font-size:13px;font-weight:600"> 个考点</span></div>
+        <div class="lab-lab">${st.ev} 次作答 · ${st.built ? '已完成历史回放' : '还没回放历史'}</div>
+      </div>
+      ${top ? `<div class="lab-list">${top}</div>` : '<div class="lab-lead">还没有能力数据：做几道题或点下面「重建账本」。</div>'}
+      <div class="lab-actions"><button class="lab-btn" id="lab-rebuild" style="background:var(--card,#fff);color:var(--brand,#2F5BEA);border:1px solid var(--line,#E8EBF0)">重建账本（回放历史作答）</button></div>`;
+  }
+
   window.__LAB_OPEN__ = () => {
     const old = document.getElementById('lab-panel');
     if (old) { old.remove(); return; }
     panel();
   };
+
+  /* ================= 引擎 v2：把模型 C 落成日常可用的一本账 =================
+   * 和上面「跑一次对比」不同的是，这份状态是长期存的（localStorage sg_theta_v1）：
+   * 每答完一题就地更新「那个考点的能力分」，下次抽题直接问它。
+   * 只有实验版会用（app.js 里靠 window.__LAB__ 门控），正式版不接。
+   */
+  const ENG_KEY = 'sg_theta_v1';
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  function loadEng() {
+    try {
+      const j = JSON.parse(localStorage.getItem(ENG_KEY) || 'null');
+      if (j && j.kp && typeof j.kp === 'object') return { v: 1, built: !!j.built, kp: j.kp };
+    } catch { /* 坏了重建 */ }
+    return { v: 1, built: false, kp: {} };
+  }
+  let ENG = loadEng();
+  let saveTimer = 0;
+  function saveEng() {
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = 0;
+      try { localStorage.setItem(ENG_KEY, JSON.stringify(ENG)); } catch { /* 满了就算了 */ }
+    }, 400);
+  }
+
+  function stOf(kp) {
+    let s = ENG.kp[kp];
+    if (!s) s = ENG.kp[kp] = { t: 0, rd: 1.2, n: 0, ok: 0, last: 0 };
+    return s;
+  }
+
+  /* 一道题喂进去：kp 考点名、sub 科目、chapter 模块、type 题型、optionCount 选项数、y 对错 */
+  function feedOne(it) {
+    if (!it || !it.kp) return;
+    const s = stOf(it.kp);
+    const b = B_SCALE * (typePrior(it.type) + chapterPrior(it.chapter));
+    const c = guessOf(it.type, it.optionCount);
+    const p = c + (1 - c) * sig(s.t - b);
+    const K = K_GAIN * (s.rd / (s.rd + 0.5));
+    // 用带难度的残差更新，θ 才是「能力」而不是「正确率」
+    s.t = clamp(s.t + K * (it.y - p) / Math.max(0.35, 1 - c), -4, 4);
+    s.rd = Math.max(0.18, s.rd * 0.985);
+    s.n = (s.n || 0) + 1;
+    if (it.y) s.ok = (s.ok || 0) + 1;
+    if (it.sub) s.sub = it.sub;
+    if (it.ts) s.last = Math.max(s.last || 0, it.ts);
+  }
+
+  function recordAnswered(list) {
+    if (!Array.isArray(list) || !list.length) return 0;
+    for (const it of list) feedOne(it);
+    ENG.built = true;
+    saveEng();
+    return list.length;
+  }
+
+  /* 老用户第一次升级：把历史作答按时间正序回放一遍，得到初始能力账本 */
+  async function rebuild() {
+    const recs = await api('/api/records/recent?limit=4000');
+    const list = (Array.isArray(recs) ? recs : recs.list || []).slice().reverse();
+    ENG.kp = {};
+    if (list.length) {
+      const ids = [...new Set(list.map((r) => String(r.questionId)))];
+      const [meta, kpMap] = await Promise.all([loadMeta(ids), loadKp(ids)]);
+      for (const r of list) {
+        const m = meta.get(String(r.questionId)) || {};
+        const kp = kpMap.get(String(r.questionId)) || m.chapter || r.chapter;
+        if (!kp) continue;
+        feedOne({
+          kp, sub: r.subject || '', chapter: m.chapter || r.chapter, type: m.type ?? r.type,
+          optionCount: m.optionCount, y: r.correct ? 1 : 0, ts: parseTime(r.time),
+        });
+      }
+    }
+    ENG.built = true;
+    saveEng();
+    return list.length;
+  }
+
+  let ensuring = null;
+  function ensure() {
+    if (ENG.built) return Promise.resolve(false);
+    if (!ensuring) ensuring = rebuild().catch(() => 0).finally(() => (ensuring = null));
+    return ensuring;
+  }
+
+  const ready = () => !!(ENG.built && Object.keys(ENG.kp).length);
+  const ability = (kp) => (ENG.kp[kp] ? sig(ENG.kp[kp].t) : null);
+
+  /* 某科目下按能力升序的考点列表；p 是「按典型难度、含蒙对率」的预期正确率 */
+  function weakList(subject, limit = 40) {
+    const out = [];
+    for (const [kp, s] of Object.entries(ENG.kp)) {
+      if (!s || !s.n) continue;
+      if (subject && s.sub && s.sub !== subject) continue;
+      const p = 0.25 + 0.75 * sig(s.t);
+      out.push({ name: kp, rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, src: 'engine' });
+    }
+    out.sort((a, b) => a.theta - b.theta || b.n - a.n);
+    return out.slice(0, limit);
+  }
+
+  function stats() {
+    const n = Object.keys(ENG.kp).length;
+    const ev = Object.values(ENG.kp).reduce((s, x) => s + (x.n || 0), 0);
+    return { kps: n, events: ev, built: ENG.built };
+  }
+
+  window.__ENGINE2__ = { ready, ensure, rebuild, recordAnswered, weakList, ability, stats, KEY: ENG_KEY };
 })();

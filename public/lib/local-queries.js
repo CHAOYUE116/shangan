@@ -31,6 +31,19 @@ const Q_QUESTION_BY_ID =
   'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
 const Q_MATERIALS_BY_PAPER =
   'SELECT title, idx, text FROM materials WHERE paperId = ? ORDER BY idx';
+// 考点来源：老表 question_keypoints（粉笔原样）+ 新表 question_keypoints_ext（我们自己补的，
+// 0.7 实验版给公基这类「粉笔没给考点」的科目用）。ext 表不存在的老库自动退回单表，不影响旧包。
+let _kpExtHas = null;
+function KP_SOURCE(tiku) {
+  if (_kpExtHas == null) {
+    try {
+      _kpExtHas = !!tiku.get("SELECT name FROM sqlite_master WHERE type='table' AND name='question_keypoints_ext'");
+    } catch (e) { _kpExtHas = false; }
+  }
+  return _kpExtHas
+    ? 'SELECT questionId, kpName FROM question_keypoints UNION SELECT questionId, kpName FROM question_keypoints_ext'
+    : 'SELECT questionId, kpName FROM question_keypoints';
+}
 // ============ 题库精简（2026-08）：只保留近十年试卷（年份取试卷名前缀，如 "2024年..."） ============
 // 无年份名称（如 "天津市2"）substr 得非数字 → 自然排除；按分类刷试卷(/api/papers)不受影响
 const NOW_YEAR = new Date().getFullYear();
@@ -756,7 +769,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
       if (cached) return cached;
       const rows = tiku.all(
         `SELECT kp.kpName AS name, COUNT(DISTINCT kp.questionId) AS questions
-         FROM question_keypoints kp
+         FROM (${KP_SOURCE(tiku)}) kp
          JOIN questions q ON q.questionId = kp.questionId
          JOIN papers p ON p.id = q.paperId
          WHERE p.subjectName = ?
@@ -884,10 +897,10 @@ export function createLocalApi(tiku, practice, stats = {}) {
       const fetchN = custom ? Math.min(n * 3, 150) : n;
       // 材料组整组难度检查（自定义刷题难度过滤时）：组内任一题不满足 → 整组剔除；random/缺省不检查
       const diffFilter = (difficulty && difficulty !== 'random' && XINGCE_DIFFICULTY[difficulty]) || null;
-      // 按粉笔考点出题（question_keypoints）
+      // 按粉笔考点出题（question_keypoints；有扩展表 question_keypoints_ext 时一并算）
       if (keypoint) {
         const ids = tiku.all(
-          `SELECT kp.questionId FROM question_keypoints kp
+          `SELECT kp.questionId FROM (${KP_SOURCE(tiku)}) kp
            JOIN questions q ON q.questionId = kp.questionId
            JOIN papers p ON p.id = q.paperId
            WHERE kp.kpName = ? AND p.subjectName = ?
