@@ -60,7 +60,7 @@ const apkBytes = fs.statSync(APK).size;
 const apkSha = crypto.createHash('sha256').update(fs.readFileSync(APK)).digest('hex');
 // 上传名统一成 shangan-<版本>-release.apk：本地 gradle 产物叫 app-release.apk，
 // 直接传上去 Releases 里就只有一个 app-release.apk，用户翻历史版本时分不清哪个是哪个。
-const apkName = /^app-release\.apk$/i.test(path.basename(APK))
+const apkName = /^app-(?:[a-z]+-)?release\.apk$/i.test(path.basename(APK))
   ? `shangan-${VERSION}-release.apk`
   : path.basename(APK);
 const body = BODY_FILE && fs.existsSync(BODY_FILE) ? fs.readFileSync(BODY_FILE, 'utf8') : arg('body', '');
@@ -84,7 +84,7 @@ for (const a of assets) {
   // 这个大版本 Release 只保留最新一个 APK，避免页面里堆一串旧包
   // app-release.apk 是早期脚本直接传 gradle 产物留下的名字，也一起清掉
   const isOldApk =
-    (/^shangan-[\d.]+-release\.apk$/.test(a.name) || a.name === 'app-release.apk') && a.name !== apkName;
+    (/^shangan-[\d.]+-release\.apk$/.test(a.name) || /^app-(?:[a-z]+-)?release\.apk$/i.test(a.name)) && a.name !== apkName;
   if (a.name === apkName || isOldApk) {
     curl(['-X', 'DELETE', '-H', `Authorization: Bearer ${TOKEN}`, `https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${a.id}`]);
     console.log('  删旧资产 ' + a.name);
