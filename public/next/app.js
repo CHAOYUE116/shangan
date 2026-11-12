@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.4';
+const APP_VERSION = '0.7.1';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -871,10 +871,10 @@ function renderHome() {
   const topWeak = (weak[0] && weak[0].name) || '按模块轮换';
   // 考点级重点：记录够 8 题就用记录，否则用测评结果（见 weakKpList）
   const kpFocus = (() => {
-    try { return weakKpList(dailySubject()).slice(0, 2); } catch { return []; }
+    try { return weakKpList(dailySubject()).slice().sort((x, y) => x.rate - y.rate).slice(0, 2); } catch { return []; }
   })();
   const focusLine = kpFocus.length
-    ? `今日重点：<b>${kpFocus.map((k) => esc(k.name)).join('、')}</b>${kpFocus[0].src === 'diag' ? '（测评给的）' : `（${Math.round(kpFocus[0].rate * 100)}%）`}`
+    ? `今日重点：<b>${kpFocus.map((k) => esc(k.name)).join('、')}</b>${kpFocus[0].src === 'diag' ? '（测评给的）' : `（正确率 ${Math.round(kpFocus[0].rate * 100)}%）`}`
     : '';
   const yd = yesterdayStat();
   const resume = loadSession();
@@ -1536,7 +1536,7 @@ function renderExam() {
   <h1 class="page-title">模考</h1>
   <div class="card-sub" style="margin:-8px 0 16px">先独立作答，再看答案。每一次交卷都有自己的成绩单。</div>
   <section class="training-card exam-hero" style="cursor:pointer" data-act="exam-papers"><div class="training-kicker">首选</div><div class="training-title">真题整卷</div><div class="training-sub">按地区、年份挑一份真卷 · 按真题时长计时 · 交卷出成绩单</div><button class="btn btn-primary btn-block" data-act="exam-papers">选一份卷子</button></section>
-  <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
+  <section class="training-card" style="cursor:pointer" data-act="smart-paper"><div class="training-title">薄弱专项 · 智能组卷</div><div class="training-sub">${weak.length ? `${weak.map((w) => w.label || w.name).slice(0, 3).join(' / ')} · 15 题` : '先做几道题，系统会按正确率找薄弱点'}</div><button class="btn btn-ghost btn-block" data-act="smart-paper">${weak.length ? '按薄弱点组 15 题' : '去刷几题'}</button></section>
   ${(() => {
     const d = S.diag || loadDiag();
     const age = diagAgeDays();
@@ -3817,9 +3817,24 @@ async function buildNewQuestions(n) {
       if (hit >= wantKp) break;
       const take = Math.max(2, Math.ceil(wantKp / Math.min(weak.length, 3)));
       const band = diffBandForKp(p.subject, w.name, w.rate);
-      const rows = w.src === 'engine'
-        ? await fetchByChapter(p.subject, w.name, take, band)
-        : await fetchByKp(p.subject, w.name, take, band);
+      // 实验版（0.7）：同一个难度档里再挑「最接近目标难度」的那几道。
+      // 档位是粗的（易 1–4 / 中 5–6 / 难 7–9），档内随机等于把 1 分题和 4 分题当一样；
+      // 这里多取 4 倍池子，按 |estimated - 目标| 排序，并用随机抖动保证每天不完全一样。
+      const labTune = !!(window.__LAB__ && window.__ENGINE2__ && w.src === 'engine');
+      const wantEst = band === 'easy' ? 3 : band === 'hard' ? 8 : 5;
+      const poolN = labTune ? Math.min(Math.max(take * 4, take), 40) : take;
+      let rows = w.src === 'engine'
+        ? await fetchByChapter(p.subject, w.name, poolN, band)
+        : await fetchByKp(p.subject, w.name, poolN, band);
+      if (labTune && Array.isArray(rows) && rows.length > take) {
+        rows = rows
+          .map((q) => {
+            const est = Number(q.difficultyEst ?? q.difficulty) || 5;
+            return { q, score: Math.abs(est - wantEst) + Math.random() * 0.9 };
+          })
+          .sort((a, b) => a.score - b.score)
+          .map((x) => x.q);
+      }
       let got = 0;
       for (const q of rows) {
         const id = q.id ?? q.questionId;
@@ -3827,7 +3842,7 @@ async function buildNewQuestions(n) {
         seen.add(id); qs.push(q); hit++; got++;
         if (hit >= wantKp || got >= take) break;
       }
-      if (got) focus.push({ name: w.name, rate: Math.round(w.rate * 100), sub: p.subject, src: w.src });
+      if (got) focus.push({ name: w.label || w.name, rate: Math.round(w.rate * 100), sub: p.subject, src: w.src });
     }
     if (hit < p.n) {
       try {
@@ -4022,7 +4037,7 @@ function openSmartPaper() {
   const typeActive = d.types.join(',');
   sheet(`<div class="sheet-head"><b>智能组卷</b><button class="sheet-close">✕</button></div>
     <div class="filter-label">范围</div><div class="chips">${chip('scope', 'weak', '薄弱优先', d.scope === 'weak')}${chip('scope', 'all', '全部模块', d.scope === 'all')}</div>
-    <div class="card-sub" style="margin:6px 0 12px">${d.scope === 'weak' ? `薄弱：${weak.map((w) => w.name).slice(0, 3).join(' / ') || '先做几道题才有薄弱数据'}` : '按官方卷型模块配额组卷'}</div>
+    <div class="card-sub" style="margin:6px 0 12px">${d.scope === 'weak' ? `薄弱：${weak.map((w) => w.label || w.name).slice(0, 3).join(' / ') || '先做几道题才有薄弱数据'}` : '按官方卷型模块配额组卷'}</div>
     <div class="filter-label">题量</div><div class="chips">${[15, 20, 30, 50].map((n) => chip('count', n, `${n} 题`, d.count === n)).join('')}</div>
     <div class="filter-label">难度</div><div class="chips">${[['random', '随机'], ['easy', '基础'], ['balanced', '进阶'], ['hard', '挑战']].map(([v, l]) => chip('difficulty', v, l, d.difficulty === v)).join('')}</div>
     <div class="filter-label">年份</div><div class="chips">${[['all', '全部'], ['3', '近 3 年'], ['5', '近 5 年'], ['10', '近 10 年']].map(([v, l]) => chip('year', v, l, d.year === v)).join('')}</div>

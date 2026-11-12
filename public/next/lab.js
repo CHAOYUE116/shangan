@@ -466,7 +466,7 @@
       const b = s.b || 0;
       const c = s.c == null ? 0.25 : s.c;
       const p = c + (1 - c) * sig(s.t - b);
-      out.push({ name: labelOf(s.sub, s.ch), rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, chapter: s.ch, src: 'engine' });
+      out.push({ name: s.ch, label: labelOf(s.sub, s.ch) || s.ch, rate: p, n: s.n, ok: s.ok || 0, theta: s.t, sub: s.sub, chapter: s.ch, src: 'engine' });
     }
     out.sort((a, b) => a.theta - b.theta || b.n - a.n);
     return out.slice(0, limit);
@@ -499,7 +499,7 @@
         // Thompson：θ 按不确定度抽一次，等于给「还没把握的考点」一点机会
         const tSample = s.t + rndn() * Math.min(1.5, s.rd);
         const p = c + (1 - c) * sig(tSample - b);
-        return { name: labelOf(s.sub, s.ch), p, gap: Math.abs(p - target), theta: s.t, n: s.n, sub: s.sub, chapter: s.ch };
+        return { name: s.ch, label: labelOf(s.sub, s.ch) || s.ch, p, gap: Math.abs(p - target), theta: s.t, n: s.n, sub: s.sub, chapter: s.ch };
       })
       .sort((a, b) => a.gap - b.gap);
 
