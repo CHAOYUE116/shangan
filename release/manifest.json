@@ -22,40 +22,40 @@
     "note": "App 0.6.7：修 0.6.6 题库打不开（chapter 为 NULL 打崩章节映射）；题库加载失败改为错误卡 + 重试"
   },
   "tiku": {
-    "dbVersion": "0.5.26-20261112-2045",
+    "dbVersion": "0.5.28-20261113-0110",
     "questions": 103257,
     "full": {
       "name": "tiku_app.db.gz",
-      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz",
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
       "mirrors": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
       ],
       "sources": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz",
-        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/tiku_app.db.gz"
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
+        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
       ],
-      "size": 133389905,
-      "rawSize": 514801664,
-      "sha256": "6ca4ed5a887f31b451d287c44620ce2b37381f4a774fb95779eff11f9b747864",
-      "gzSha256": "ac2e8819c7f1f8a23de75c039471859cf1800fdaac82c0dd3bae9e21a7159cea",
+      "size": 147924198,
+      "rawSize": 612016128,
+      "sha256": "72be1448597da46b1fb282471a8ff83242fbb5fcc2596fd62bac7668df14ad7d",
+      "gzSha256": "bd1b45b0bd67c6a57eebdb563c4e6371def01e38ff3ebdfbe153d1633a95534f",
       "gz": true
     },
     "delta": [],
-    "note": "题库 0.5.2：修复 8,703 道「材料被写成 [object Object]」；补 613 张公式图；坏题 1,347（1.30%）"
+    "note": "题库 0.5.28：官方难度覆盖 97% 客观题（难度↔正确率 r=−0.28，此前结构先验 r≈0）、解析回灌（综应 +194 / 公基 +12,968）、材料 [object Object] 归零、公式图补到 60,735 张、坏题降到 134（0.13%）"
   },
   "images": {
     "name": "images.db.gz",
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz",
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz",
     "mirrors": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz"
     ],
     "sources": [
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz",
-      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.26-20261112-2045/images.db.gz"
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz",
+      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/images.db.gz"
     ],
-    "size": 44957696,
-    "gzSize": 37117790,
-    "sha256": "ff6dc5d79ef435060dc3000d9278c5df83e00f9d3d3d5d0ed714b338124a7882",
+    "size": 49721344,
+    "gzSize": 40237457,
+    "sha256": "b91ddfa3ef0f63095829b99f1471539507dac495a1c5e8d13ba5d98ea282c97e",
     "gz": true
   },
   "mirrors": [],

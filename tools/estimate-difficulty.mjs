@@ -49,23 +49,64 @@ const CH_PRIOR = (ch) => {
 const optCount = (s) => { try { return JSON.parse(s || '[]').length; } catch { return 0; } };
 
 const db = new DatabaseSync(DB);
+db.exec('PRAGMA busy_timeout = 30000');
+const hasOfficial = db.prepare("SELECT name FROM pragma_table_info('questions')").all().some((c) => c.name === 'fenbi_difficulty');
+console.log(`官方难度列：${hasOfficial ? '有' : '无'}`);
 const rows = db.prepare(`
   SELECT id, questionId, chapter, type, options, length(content) stemLen,
+         ${hasOfficial ? 'fenbi_difficulty' : 'NULL AS fenbi_difficulty'},
          (CASE WHEN material IS NULL OR length(material) < 20 THEN 0 ELSE length(material) END) matLen
   FROM questions
   WHERE id IN (SELECT MAX(id) FROM questions GROUP BY questionId)
     AND type IN (1,2,3,5) AND options <> '[]'
 `).all();
 
-// 1) 每题一个结构难度 b
+// 0) 粉笔全站正确率（question_meta）：有它就用真难度，没有才退回结构先验
+const meta = new Map();
+try {
+  for (const m of db.prepare('SELECT questionId, correctRatio FROM question_meta WHERE correctRatio IS NOT NULL').all()) {
+    meta.set(m.questionId, m.correctRatio / 100);
+  }
+} catch { /* 表还没有 */ }
+const guessOf = (t, oc) => (String(t) === '2' || String(t) === '3') ? 0.1 : String(t) === '5' ? 0.5 : (oc >= 2 ? 1 / oc : 0.25);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+// 1) 每题一个难度 b：优先正确率反推，否则结构先验
 const byQid = new Map();
+let ratioN = 0;
+let officialN = 0;
 for (const r of rows) {
   const oc = optCount(r.options);
-  const b = TYPE_PRIOR(r.type) + CH_PRIOR(r.chapter)
+  let b = TYPE_PRIOR(r.type) + CH_PRIOR(r.chapter)
     + 0.25 * Math.log(1 + (r.stemLen || 0) / 60)
     + 0.2 * Math.log(1 + (r.matLen || 0) / 300)
     - 0.15 * Math.log(Math.max(1, oc));
-  byQid.set(r.questionId, { b, chapter: r.chapter || '', type: r.type });
+  let src = 'structural-chapter';
+  const structB = b;
+  const p = meta.get(r.questionId);
+  let ratioB = null;
+  if (p != null) {
+    const c = guessOf(r.type, oc);
+    const x = clamp((p - c) / (1 - c), 0.02, 0.98);
+    ratioB = -Math.log(x / (1 - x));   // 正确率反推的 logit 难度
+    b = ratioB;
+    src = 'fenbi-ratio';
+    ratioN++;
+  }
+  // 官方难度（1~9，5 为中等）：最可信，直接给 b，并在同难度内用正确率/结构做次序
+  const fd = r.fenbi_difficulty;
+  let score;
+  if (fd != null && Number(fd) > 0) {
+    b = (Number(fd) - 5) * 0.45;
+    src = 'fenbi-api';
+    let tie = clamp((structB + 2) / 8, 0, 0.999);
+    if (ratioB != null) tie = 0.5 + clamp(ratioB, -4, 4) / 8 * 0.5;
+    score = Number(fd) * 10 + tie;
+    officialN++;
+  } else {
+    score = 0 + clamp((b + 2) / 8, 0, 0.999);   // 没有官方难度：只按 b 排序
+  }
+  byQid.set(r.questionId, { b, src, score, chapter: r.chapter || '', type: r.type });
 }
 
 // 2) 同一章节内按 b 排名 → 分位定档（保证每章三档都有）
@@ -73,7 +114,7 @@ const byChapter = new Map();
 for (const [qid, v] of byQid) {
   const k = v.chapter || '(未分类)';
   if (!byChapter.has(k)) byChapter.set(k, []);
-  byChapter.get(k).push([qid, v.b]);
+  byChapter.get(k).push([qid, v.score]);
 }
 const est = new Map();
 for (const [, arr] of byChapter) {
@@ -96,7 +137,7 @@ for (const [qid, e] of est) {
 
 const total = est.size;
 console.log(`库：${DB}`);
-console.log(`客观题（去重后）：${total.toLocaleString()} 道 / 章节 ${byChapter.size} 个`);
+console.log(`客观题（去重后）：${total.toLocaleString()} 道 / 章节 ${byChapter.size} 个 / 官方难度 ${officialN.toLocaleString()} 道 / 真正确率 ${ratioN.toLocaleString()} 道`);
 console.log('新难度分布（章节内分位）：');
 for (const d of [...hist.keys()].sort((a, b) => a - b)) {
   const n = hist.get(d);
@@ -119,7 +160,7 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_questions_est ON questions(difficulty_es
 
 const up = db.prepare('UPDATE questions SET difficulty_est = ?, difficulty_b = ?, difficulty_src = ?, diff_band = ? WHERE questionId = ?');
 db.exec('BEGIN');
-for (const [qid, e] of est) up.run(e, Math.round(byQid.get(qid).b * 1000) / 1000, 'structural-chapter', bandOf(e), qid);
+for (const [qid, e] of est) { const v = byQid.get(qid); up.run(e, Math.round(v.b * 1000) / 1000, v.src, bandOf(e), qid); }
 db.exec('COMMIT');
 
 const chk = db.prepare('SELECT diff_band b, COUNT(*) c FROM questions WHERE diff_band IS NOT NULL GROUP BY b').all();

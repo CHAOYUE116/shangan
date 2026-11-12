@@ -24,7 +24,8 @@
   })();
   const IS_LAB = nativeFlavor === 'lab' || /(?:^|[?&])flavor=lab(?:&|$|=)/.test(location.search);
   window.__LAB__ = IS_LAB;
-  if (!IS_LAB) return;
+  // 0.7 起：能力引擎在正式版也启用（每日任务/出题难度都要用它），只有「实验室」面板仍是 lab 专用
+  window.__ENGINE_ON__ = true;
 
   // __LOCAL_API_PROMISE__ 是个 Promise（resolve 出 (path, opts) => Promise 的函数），不是函数本身
   const getApi = async () => {
@@ -326,11 +327,13 @@
       ${nxt.length ? `<div class="lab-lead">下一批会优先给你练：${nxt.map((k) => esc(k)).join('、')}</div>` : ''}`;
   }
 
-  window.__LAB_OPEN__ = () => {
-    const old = document.getElementById('lab-panel');
-    if (old) { old.remove(); return; }
-    panel();
-  };
+  if (IS_LAB) {
+    window.__LAB_OPEN__ = () => {
+      const old = document.getElementById('lab-panel');
+      if (old) { old.remove(); return; }
+      panel();
+    };
+  }
 
   /* ================= 引擎 v2：把模型 C 落成日常可用的一本账 =================
    * 和上面「跑一次对比」不同的是，这份状态是长期存的（localStorage sg_theta_v1）：

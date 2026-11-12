@@ -114,6 +114,7 @@ const REASONS = {
   R5: '图片键缺失',
   R6: '客观题没答案',
 };
+const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const badRows = [];
 const stat = { total: rows.length, bad: 0, by: {}, bySubject: {}, samples: {} };
 for (const k of Object.keys(REASONS)) { stat.by[k] = 0; stat.samples[k] = []; }
@@ -149,7 +150,9 @@ for (const r of rows) {
   // 注意：如果解析 HTML 里已经有公式图（<img>），那「进价为[图]，而…」是能读的 —— 图片就是被吞掉的那个数，
   // 这种不该算坏题（2026-11-12 用粉笔语料把解析补成带图的 HTML 之后，这一类会被大量救回来）。
   if (!reason && isObj && !hasImg(analysisHtml)
-      && /(为元|有名|有本|为名|=名|元，而|元。故|元，则|个，则|为千克)/.test(analysis)) reason = 'R3';
+      && MATH_CH.test(String(r.chapter || ''))
+      && !/[\d０-９]\s*(元|名|本|千克)/.test(analysis)
+      && /((?:为|是|=)\s*元(?:[，。；、]|$)|(?:为|是|=)\s*名(?:[，。；、]|$)|(?:为|是|=)\s*本(?:[，。；、]|$)|(?:为|是|=)\s*千克|元(?:，而|。故|，则)|个(?:，则|，而)|=\s*名)/.test(analysis)) reason = 'R3';
 
   // R4 答案与解析不符：只认「硬矛盾」——
   //   单选/判断：解析给的字母 ≠ 库里的答案

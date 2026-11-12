@@ -19,9 +19,9 @@
 > 权利人提出异议会在 72 小时内删除相关内容。
 > 详细条款见 [DISCLAIMER.md](DISCLAIMER.md)，代码许可见 [LICENSE](LICENSE)（仅覆盖代码，不覆盖题库）。
 
-**下载** [最新版 APK（Releases → v0.6）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.6)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
+**下载** [最新版 APK（Releases → v0.7）](https://github.com/CHAOYUE116/shangan/releases/tag/v0.7)　·　**更新记录** [CHANGELOG.md](CHANGELOG.md)　·　**Android 壳** [shangan-app](https://github.com/CHAOYUE116/shangan-app)　·　**开发约定** [AGENTS.md](AGENTS.md)
 
-当前版本：**App 0.6.5**（`shangan-0.6.5-release.apk`，165.3 MB，Android 8.0+）· 题库 **0.5.24-20261112-1745**（156,121 行 / 103,128 道去重真题，2,139 道待重采的题已屏蔽）
+当前版本：**App 0.7.0**（`shangan-0.7.0-release.apk`，185 MB，Android 8.0+）· 题库 **0.5.28-20261113-0110**（156,250 行 / 103,257 道去重真题，坏题 134 道已屏蔽）
 
 ### 仓库与发布是怎么分工的
 
@@ -414,6 +414,8 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 
 **考点体系**：自建，46,531 条映射（`question_keypoints`），另有 `question_categories` 的章节分组兜底。
 
+**官方难度与正确率**：`GET /api/{course}/questions?ids=` 与 `GET /api/{course}/solutions?ids=` 两个只读接口（纯 GET、不占「创建练习」额度），一次能带走题干、材料、选项、答案、官方难度 1–9、解析、考点和**全站正确率**。0.7 起 97% 的客观题用官方难度重排，`difficulty_est` 不再靠题型/章节猜。
+
 ---
 
 ## 仓库里的数据
@@ -478,6 +480,14 @@ data/<模块>/y<年份>.json   { "key": [ { t, s, q, o, a, e } ] }
 如果上面任何一位作者认为这里的使用方式越界，提个 issue，我会在 72 小时内撤掉对应部分。
 
 ---
+
+## 致谢
+
+题库采集这套流程，是在下面几个开源项目的基础上摸出来的（只借用了「接口长什么样」这件事，代码都是自己写的）：
+
+- **[Jacqueline-Sun/fenbi-practice-data](https://github.com/Jacqueline-Sun/fenbi-practice-data)** — 最早把「练习历史 → 取解析 → 取报告」这条链写清楚的项目；我们从它的接口注释里确认了 `getExerciseBriefHistory` 的参数，也顺着它找到 `/api/{course}/questions?ids=` 这个能**按题号批量拉取**的入口。0.7 这轮 9 万道题的题干/材料/官方难度能一次补齐，靠的就是它。
+- **[deckcode/BQ_Spider](https://github.com/deckcode/BQ_Spider)** — Selenium + XPath 抓解析页的项目。代码没用上（我们走接口），但它 XPath 里那列「正确率」提醒了我们：粉笔每道题都有全站正确率。顺着这个线索才挖到 `getMeta`，让「难度」从猜测变成实测。
+- **[EricPeng1027/fenbi-crawler](https://github.com/EricPeng1027/fenbi-crawler)** — Playwright + BeautifulSoup 的 DOM 爬法，验证了「未做过的卷要交白卷才能拿解析」这条限制，让我们确定只能走接口而不是点页面。
 
 ## 免责
 
