@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.6';
+const APP_VERSION = '0.6.7';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1111,7 +1111,15 @@ async function openLibrary(subject) {
     S.lib.categories = categories || [];
     S.lib.chapDone = chapDone || {};
     go('library');
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    // 出错时必须把 spinner 换掉，否则整页永远停在那儿，看起来就是「题库打不开」
+    toast(e.message);
+    $('#view').innerHTML = `<div class="rp-card" style="padding:28px 18px;text-align:center">
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px">题库没打开</div>
+      <div class="muted" style="font-size:13px;line-height:1.6;margin-bottom:16px">${esc(String(e.message || e))}</div>
+      <button class="btn btn-primary" data-act="lib-retry">重试</button>
+    </div>`;
+  }
 }
 function renderLibrary() {
   if (S.lib.view === 'papers') return renderPapers();
@@ -3507,6 +3515,7 @@ document.addEventListener('click', (e) => {
   // 打开二级页面之前，先记住「从哪来」，返回才能回到正确的地方
   if (NAV_DOWN.has(a)) rememberFrom();
   if (a === 'subject') { openLibrary(act.dataset.name); return; }
+  if (a === 'lib-retry') { openLibrary(S.lib.subject); return; }
   if (a === 'back-library') { goBackSmart('library'); return; }
   if (a === 'search') { openSearch(); return; }
   if (a === 'keypoints') { openKeypoints(); return; }

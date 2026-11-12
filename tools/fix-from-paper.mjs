@@ -27,7 +27,17 @@ const arg = (k, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const APPLY = has('--apply');
-const AUGMENT = has('--augment'); // 顺手把「语料里有、库里没有」的题插进来
+// --papers-file <json>：导入「粉笔有、我们整个卷都没有」的试卷（整卷题目全部插入）
+const PAPERS_FILE = arg('papers-file', '');
+const IMPORT = !!PAPERS_FILE;
+const COURSE_ARG = arg('course', '');
+const AUGMENT = has('--augment') || IMPORT; // 顺手把「语料里有、库里没有」的题插进来
+const SUBJECT_OF_COURSE = {
+  syzc: '事业编·职测',
+  sydw: '事业编·公基',
+  xingce: '公务员·行测',
+  zhyynl: '事业编·综应',
+};
 const DB_PATH = arg('db', path.join(ROOT, 'app-assets', 'tiku_app.db'));
 const IMG_DB = path.join(ROOT, 'app-assets', 'images.db');
 const LIMIT = Number(arg('limit', 0));
@@ -216,24 +226,49 @@ const db = new DatabaseSync(DB_PATH);
 const dbImg = fs.existsSync(IMG_DB) ? new DatabaseSync(IMG_DB) : null;
 db.exec('PRAGMA busy_timeout = 8000');
 
+// 跨卷去重用的「内容指纹」：去掉标签、空白、标点后取前 120 字
+const SEEN_FP = new Set();
+{
+  const norm = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/[\s\p{P}]/gu, '').slice(0, 120);
+  for (const r of db.prepare('SELECT content FROM questions WHERE id IN (SELECT MAX(id) FROM questions GROUP BY questionId)').all()) {
+    const fp = norm(r.content);
+    if (fp) SEEN_FP.add(fp);
+  }
+  console.log(`内容指纹库 ${SEEN_FP.size} 条（跨卷去重用）`);
+}
+
 const BAD_WHERE = `COALESCE(q.q_bad, 0) = 1`;
-const papers = db.prepare(`
-  SELECT p.id, p.name, p.subjectName, COUNT(DISTINCT q.questionId) AS n
-  FROM questions q JOIN papers p ON p.id = q.paperId
-  WHERE ${BAD_WHERE} AND p.name NOT LIKE '%考点散题%'
-  GROUP BY p.id ORDER BY n DESC, p.id DESC
-`).all();
+const HAVE_IDS = new Set(db.prepare('SELECT id FROM papers').all().map((x) => String(x.id)));
+let papers;
+if (IMPORT) {
+  const ids = JSON.parse(fs.readFileSync(path.resolve(ROOT, PAPERS_FILE), 'utf8'));
+  papers = ids
+    .map((x) => (typeof x === 'object' ? x : { id: x }))
+    .filter((x) => !HAVE_IDS.has(String(x.id)))
+    .map((x) => ({ id: Number(x.id), name: x.name || `粉笔试卷 ${x.id}`, subjectName: SUBJECT_OF_COURSE[COURSE_ARG] || '', n: 0 }));
+} else {
+  papers = db.prepare(`
+    SELECT p.id, p.name, p.subjectName, COUNT(DISTINCT q.questionId) AS n
+    FROM questions q JOIN papers p ON p.id = q.paperId
+    WHERE ${BAD_WHERE} AND p.name NOT LIKE '%考点散题%'
+    GROUP BY p.id ORDER BY n DESC, p.id DESC
+  `).all();
+}
 
 const todo = LIMIT ? papers.slice(0, LIMIT) : papers;
-console.log(`含坏题的真题卷 ${papers.length} 个${LIMIT ? `（本次跑前 ${todo.length} 个）` : ''}${APPLY ? '' : '（dry-run）'}`);
+console.log(IMPORT
+  ? `导入模式：目标卷 ${papers.length} 个${LIMIT ? `（本次跑前 ${todo.length} 个）` : ''}${APPLY ? '' : '（dry-run）'}`
+  : `含坏题的真题卷 ${papers.length} 个${LIMIT ? `（本次跑前 ${todo.length} 个）` : ''}${APPLY ? '' : '（dry-run）'}`);
 
 const log = [];
+const SKIP = { blank: 0, opt: 0, ans: 0, img: 0, mat: 0, dup: 0 };
 let consecutive429 = 0;
 let papersOk = 0, papersFail = 0, fixed = 0, skipped = 0, cooled = 0, added = 0;
 
 for (let pi = 0; pi < todo.length; pi += 1) {
   const p = todo[pi];
-  const course = COURSE_OF[p.subjectName] || 'syzc';
+  const course = COURSE_ARG || COURSE_OF[p.subjectName] || 'syzc';
+  const isNew = !HAVE_IDS.has(String(p.id));
   let ex = await createExercise(course, p.id);
   // 只有「频率过高」才值得冷却重试；「无权/未购买」这类 403 直接跳过
   while (ex.status === 403 && /频率/.test(String(ex.text || '')) && cooled < 8) {
@@ -272,6 +307,17 @@ for (let pi = 0; pi < todo.length; pi += 1) {
   papersOk += 1;
   const sols = st.json.solutions || [];
   const mats = st.json.materials || [];
+  if (isNew) {
+    const subjectName = p.subjectName || SUBJECT_OF_COURSE[course] || '';
+    const name = String(st.json.name || p.name || `粉笔试卷 ${p.id}`);
+    if (APPLY) {
+      db.prepare(`INSERT OR REPLACE INTO papers (id, subject, subjectName, category, name, questionCount, time, difficulty, exerciseId, chapters, crawledAt)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+        p.id, subjectName, subjectName, '粉笔导入', name, sols.length, null, null, null, null, new Date().toISOString());
+    }
+    HAVE_IDS.add(String(p.id));
+    console.log(`  ＋ 新卷 ${p.id} ${name.slice(0, 26)}（${sols.length} 题）`);
+  }
   const rows = db.prepare(`
     SELECT q.id AS rowId, q.questionId, q.contentHtml, q.material, q.analysis, q.options, q.q_bad_reason, q.type
     FROM questions q WHERE q.paperId = ? AND q.id IN (SELECT MAX(id) FROM questions GROUP BY questionId)
@@ -296,6 +342,7 @@ for (let pi = 0; pi < todo.length; pi += 1) {
     log.push({ paperId: p.id, questionId: row.questionId, why });
   }
   let pAdded = 0;
+  let pSkipped = 0;
   if (AUGMENT) {
     const have = new Set(db.prepare('SELECT DISTINCT questionId FROM questions WHERE paperId = ?').all(p.id).map((x) => Number(x.questionId)));
     let nextId = db.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS n FROM questions').get().n;
@@ -304,27 +351,54 @@ for (let pi = 0; pi < todo.length; pi += 1) {
       if (!qid || have.has(qid)) continue;
       const stemHtml = normLinks(richToHtml(sol.content));
       const stemTxt = txt(stemHtml);
-      if (!stemTxt && !IMG_ANY.test(stemHtml)) continue;      // 空题不要
+      if (!stemTxt && !IMG_ANY.test(stemHtml)) { pSkipped += 1; SKIP.blank += 1; continue; }      // 空题不要
+      const type = Number(sol.type || 1);
       const opt = (sol.accessories || []).find((a) => Array.isArray(a?.options) && a.options.length)?.options || [];
-      let answer = ''; let answerIndex = -1;
+      // ---- 入库前的质量闸门（宁缺勿滥） ----
+      // 1) 客观题必须有选项，且不能「有空的选项」（那是图片选项没抓下来，用户会看到 4 个空白）
+      if ([1, 2, 3, 5].includes(type) && type !== 5) {
+        const blank = opt.filter((o) => !txt(o) && !IMG_ANY.test(String(o || '')));
+        if (!opt.length || blank.length) { pSkipped += 1; SKIP.opt += 1; continue; }
+      }
+      // 2) 客观题必须有答案
       const ch = String(sol.correctAnswer?.choice ?? '');
+      if ([1, 2, 3, 5].includes(type) && ch === '') { pSkipped += 1; SKIP.ans += 1; continue; }
+      // 3) 题干说要图但整题没有任何图/公式 → 做不了，不入库
+      if (/(如图|如下图|图中|图示|图\s?\d|下列图形|图形推理)/.test(stemTxt) && !IMG_ANY.test(stemHtml)) {
+        pSkipped += 1;
+        SKIP.img += 1;
+        log.push({ paperId: p.id, questionId: qid, why: ['跳过：缺图'], skipped: true });
+        continue;
+      }
+      // 4) 题干说「根据材料/资料/下表」但没材料也没图 → 做不了
+      const mat = (mats || []).find((m) => String(m.id) === String(sol.materialId));
+      const matRaw = mat ? normLinks(richToHtml(mat.content)) : '';
+      if (/^(根据|阅读|结合)(以下|如下)?(材料|资料|上文|下表|上表|图表)/.test(stemTxt)
+        && txt(matRaw).length < 20 && !IMG_ANY.test(matRaw)) {
+        pSkipped += 1;
+        SKIP.mat += 1;
+        log.push({ paperId: p.id, questionId: qid, why: ['跳过：缺材料'], skipped: true });
+        continue;
+      }
+      // 5) 内容指纹去重（同一道题常出现在多张卷里，questionId 不同）
+      const fp = `${stemTxt.replace(/[\s\p{P}]/gu, '')}`.slice(0, 120);
+      if (fp && SEEN_FP.has(fp)) { pSkipped += 1; SKIP.dup += 1; continue; }
+      let answer = ''; let answerIndex = -1;
       if (ch !== '') {
         if (sol.correctAnswer?.type === 201 || /^\d+$/.test(ch)) {
           const idx = Number(ch);
-          const type = Number(sol.type || 1);
-          if (type === 2 || type === 3) { answer = String(idx); answerIndex = -1; }
+          if (type === 2) { answer = String(idx); answerIndex = -1; }
           else { answer = String(idx); answerIndex = idx; }
         } else answer = ch;
       }
       const kps = Array.isArray(sol.keypoints) ? sol.keypoints : [];
       const kpName = String(kps[kps.length - 1] || kps[0] || '').split('/').filter(Boolean).pop() || null;
       const solHtml = normLinks(richToHtml(sol.solution));
-      const mat = (mats || []).find((m) => String(m.id) === String(sol.materialId));
-      const matHtml = mat ? await inlineTarzan(normLinks(richToHtml(mat.content))) : '';
+      const matHtml = matRaw ? await inlineTarzan(matRaw) : '';
       const row = {
         id: nextId++, questionId: qid, paperId: p.id,
         chapter: kpName || null,
-        type: Number(sol.type || 1),
+        type,
         questionType: sol.type === 5 ? 'judge' : null,
         content: stemTxt, contentHtml: await inlineTarzan(stemHtml),
         material: matHtml, options: opt.length ? JSON.stringify(opt.map(String)) : '',
@@ -339,18 +413,22 @@ for (let pi = 0; pi < todo.length; pi += 1) {
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
           row.id, row.questionId, row.paperId, row.chapter, row.type, row.questionType, row.content || ' ', row.contentHtml,
           row.material, row.options, row.optionType, row.answer, row.answerIndex, row.difficulty, row.source, row.analysis, row.analysisHtml, 0, 0, null);
+        if (fp) SEEN_FP.add(fp);
       }
       pAdded += 1; added += 1;
       log.push({ paperId: p.id, questionId: qid, why: ['新增'], added: true });
     }
   }
-  if (pFixed || pAdded) console.log(`  ✓ 卷 ${p.id} ${p.name.slice(0, 22)} 补 ${pFixed} 道 / 新增 ${pAdded} 道（题 ${sols.length} 解析 ${mats.length} 材料）`);
+  if (pFixed || pAdded || pSkipped) {
+    console.log(`  ✓ 卷 ${p.id} ${p.name.slice(0, 22)} 补 ${pFixed} 道 / 新增 ${pAdded} 道 / 跳过 ${pSkipped} 道（题 ${sols.length} 解析 ${mats.length} 材料）`);
+  }
   await sleep(GAP);
 }
 
 const out = path.join(ROOT, 'report', `fix-from-paper-${DAY}.json`);
-fs.writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), apply: APPLY, augment: AUGMENT, papersOk, papersFail, fixed, added, skipped, log }, null, 1));
+fs.writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), apply: APPLY, augment: AUGMENT, papersOk, papersFail, fixed, added, skipped, skipDetail: SKIP, log }, null, 1));
 console.log(`\n完成：卷成功 ${papersOk} / 失败 ${papersFail} · 补题 ${fixed} 道 · 新增 ${added} 道 · 跳过 ${skipped} 道${APPLY ? '（已写库）' : '（dry-run，未写库）'}`);
+console.log(`跳过明细：空题 ${SKIP.blank} / 选项空 ${SKIP.opt} / 无答案 ${SKIP.ans} / 缺图 ${SKIP.img} / 缺材料 ${SKIP.mat} / 重复 ${SKIP.dup}`);
 console.log(`明细：${path.relative(ROOT, out)}`);
 if (APPLY) console.log('提示：再跑 node tools/fetch-missing-images.mjs --apply 把新出现的公式图下载进 images.db');
 db.close();

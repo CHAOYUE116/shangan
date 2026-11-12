@@ -19,6 +19,9 @@
  * @param {{category?: string}} [ctx] 试卷类别上下文（职测 B/C 类区分用）
  */
 export function mapChapterToNode(ch, ctx = {}) {
+  // 库里存在 chapter 为 NULL 的题（整卷导入时 keypoints 缺失），null.includes 会直接把整页题库打崩。
+  if (ch == null) return null;
+  ch = String(ch);
   const G = '言语理解与表达', P = '判断推理', N = '数量关系', Z = '资料分析', C = '常识判断', ZL = '政治理论';
   const m = (group, sub, leaf) => ({ group, sub, leaf: leaf ?? null });
   // 职测 B 类「综合分析」= 篇章阅读（文章阅读），与 C 类（数学运算）不同

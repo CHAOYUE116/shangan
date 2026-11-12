@@ -1,3 +1,12 @@
+## App 0.6.7（修复 0.6.6 题库打不开）
+
+0.6.6 升级后点「题库」会一直转圈，控制台报 `Cannot read properties of null (reading 'includes')`。
+
+- 根因：库里 128 道题的 `chapter` 是 NULL（早期整卷导入时考点缺失），`mapChapterToNode()` 里只挡了 `'综合分析'`，随后 `ch.includes(key)` 直接抛错，而 `chapters()` 一挂，题库页就停在 spinner。
+- 修复：`mapChapterToNode()` 开头 `if (ch == null) return null; ch = String(ch);`；128 行 NULL 章节按 `question_categories.category` 回填（剩余 0）。
+- 顺手加固：题库加载失败不再留在转圈状态，改成一张错误卡（显示原因 + 「重试」按钮）。
+- 本轮此前已发内容：学习统计的能力分析（六维雷达 / 估分环 / 模块条带目标 / 近 7 天柱状）、8,703 道材料 `[object Object]` 修复、images.db 升级不再漏更新。
+
 ## App 0.6.5（题库质量：按题干搜题，把做不了的题一道道补回来）
 
 上一版（0.6.4）把"粉笔语料里有的"补进去了，剩下 2,139 道只能回粉笔原文取。这一版把那条路打通了。
