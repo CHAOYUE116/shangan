@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.6.5';
+const APP_VERSION = '0.6.6';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -540,7 +540,7 @@ function weakPoints() {
 /* ---------- 数据加载 ---------- */
 async function refreshStats() {
   try {
-    S.stats = await api('/api/records/stats');
+    S.stats = await api('/api/records/stats' + (S.statsDays ? `?days=${S.statsDays}` : ''));
     const w = await api('/api/records/wrong?limit=1');
     S.wrongTotal = Number(w.total) || 0;
   } catch { /* ignore */ }
@@ -2720,17 +2720,139 @@ function fillLast7(got) {
   }
   return out;
 }
+
+/* ---------- 能力分析（照粉笔用户报告的思路做本地版） ---------- */
+// 目标正确率：粉笔按模块给不同目标，这里用同一套口径（可后续按省份调）
+const MOD_TARGET = {
+  '政治理论': 75, '常识判断': 80, '言语理解与表达': 70, '数量关系': 68,
+  '判断推理': 80, '资料分析': 87, '公基·政治理论': 75, '法律常识': 75,
+  '综合常识': 70, '经济常识': 70, '科技常识': 70, '人文常识': 70,
+  '地理国情': 70, '公文写作': 75,
+};
+const MOD_ORDER = ['政治理论', '常识判断', '言语理解与表达', '数量关系', '判断推理', '资料分析',
+  '公基·政治理论', '法律常识', '经济常识', '科技常识', '人文常识', '地理国情', '综合常识', '公文写作'];
+
+function modPct(x) { return x && x.c ? Math.round((x.ok / x.c) * 100) : 0; }
+const MOD_SHORT = {
+  '政治理论': '政治', '常识判断': '常识', '言语理解与表达': '言语', '数量关系': '数量',
+  '判断推理': '判断', '资料分析': '资料', '公基·政治理论': '政治', '法律常识': '法律',
+  '经济常识': '经济', '科技常识': '科技', '人文常识': '人文', '地理国情': '地理',
+  '综合常识': '综合', '公文写作': '公文',
+};
+const modLabel = (ch) => MOD_SHORT[ch] || String(ch).replace(/^公基·/, '').slice(0, 4);
+
+/** 六个模块的雷达图：我的（实心）vs 目标（虚线框） */
+function radarSvg(mods) {
+  const CX = 130, CY = 118, R = 72;
+  const n = mods.length || 6;
+  const pt = (i, pct) => {
+    const a = (-90 + (360 / n) * i) * Math.PI / 180;
+    const r = R * Math.max(0.04, Math.min(1, pct / 100));
+    return [CX + Math.cos(a) * r, CY + Math.sin(a) * r];
+  };
+  const ring = (scale) => {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (-90 + (360 / n) * i) * Math.PI / 180;
+      pts.push(`${(CX + Math.cos(a) * R * scale).toFixed(1)},${(CY + Math.sin(a) * R * scale).toFixed(1)}`);
+    }
+    return pts.join(' ');
+  };
+  const poly = (key) => mods.map((m, i) => pt(i, key === 'me' ? modPct(m) : (m.target || 70)).map((v) => v.toFixed(1)).join(',')).join(' ');
+  const labels = mods.map((m, i) => {
+    const a = (-90 + (360 / n) * i) * Math.PI / 180;
+    const x = CX + Math.cos(a) * (R + 26);
+    const y = CY + Math.sin(a) * (R + 20);
+    const anchor = Math.abs(Math.cos(a)) < 0.3 ? 'middle' : Math.cos(a) > 0 ? 'start' : 'end';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="rp-lb">${esc(modLabel(m.chapter))}</text>`;
+  }).join('');
+  return `<svg class="rp-radar" viewBox="0 0 260 240" role="img" aria-label="模块能力雷达">
+    ${[1, 0.75, 0.5, 0.25].map((k) => `<polygon points="${ring(k)}" class="rp-grid${k === 1 ? ' outer' : ''}" />`).join('')}
+    ${mods.map((_, i) => { const [x, y] = pt(i, 100); return `<line x1="${CX}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="rp-spoke" />`; }).join('')}
+    <polygon points="${poly('target')}" class="rp-target" />
+    <polygon points="${poly('me')}" class="rp-me" />
+    ${labels}
+  </svg>`;
+}
+
+/** 预测分：按模块正确率折算（有引擎时优先用引擎概率，见 lab） */
+function estimateScore(byChapter) {
+  const mods = (byChapter || []).filter((x) => x.c > 0);
+  if (!mods.length) return 0;
+  let wsum = 0, sum = 0;
+  for (const m of mods) {
+    const w = Math.min(1, m.c / 20);            // 样本越多权重越大，最多 1
+    wsum += w; sum += w * (m.ok / m.c);
+  }
+  if (!wsum) return 0;
+  const rate = sum / wsum;
+  // 正确率 → 百分制（线性，与粉笔「26.7% 正确率 ≈ 27 分」的观感一致；只是折算，不是预测）
+  return Math.max(0, Math.min(100, Math.round(rate * 100)));
+}
+
+function ringSvg(score) {
+  const R = 46, C = 2 * Math.PI * R;
+  const on = Math.max(0, Math.min(100, score)) / 100 * C;
+  return `<svg class="rp-ring" viewBox="0 0 120 120" role="img" aria-label="估分 ${score}">
+    <circle cx="60" cy="60" r="${R}" class="rp-track" />
+    <circle cx="60" cy="60" r="${R}" class="rp-val" stroke-dasharray="${on.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)" />
+    <text x="60" y="62" text-anchor="middle" class="rp-num">${score}</text>
+    <text x="60" y="82" text-anchor="middle" class="rp-sub">估分 / 100</text>
+  </svg>`;
+}
+
 function renderStatsPage() {
   const st = S.stats || {};
   const by = (st.byChapter || []).slice().sort((a, b) => (a.c ? a.ok / a.c : 0) - (b.c ? b.ok / b.c : 0));
   const filled = fillLast7(st.last7);
   const pct = (x) => (x.c ? Math.round((x.ok / x.c) * 100) : 0);
+  const days = S.statsDays || 0;
+  const scopeName = days ? `近 ${days} 天` : '全部';
+
+  // 雷达取「做过的模块」里题量最多的 6 个，按考试常见顺序排
+  const picked = by.slice()
+    .filter((x) => x.c > 0)
+    .sort((a, b) => b.c - a.c)
+    .slice(0, 6)
+    .map((x) => ({ ...x, target: MOD_TARGET[x.chapter] || 70 }));
+  picked.sort((a, b) => {
+    const ia = MOD_ORDER.indexOf(a.chapter); const ib = MOD_ORDER.indexOf(b.chapter);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  const score = estimateScore(st.byChapter);
+  const showRadar = picked.length >= 3;
+
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习统计</div><span style="width:38px"></span></div>
-  <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>累计做题</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>答错次数</span></div></div>
-  <div class="section-head"><h2 class="section-title">章节正确率</h2></div>
-  <div class="card">${by.length ? by.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div><div class="subject-sub">做 ${x.c} 题 · 对 ${x.ok} 题</div><div class="kp-bar"><i style="width:${pct(x)}%;background:${pct(x) >= 60 ? 'var(--green)' : pct(x) >= 45 ? 'var(--amber)' : 'var(--red)'}"></i></div></div><div class="weak-pct">${pct(x)}%</div></div>`).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
-  <div class="section-head"><h2 class="section-title">近 7 天</h2></div>
-  <div class="card">${filled.map((x) => `<div class="plan-stage"><div class="subject-main"><div class="subject-title">${esc(x.d)}</div><div class="subject-sub">做题 ${x.c} · 答对 ${x.ok}</div>${x.c ? `<div class="kp-bar"><i style="width:${pct(x)}%"></i></div>` : ''}</div><div class="weak-pct">${x.c ? pct(x) + '%' : '—'}</div></div>`).join('')}</div>`;
+  <div class="segmented seg-sm rp-scope">${[7, 30, 0].map((d) => `<button class="${days === d ? 'active' : ''}" data-act="stats-scope" data-days="${d}">${d ? `近 ${d} 天` : '全部'}</button>`).join('')}</div>
+  <div class="stats-row"><div class="stat"><b>${st.total || 0}</b><span>做题（${scopeName}）</span></div><div class="stat"><b>${st.rate || 0}%</b><span>正确率</span></div><div class="stat"><b>${st.wrong || 0}</b><span>答错</span></div></div>
+
+  <div class="section-head"><h2 class="section-title">能力分析</h2><span class="muted">${showRadar ? '我的 vs 目标' : ''}</span></div>
+  <div class="card rp-card">
+    <div class="rp-top">
+      ${ringSvg(score)}
+      <div class="rp-top-txt">
+        <div class="rp-top-t">按模块正确率折算的估分</div>
+        <div class="rp-top-s">${picked.length ? `最该补：${esc(picked[picked.length - 1].chapter)} ${modPct(picked[picked.length - 1])}%` : '做完几道题后出现'}</div>
+        <div class="rp-top-s">样本 ${st.total || 0} 题 · ${scopeName}</div>
+      </div>
+    </div>
+    ${showRadar ? radarSvg(picked) : '<div class="empty-state">至少做 3 个模块，才能画出能力图</div>'}
+    <div class="rp-legend"><i class="me"></i>我的 <i class="tg"></i>目标</div>
+  </div>
+
+  <div class="section-head"><h2 class="section-title">模块正确率</h2></div>
+  <div class="card">${by.length ? by.slice().sort((a, b) => (b.c || 0) - (a.c || 0)).map((x) => {
+    const p = pct(x); const tg = MOD_TARGET[x.chapter] || 70;
+    return `<div class="rp-mod"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div>
+      <div class="subject-sub">做 ${x.c} · 对 ${x.ok} · 目标 ${tg}%</div>
+      <div class="rp-bar"><i style="width:${p}%;background:${p >= tg ? 'var(--green)' : p >= tg - 20 ? 'var(--amber)' : 'var(--red)'}"></i><b class="rp-tick" style="left:${tg}%"></b></div></div>
+      <div class="weak-pct">${p}%</div></div>`;
+  }).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
+
+  <div class="section-head"><h2 class="section-title">近 7 天</h2><span class="muted">做题量 / 正确率</span></div>
+  <div class="card">
+    <div class="rep-bars">${filled.map((x) => `<div class="rep-col"><div class="rep-v">${Number(x.c) || 0}</div><div class="rep-bar" style="height:${Math.max(6, Math.round((Number(x.c) || 0) / Math.max(1, ...filled.map((y) => Number(y.c) || 0)) * 82))}px;background:${x.c ? (pct(x) >= 60 ? 'var(--green)' : pct(x) >= 45 ? 'var(--amber)' : 'var(--red)') : 'var(--line)'}"></div><div class="rep-d">${esc(String(x.d).slice(5))}</div></div>`).join('')}</div>
+  </div>`;
 }
 
 function renderWeeklyReport() {
