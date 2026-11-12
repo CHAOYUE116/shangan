@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 题库文件（app-assets/tiku_app.db, ~430 MB）不进仓库，
+      # 所以 CI 只跑语法 / JSON / manifest 一致性（--fast），
+      # 库 schema 与查询冒烟在本地发版前用 `node tools/ci.mjs` 跑。
+      - name: 语法与清单检查
+        run: node tools/ci.mjs --fast

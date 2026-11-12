@@ -753,6 +753,14 @@ export function createLocalApi(tiku, practice, stats = {}) {
     /** 考点列表（粉笔 keypoints） */
     keypoints(subject) {
       if (!subject) return [];
+      // 优先用构建时预计算的考点表（qc-counts.json，30 KB）：三表 join 在手机上一次 ≈11s。
+      try {
+        const pre = globalThis.__QC_COUNTS__ && globalThis.__QC_COUNTS__.subjects;
+        const hit = pre && pre[subject] && pre[subject].kps;
+        if (Array.isArray(hit) && hit.length) {
+          return hit.map((x) => ({ name: x[0], questions: x[1] }));
+        }
+      } catch (e) { /* 预计算缺失就走库 */ }
       // 三表 join 在手机上 ≈11s（kp 46k 行 × 回表），但考点是静态数据：
       // 按科目缓存 7 天，第一次慢、之后秒开。没 localStorage 的环境（Node 端）不缓存。
       const CK = 'sg_kp_cache_v1';

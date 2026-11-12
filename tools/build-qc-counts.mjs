@@ -27,6 +27,13 @@ const YEAR_TO = NOW + 1;
 const YEAR_OF = "CAST(substr(p.name, MAX(1, instr(p.name, '20')), 4) AS INTEGER)";
 
 const db = new DatabaseSync(dbPath, { readOnly: true });
+// 考点来源：老表 + 我们自己补的扩展表（与 local-queries.js 的 KP_SOURCE 一致）
+const hasExt = !!db
+  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='question_keypoints_ext'")
+  .get();
+const KP_SOURCE = hasExt
+  ? 'SELECT questionId, kpName FROM question_keypoints UNION SELECT questionId, kpName FROM question_keypoints_ext'
+  : 'SELECT questionId, kpName FROM question_keypoints';
 const subjects = db
   .prepare('SELECT DISTINCT subjectName FROM papers ORDER BY subjectName')
   .all()
@@ -76,8 +83,28 @@ for (const subject of subjects) {
   } else {
     out_data.subjects[subject] = { group, idx };
   }
+  // 考点题量（same 口径 as local-queries.keypoints()：COUNT(DISTINCT) ≥ 8）
+  // 三表 join 在手机上一次 10s，所以也预计算；写成 [name, questions] 紧凑数组省体积。
+  try {
+    out_data.subjects[subject].kps = db
+      .prepare(
+        `SELECT kp.kpName AS name, COUNT(DISTINCT kp.questionId) AS questions
+         FROM (${KP_SOURCE}) kp
+         JOIN questions q ON q.questionId = kp.questionId
+         JOIN papers p ON p.id = q.paperId
+         WHERE p.subjectName = ?
+         GROUP BY kp.kpName
+         HAVING questions >= 8
+         ORDER BY questions DESC`
+      )
+      .all(subject)
+      .map((r) => [r.name, Number(r.questions) || 0]);
+  } catch (e) {
+    out_data.subjects[subject].kps = [];
+  }
   const n = Object.keys(out_data.subjects[subject].group).length;
-  console.log(`  ${subject}: ${n} 个分类`);
+  const nk = out_data.subjects[subject].kps.length;
+  console.log(`  ${subject}: ${n} 个分类 / ${nk} 个考点`);
 }
 
 fs.mkdirSync(path.dirname(out), { recursive: true });
