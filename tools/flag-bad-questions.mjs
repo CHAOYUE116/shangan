@@ -114,8 +114,17 @@ const REASONS = {
   R5: '图片键缺失',
   R6: '客观题没答案',
   R7: '内容被平台打码',
+  R8: '选项图丢失（占位字母）',
+  R9: '题图未内联（离线打不开）',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
+const isPlaceholderOptions = (raw) => {
+  try {
+    const arr = JSON.parse(String(raw || '[]'));
+    if (!Array.isArray(arr) || arr.length < 2) return false;
+    return arr.every((x) => /^[A-Ea-e]$/.test(String(x).trim()));
+  } catch { return false; }
+};
 const badRows = [];
 const stat = { total: rows.length, bad: 0, by: {}, bySubject: {}, samples: {} };
 for (const k of Object.keys(REASONS)) { stat.by[k] = 0; stat.samples[k] = []; }
@@ -190,6 +199,20 @@ for (const r of rows) {
   if (!reason && isObj) {
     const a = String(r.answer == null ? '' : r.answer).trim();
     if (!a && Number(r.answerIndex) < 0) reason = 'R6';
+  }
+
+  // R8 选项是占位字母：图形题的选项本身是图片，抓取时只留了 A/B/C/D 占位，
+  //    做题时四个选项全是空白的，属于「物理上做不了」，必须拦住。
+  if (!reason && isObj && isPlaceholderOptions(r.options) && /图形|如图|如下图|所给|缺口|填入问号|规律|折叠|展开|截面|立体/.test(stem)) {
+    reason = 'R8';
+    detail = '选项是 A/B/C/D 占位（选项图丢失）';
+  }
+
+  // R9 题图还挂在粉笔 CDN 上：离线打开是破图，等于没有图。
+  // 只认题干和材料 —— 解析里的图由 strip-remote-imgs 处理掉，不影响能不能做题。
+  if (!reason && /fbstatic\.cn|\/tarzan\/images/.test(contentHtml + material)) {
+    reason = 'R9';
+    detail = '题图未内联（仍指向粉笔 CDN）';
   }
 
   if (!reason) continue;
