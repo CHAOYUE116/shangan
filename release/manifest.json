@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.8.4",
-    "versionCode": 134,
-    "code": 134,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk",
+    "version": "0.8.6",
+    "versionCode": 136,
+    "code": 136,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.6-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.6-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.6-release.apk"
       }
     ],
-    "size": 236272600,
-    "sha256": "46cde7eabff3aaa6b819eea2e7da93dfb33b2447291133e938196ed4536e5cef",
-    "name": "shangan-0.8.4-release.apk",
-    "note": "拦掉 1.6 万道做不了的图形/图表题（选项是 A/B/C/D 占位、题图指向粉笔 CDN）；修题库升级后仍读旧库"
+    "size": 236603547,
+    "sha256": "bf0e74326c3c5c78cdf892cd00ab28599399758310886596fee2bd36289e1ab2",
+    "name": "shangan-0.8.6-release.apk",
+    "note": "R9 规则收紧：公式图在图片库里能查到的不再拦（救回 3,867 道），坏题 16,245→14,358；到期复习题并发取，点「开始今日任务」不再卡"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "拦掉 1.6 万道做不了的图形/图表题（选项是 A/B/C/D 占位、题图指向粉笔 CDN）；修题库升级后仍读旧库"
+  "note": "R9 规则收紧：公式图在图片库里能查到的不再拦（救回 3,867 道），坏题 16,245→14,358；到期复习题并发取，点「开始今日任务」不再卡"
 }
