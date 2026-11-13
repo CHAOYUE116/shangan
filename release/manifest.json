@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.5",
-    "versionCode": 113,
-    "code": 113,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.5-release.apk",
+    "version": "0.7.6",
+    "versionCode": 114,
+    "code": 114,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.6-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.5-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.6-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.5-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.6-release.apk"
       }
     ],
-    "size": 238254887,
-    "sha256": "d9f9b6069f2238e90226480895f68a73338b289b8bfdfd2cd3418a692dd5a5c6",
-    "name": "shangan-0.7.5-release.apk",
-    "note": "App 0.7.5：综应/申论按粉笔题型分类（综应 13 个题型：案例分析 842 / 材料作文 485 / 公文写作 364 …）"
+    "size": 238255258,
+    "sha256": "f7c4ea118b8c388ac8b530ee323c3dffaac5a1fdc11b6ec631c2ab0a4549388e",
+    "name": "shangan-0.7.6-release.apk",
+    "note": "App 0.7.6：综应按粉笔的三类分（案例分析题 867 / 公文写作题 383 / 材料作文题 488 / 其他题型 732）"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "App 0.7.5：综应/申论按粉笔题型分类（综应 13 个题型：案例分析 842 / 材料作文 485 / 公文写作 364 …）"
+  "note": "App 0.7.6：综应按粉笔的三类分（案例分析题 867 / 公文写作题 383 / 材料作文题 488 / 其他题型 732）"
 }
