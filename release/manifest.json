@@ -2,50 +2,44 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.29",
-    "versionCode": 169,
-    "code": 169,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk",
+    "version": "0.9.31",
+    "versionCode": 171,
+    "code": 171,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk"
       }
     ],
-    "size": 347450328,
-    "sha256": "2742ae43815023c71f5ce8b6ae44965d92760261742d1e34d2a8746146160840",
-    "name": "shangan-0.9.29-release.apk",
-    "note": "题库"
+    "size": 347451896,
+    "sha256": "5bf9dcbd54ea968423e8aae4ca1db2b468c6d244dd39a3787b52ac8987e57bc0",
+    "name": "shangan-0.9.31-release.apk",
+    "note": "错题兜底：题库更新删掉的题不再是死角"
   },
   "tiku": {
-    "dbVersion": "0.5.38-20261113-1915",
+    "dbVersion": "0.5.39-20261113-2305",
     "questions": 151998,
     "rows": 202843,
     "full": {
-      "name": "tiku_app.db.gz",
-      "size": 169444737,
+      "size": 169474672,
       "rawSize": 790474752,
-      "sha256": "b7b522908a55d4a06a6bb7288e8f462bf5990a56f0d421175fceb0b9d29fe705",
-      "gzSha256": "551e8a074106daf3dce63de59ba25d973d72ce44f2080d07c1786408dab15ee7",
+      "sha256": "445fb44db6271f68df6f701ed692b27e8f11ab63a4273e5b4b3ac73f9b04bb5c",
+      "gzSha256": "080785ae4e517580e20bbfb940bf658015d28cdd3e4e125d86b5cfa40ec4f323",
       "gz": true,
-      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz",
+      "name": "tiku_app.db.gz",
+      "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz",
       "sources": [
-        {
-          "name": "gh-proxy",
-          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz"
-        },
-        {
-          "name": "github",
-          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz"
-        }
+        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz",
+        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz"
       ]
     },
     "delta": [],
-    "note": "题库 0.5.38：15.2 万道，坏题 654（0.43%）；分类按粉笔二级重分、333 道言语题归位、删 4,303 道占位选项题；题图已内联进 images.db"
+    "note": "题库 0.5.39：资料分析缺材料的 1,382 道全部拦掉（不再抽到空壳题）"
   },
   "images": {
     "name": "images.db.gz",
@@ -54,19 +48,13 @@
     "sha256": "c0f796b61c691fb9c31166674e4d3b505cff556a7c5ad4abf686f1242b08f184",
     "gzSha256": "ffb71f1431820cd1844381df09836e7a32f64e01e9ec00d40339aafef07ff9e7",
     "gz": true,
-    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz",
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz",
     "sources": [
-      {
-        "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz"
-      },
-      {
-        "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz"
-      }
+      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz",
+      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz"
     ]
   },
   "mirrors": [],
-  "note": "题库",
+  "note": "错题兜底：题库更新删掉的题不再是死角",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
