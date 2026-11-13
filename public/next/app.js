@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.7';
+const APP_VERSION = '0.7.8';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1151,6 +1151,7 @@ function renderLibrary() {
   };
   // 展开过的模块（二级标题默认收起，像粉笔那样点开再看）
   const openGroups = S.lib.openGroups || (S.lib.openGroups = {});
+  const openSubs = S.lib.openSubs || (S.lib.openSubs = {});
   // 模块完成度：接口算好的 g.done（二级之和）与 records 按 chapter 聚合取大，两个口径都不丢
   const doneTotal = (g) => Math.max(g.done || 0, doneOf(g.group));
   return `
@@ -1173,7 +1174,12 @@ function renderLibrary() {
         // 二级的「已做」直接用接口算好的 x.done（按 category|sub 索引统计），
         // 之前用 doneOf(name) 是按 chapter 名匹配，二级名和 chapter 对不上，永远显示 0
         const sd = x.done != null ? x.done : doneOf(x.name);
-        return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`;
+        // 三级：考点叶子（提出对策类 / 原因类 / 理论分析题…），粉笔也是这么一层层点下去的
+        const lv = (x.leaves || []).filter((l) => l.total > 0);
+        const skey = `${g.group}|${x.name}`;
+        const sopen = !!openSubs[skey];
+        const scare = lv.length > 1 ? `<button class="module-caret ${sopen ? 'open' : ''}" data-toggle-sub="${esc(skey)}" aria-label="${sopen ? '收起' : '展开'}">${sopen ? '▾' : '▸'}</button>` : '<span class="module-caret ghost"></span>';
+        return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}">${scare}<div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>${sopen ? lv.map((l) => `<div class="module-row leaf" data-act="leaf" data-kp="${esc(l.name)}"><div class="module-name">${esc(l.name)}</div><div class="module-count">${l.total}</div></div>`).join('') : ''}`;
       }).join('') : ''}`;
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
@@ -3624,8 +3630,21 @@ document.addEventListener('click', (e) => {
     if (a === 'hist-detail') { openHistDetail(Number(act.dataset.ts)); return; }
   if (a === 'exam-trend') { openExamTrend(); return; }
   if (a === 'keypoints') { openKeypoints(); return; }
+  if (a === 'leaf') {
+    const kp = act.dataset.kp;
+    startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&keypoint=${encodeURIComponent(kp)}&n=15&mock=0&year=10&difficulty=random`, kp, S.lib.subject);
+    return;
+  }
   if (a === 'group') {
     // 点行 → 练这个模块；点行首的小三角 → 只展开/收起二级，不跳去做题
+    const subCaret = e.target.closest('[data-toggle-sub]');
+    if (subCaret) {
+      const key = subCaret.dataset.toggleSub;
+      S.lib.openSubs = S.lib.openSubs || {};
+      S.lib.openSubs[key] = !S.lib.openSubs[key];
+      go('library');
+      return;
+    }
     const caret = e.target.closest('[data-toggle-group]');
     if (caret) {
       const name = caret.dataset.toggleGroup;

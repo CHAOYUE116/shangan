@@ -15,7 +15,7 @@
  *   const api = createLocalApi(tikuEngine, { doneBySubject, chapterStats });
  */
 
-import { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_ZY_PATS, ESSAY_SL_PATS, ESSAY_ZY_GROUPS, ESSAY_ZY_CONTENT, ESSAY_ZY_ORDER, ESSAY_SL_CONTENT } from './fenbi-tree.js';
+import { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_SL_PATS, ESSAY_ZY_CONTENT, FENBI_ZY_TREE, ESSAY_SL_CONTENT } from './fenbi-tree.js';
 import { mapChapterToNode } from './xingce-chapter-map.js';
 
 // ============ SQL（与 server.mjs 预编译语句 1:1） ============
@@ -952,7 +952,10 @@ export function createLocalApi(tiku, practice, stats = {}) {
         ? chapters.map((s) => String(s).trim()).filter(Boolean)
         : chapters ? String(chapters).split(',').map((s) => s.trim()).filter(Boolean) : (chapter ? [chapter] : null);
       // 自定义刷题（custom=1）：题量由面板控制，不走随机练习的 15 题/申论 2 题规则
-      const max = custom ? n : practiceMax(subject, group, chList);
+      // 申论/综应的「组」是粉笔题型（案例分析题…），papers.chapters 里没有这些名字，
+      // practiceMax 会算成 0 → 一条都出不来，所以这两科直接用请求的题量
+      const isEssaySubject = subject === '公务员·申论' || subject === '事业编·综应';
+      const max = custom || (group && isEssaySubject) ? n : practiceMax(subject, group, chList);
       // 自定义刷题：多抽 3 倍候选（材料组整组剔除后仍能凑满），再按面板题量裁剪
       const fetchN = custom ? Math.min(n * 3, 150) : n;
       // 材料组整组难度检查（自定义刷题难度过滤时）：组内任一题不满足 → 整组剔除；random/缺省不检查
@@ -976,7 +979,9 @@ export function createLocalApi(tiku, practice, stats = {}) {
         return trimToMax(enrichGroups(tiku, practice, qs, subject, null), max);
       }
       if (group) {
-        if (subject === '公务员·申论' || subject === '事业编·综应' || subject === '公务员·行测' || subject === '事业编·职测') {
+        // 行测/职测按 question_categories 的「模块|子模块」取题；申论/综应的组是粉笔题型，
+        // 分类表里没有这些名字，必须走下面按 chapter 取题的分支
+        if (subject === '公务员·行测' || subject === '事业编·职测') {
           const dc = diffCond(difficulty);
           const ids = (sub === '全部'
             ? practice.all(Q_CAT_INDEX(false, dc), group, subject, fetchN)
@@ -990,14 +995,36 @@ export function createLocalApi(tiku, practice, stats = {}) {
           );
           return trimToMax(enrichGroups(tiku, practice, qs, subject, diffFilter), max);
         }
-        const chs = tiku.all(`
-          SELECT DISTINCT q.chapter FROM questions q JOIN papers p ON p.id = q.paperId
-          WHERE p.subjectName = ? AND q.chapter != '' ${yearCond(year === undefined ? '10' : year)}
-        `, subject).map((r) => r.chapter).filter((ch) => {
-          const node = mapEssayChapterToNode(ch);
-          return node && node.group === group && (sub === '全部' || node.sub === sub);
-        });
-        const rows = randomQuestions(tiku, subject, chs.length ? chs : null, fetchN, mock, year, difficulty);
+        // 申论/综应的「组」是粉笔题型，题型名就在 question_keypoints 里 → 直接按考点取题，
+        // 比按 chapter 取准（同一份卷子的 chapter 全是「一、」「二、」，跨组重叠）
+        const tree = subject === '事业编·综应' ? FENBI_ZY_TREE : null;
+        const node = tree ? tree.find((g) => g.group === group) : null;
+        const leaves = node ? node.subs.flatMap((x) => x.leaves) : [];
+        let ids = [];
+        if (leaves.length) {
+          ids = tiku.all(
+            `SELECT q.questionId FROM questions q
+               JOIN papers p ON p.id = q.paperId
+               JOIN (SELECT questionId FROM question_keypoints WHERE kpName IN (${leaves.map(() => '?').join(',')})
+                     GROUP BY questionId) k ON k.questionId = q.questionId
+              WHERE p.subjectName = ?${badCond('q')}
+              GROUP BY q.questionId ORDER BY RANDOM() LIMIT ?`,
+            ...leaves, subject, fetchN
+          ).map((r) => r.questionId);
+        }
+        if (ids.length) {
+          const qs = tiku.all(
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+               FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
+            ...ids
+          );
+          return trimToMax(enrichGroups(tiku, practice, qs, subject, diffFilter), max);
+        }
+        // 兜底（未分类、或考点为空）：按 chapters() 算出的 chapter 清单取题
+        const essayGroups = api.chapters(subject);
+        const hitGroup = essayGroups.find((g) => g.group === group);
+        const chs = hitGroup && hitGroup.chapters && hitGroup.chapters.length ? hitGroup.chapters : null;
+        const rows = randomQuestions(tiku, subject, chs, fetchN, mock, 'all', difficulty);
         return trimToMax(enrichGroups(tiku, practice, rows, subject, diffFilter), max);
       }
       return trimToMax(enrichGroups(tiku, practice, randomQuestions(tiku, subject, chList, fetchN, mock, year, difficulty), subject, diffFilter), max);
@@ -1337,8 +1364,20 @@ export function createLocalApi(tiku, practice, stats = {}) {
         // 粉笔的题按「题型 → 具体子类」组织（案例分析题 > 单一题 > 提出对策类 …），
         // 这些名字正好都在 question_keypoints 里，所以直接用考点当题型、按题型分组。
         const isZy = subject !== '公务员·申论';
-        const pats = isZy ? ESSAY_ZY_GROUPS : ESSAY_SL_PATS;
-        const order = isZy ? ESSAY_ZY_ORDER : pats.map((p) => p[1]);
+        const pats = isZy ? [] : ESSAY_SL_PATS;
+        const order = isZy ? FENBI_ZY_TREE.map((g) => g.group) : pats.map((p) => p[1]);
+        // 综应：粉笔的三层树（一级题型 / 二级 单一题·综合题 / 三级叶子考点）
+        // 叶子名 → { group, sub } 一次性建表，逐题只做 Map 命中
+        const leafMap = new Map();
+        const subOrder = new Map();
+        if (isZy) {
+          for (const g of FENBI_ZY_TREE) {
+            g.subs.forEach((sb, si) => {
+              subOrder.set(`${g.group}|${sb.name}`, si);
+              for (const leaf of sb.leaves) leafMap.set(leaf, { group: g.group, sub: sb.name, leaf });
+            });
+          }
+        }
         const contentRules = isZy ? ESSAY_ZY_CONTENT : ESSAY_SL_CONTENT;
         const byContent = (text) => {
           const t = String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -1358,11 +1397,15 @@ export function createLocalApi(tiku, practice, stats = {}) {
           WHERE p.subjectName = ?`, subject);
         const chapterGroup = new Map();
         const agg = new Map(); // group → { total, subs: Map(name → total) }
-        const bump = (group, sub) => {
-          if (!agg.has(group)) agg.set(group, { total: 0, subs: new Map() });
+        const bump = (group, sub, chapter, leaf) => {
+          if (!agg.has(group)) agg.set(group, { total: 0, subs: new Map(), leaves: new Map(), chaps: new Set() });
           const g = agg.get(group);
+          if (leaf) g.leaves.set(`${sub}|${leaf}`, (g.leaves.get(`${sub}|${leaf}`) || 0) + 1);
           g.total += 1;
           g.subs.set(sub, (g.subs.get(sub) || 0) + 1);
+          // 记下这组实际用到的 chapter，点进组才能取到题（综应/申论的 chapter 是「一、」这类序号）
+          const ch = String(chapter || '').trim();
+          if (ch) g.chaps.add(ch);
         };
         const seenQ = new Set();
         for (const r of rows) {
@@ -1371,18 +1414,35 @@ export function createLocalApi(tiku, practice, stats = {}) {
           const kps = String(r.kps || '').split('|').filter(Boolean);
           let group = '';
           let sub = '';
-          for (const k of kps) {
-            const g = classify(k);
-            if (g) { group = g; sub = k; break; }
+          let hitLeaf = '';
+          if (isZy) {
+            for (const k of kps) {
+              const hit = leafMap.get(k);
+              if (hit) { group = hit.group; sub = hit.sub; hitLeaf = hit.leaf; break; }
+            }
+            if (!group) {
+              // 考点是「主观题 / 开放题」这种空词时，用题干措辞找到它该进哪个一级题型；
+              // 题干也认不出来（只有「本题仅限报考省级以上职位作答」这类话）→ 未分类
+              const byText = byContent(r.content);
+              if (byText) { group = byText; sub = '其他'; }
+              else {
+                group = '未分类';
+                sub = String(r.chapter || '').replace(/^[一二三四五六七八九十]+\s*[、.．]\s*/, '').trim() || '其他';
+              }
+            }
+          } else {
+            for (const k of kps) {
+              const g = classify(k);
+              if (g) { group = g; sub = k; break; }
+            }
+            if (!group) {
+              const byText = byContent(r.content);
+              group = byText || classify(r.chapter) || '未分类';
+              const bare = String(r.chapter || '').replace(/^[一二三四五六七八九十]+\s*[、.．]\s*/, '').trim();
+              sub = group === '未分类' ? (bare || '其他') : (byText ? '其他' : (bare || '其他'));
+            }
           }
-          if (!group) {
-            // 考点只写了「主观题/开放题」→ 用题干措辞判断题型（概括类、公文类、作文类）
-            const byText = byContent(r.content);
-            group = byText || classify(r.chapter) || '未分类';
-            const bare = String(r.chapter || '').replace(/^[一二三四五六七八九十]+\s*[、.．]\s*/, '').trim();
-            sub = group === '未分类' ? (bare || '其他') : (byText ? '题干判断' : (bare || '其他'));
-          }
-          bump(group, sub);
+          bump(group, sub, r.chapter, hitLeaf);
           if (!chapterGroup.has(r.chapter)) chapterGroup.set(r.chapter, group);
         }
         const doneMap2 = statOf('chapterStats').get(subject) || new Map();
@@ -1399,9 +1459,25 @@ export function createLocalApi(tiku, practice, stats = {}) {
         groups = allGroups.map((name) => {
           const g = agg.get(name);
           const d = doneOf.get(name) || { c: 0, ok: 0 };
+          // 综应按粉笔树的二级顺序排（单一题在前、综合题在后），其余按题量降序
           const subs = [...g.subs.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .map(([sname, n]) => ({ name: sname, total: n, done: null, rate: null, chapters: [], leaves: [] }));
+            .sort((a, b) => {
+              const oa = subOrder.get(`${name}|${a[0]}`) ?? 999;
+              const ob = subOrder.get(`${name}|${b[0]}`) ?? 999;
+              if (oa !== ob) return oa - ob;
+              return b[1] - a[1];
+            })
+            .map(([sname, n]) => ({
+              name: sname,
+              total: n,
+              done: null,
+              rate: null,
+              chapters: [],
+              leaves: [...(g.leaves || new Map()).entries()]
+                .filter(([k]) => k.startsWith(`${sname}|`))
+                .map(([k, ln]) => ({ name: k.slice(sname.length + 1), total: ln }))
+                .sort((a, b) => b.total - a.total),
+            }));
           return {
             group: name,
             total: g.total,
@@ -1409,6 +1485,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
             rate: d.c ? Math.round((d.ok / d.c) * 100) : null,
             chapters: [],
             subs,
+            chapters: g.chaps ? [...g.chaps] : [],
           };
         });
       }
@@ -1462,5 +1539,5 @@ export function classifySource(qid, lookup) {
   return { groupKey: subject, groupName: sourceGroupName(subject), subKey: sub, subName: sub, paperId: q.paperId ?? null };
 }
 
-export { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_ZY_PATS, ESSAY_SL_PATS, ESSAY_ZY_GROUPS, ESSAY_ZY_CONTENT, ESSAY_ZY_ORDER, ESSAY_SL_CONTENT, mapChapterToNode };
+export { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_SL_PATS, ESSAY_ZY_CONTENT, FENBI_ZY_TREE, ESSAY_SL_CONTENT, mapChapterToNode };
 
