@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.3",
-    "versionCode": 111,
-    "code": 111,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.3-release.apk",
+    "version": "0.7.4",
+    "versionCode": 112,
+    "code": 112,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.4-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.3-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.4-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.3-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.4-release.apk"
       }
     ],
-    "size": 238253596,
-    "sha256": "95fbcbbd4eeaf52f7b36bb18c13fdd3f8e2b544339142f5608a8d89fa77755c6",
-    "name": "shangan-0.7.3-release.apk",
-    "note": "引导页 5 步（测评放最后、默认事业编·浙江）；筛卷时联考/浙江排前、同名卷去重；解析回灌补跑"
+    "size": 238254317,
+    "sha256": "73cd337e6a5737566d20637b09124dca355375a7f49fb4adf535590b89235dc2",
+    "name": "shangan-0.7.4-release.apk",
+    "note": "App 0.7.4：修综应只剩 163 道（恢复 2,825）；申论/综应去掉年份过滤，树外章节可练"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "引导页 5 步（测评放最后、默认事业编·浙江）；筛卷时联考/浙江排前、同名卷去重；解析回灌补跑"
+  "note": "App 0.7.4：修综应只剩 163 道（恢复 2,825）；申论/综应去掉年份过滤，树外章节可练"
 }
