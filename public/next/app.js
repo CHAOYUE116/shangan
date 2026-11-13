@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.8';
+const APP_VERSION = '0.7.9';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1049,6 +1049,8 @@ const ICON_PATHS = {
   download: '<path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 19h16"/>',
   sparkle: '<path d="M12 3.5 13.7 9l5.5 1.7-5.5 1.7L12 18l-1.7-5.6L4.8 10.7 10.3 9Z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z"/>',
   flag: '<path d="M5 21V4"/><path d="M5 4h11l-1.8 3.5L16 11H5"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/>',
+  shuffle: '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
   target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
 };
 function iconSvg(name, size = 18) {
@@ -1184,9 +1186,9 @@ function renderLibrary() {
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
   <div class="stats-row three" style="margin-top:14px">
-    <button class="stat stat-link" data-act="wrong-train"><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
-    <button class="stat stat-link" data-act="library-exam"><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时</span></span><span class="stat-go">测 ›</span></button>
-    <button class="stat stat-link" data-act="subject-random"><span class="stat-txt"><b>随机 20 题</b><span>本${esc(shortName)} · 不计时</span></span><span class="stat-go">练 ›</span></button>
+    <button class="stat stat-link" data-act="wrong-train"><span class="stat-ico">${iconSvg('repeat', 17)}</span><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
+    <button class="stat stat-link" data-act="library-exam"><span class="stat-ico">${iconSvg('timer', 17)}</span><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时</span></span><span class="stat-go">测 ›</span></button>
+    <button class="stat stat-link" data-act="subject-random"><span class="stat-ico">${iconSvg('shuffle', 17)}</span><span class="stat-txt"><b>随机 20 题</b><span>本${esc(shortName)} · 不计时</span></span><span class="stat-go">练 ›</span></button>
   </div>
   <button class="paper-entry" data-act="papers">
     <div class="subject-ico">${iconFor('')}</div>
