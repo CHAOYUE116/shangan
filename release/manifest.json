@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.28",
-    "versionCode": 168,
-    "code": 168,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk",
+    "version": "0.9.29",
+    "versionCode": 169,
+    "code": 169,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.29-release.apk"
       }
     ],
-    "size": 347414173,
-    "sha256": "ce6c873b2fac08c6ce50686546b5d8a02b32aa35fc7db0c9f4a01c8348d00feb",
-    "name": "shangan-0.9.28-release.apk",
-    "note": "材料题的材料终于不丢了：题目表里本来就有"
+    "size": 347450328,
+    "sha256": "2742ae43815023c71f5ce8b6ae44965d92760261742d1e34d2a8746146160840",
+    "name": "shangan-0.9.29-release.apk",
+    "note": "题库"
   },
   "tiku": {
     "dbVersion": "0.5.38-20261113-1915",
@@ -67,6 +67,6 @@
     ]
   },
   "mirrors": [],
-  "note": "材料题的材料终于不丢了：题目表里本来就有",
+  "note": "题库",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
