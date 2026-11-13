@@ -22,33 +22,51 @@
     "note": "学习报告重做：跟上周比、这一周的节奏（七天柱+最猛一天）、模块在往哪走（环比±pt）、本周最稳/最弱考点；另外点设置/展开不再跳回顶部、考试页入口改回「基础测评」、题库页恢复自定义刷题、修好模考返回首页与报告↔统计的返回链"
   },
   "tiku": {
-    "dbVersion": "0.5.30-20261113-0235",
-    "questions": 166040,
+    "dbVersion": "0.5.38-20261113-1915",
+    "questions": 151998,
+    "rows": 202843,
     "full": {
-      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
-      "mirrors": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
-      ],
+      "name": "tiku_app.db.gz",
+      "size": 169444737,
+      "rawSize": 790474752,
+      "sha256": "b7b522908a55d4a06a6bb7288e8f462bf5990a56f0d421175fceb0b9d29fe705",
+      "gzSha256": "551e8a074106daf3dce63de59ba25d973d72ce44f2080d07c1786408dab15ee7",
+      "gz": true,
+      "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz",
       "sources": [
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz",
-        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.28-20261113-0110/tiku_app.db.gz"
-      ],
-      "size": 168321267,
-      "rawSize": 789803008,
-      "sha256": "076836ca8594b8721f524bca998363fab169e07542f2df44b01756ee25a400a1",
-      "gzSha256": "5ee3c0736abcd5f2ee374150609e9e5f4de45ba7d942623759a474f7a46959c8",
-      "gz": true
+        {
+          "name": "gh-proxy",
+          "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz"
+        },
+        {
+          "name": "github",
+          "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/tiku_app.db.gz"
+        }
+      ]
     },
     "delta": [],
-    "note": "扫粉笔 id 空间补 5.3 万道题（唯一题 15.6 万，可用 14.9 万）；官方难度覆盖 97%；坏题 327（0.21%）"
+    "note": "题库 0.5.38：15.2 万道，坏题 654（0.43%）；分类按粉笔二级重分、333 道言语题归位、删 4,303 道占位选项题；题图已内联进 images.db"
   },
   "images": {
-    "size": 90456064,
-    "gzSize": 63979980,
-    "sha256": "c19e05a118b7e6685ee0edfb5fed30c5db60178325463ca2d5ed0841b7e0634e",
+    "name": "images.db.gz",
+    "size": 225894400,
+    "gzSize": 172459817,
+    "sha256": "c0f796b61c691fb9c31166674e4d3b505cff556a7c5ad4abf686f1242b08f184",
+    "gzSha256": "ffb71f1431820cd1844381df09836e7a32f64e01e9ec00d40339aafef07ff9e7",
     "gz": true,
-    "name": "images.db.gz"
+    "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz",
+    "sources": [
+      {
+        "name": "gh-proxy",
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz"
+      },
+      {
+        "name": "github",
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.38-20261113-1915/images.db.gz"
+      }
+    ]
   },
   "mirrors": [],
-  "note": "学习报告重做：跟上周比、这一周的节奏（七天柱+最猛一天）、模块在往哪走（环比±pt）、本周最稳/最弱考点；另外点设置/展开不再跳回顶部、考试页入口改回「基础测评」、题库页恢复自定义刷题、修好模考返回首页与报告↔统计的返回链"
+  "note": "学习报告重做：跟上周比、这一周的节奏（七天柱+最猛一天）、模块在往哪走（环比±pt）、本周最稳/最弱考点；另外点设置/展开不再跳回顶部、考试页入口改回「基础测评」、题库页恢复自定义刷题、修好模考返回首页与报告↔统计的返回链",
+  "updatedAt": "2026-11-13T12:41:57.688Z"
 }
