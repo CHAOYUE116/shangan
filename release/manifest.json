@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.31",
-    "versionCode": 171,
-    "code": 171,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk",
+    "version": "0.9.32",
+    "versionCode": 172,
+    "code": 172,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.31-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk"
       }
     ],
-    "size": 347451896,
-    "sha256": "5bf9dcbd54ea968423e8aae4ca1db2b468c6d244dd39a3787b52ac8987e57bc0",
-    "name": "shangan-0.9.31-release.apk",
-    "note": "错题兜底：题库更新删掉的题不再是死角"
+    "size": 347452184,
+    "sha256": "c9a0ffcd18b82dbbff82a1171b239efe89e9381470303fc4a6f4c530318ea96b",
+    "name": "shangan-0.9.32-release.apk",
+    "note": "一级分类的展开三角放大到"
   },
   "tiku": {
     "dbVersion": "0.5.39-20261113-2305",
@@ -55,6 +55,6 @@
     ]
   },
   "mirrors": [],
-  "note": "错题兜底：题库更新删掉的题不再是死角",
+  "note": "一级分类的展开三角放大到",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
