@@ -208,11 +208,19 @@ for (const r of rows) {
     detail = '选项是 A/B/C/D 占位（选项图丢失）';
   }
 
-  // R9 题图还挂在粉笔 CDN 上：离线打开是破图，等于没有图。
-  // 只认题干和材料 —— 解析里的图由 strip-remote-imgs 处理掉，不影响能不能做题。
-  if (!reason && /fbstatic\.cn|\/tarzan\/images/.test(contentHtml + material)) {
-    reason = 'R9';
-    detail = '题图未内联（仍指向粉笔 CDN）';
+  // R9 题图离线打不开：只有两种情况算坏 ——
+  //   ① 引用 tarzan/images 真图（CDN 上的图片，App 不会去下载）；
+  //   ② 公式图 latex 键在 images.db 里查不到。
+  //   fb.fbstatic.cn 上的 formulas?latex= 只是老域名，App 会按 key 从 images.db 换成 data URI，
+  //   在线离线都能显示，不能因为域名就判死（上一版这样误杀了 3,867 道）。
+  if (!reason) {
+    const html = contentHtml + ' ' + material;
+    const hasTarzan = /\/tarzan\/images/.test(html);
+    const miss = missingKeys(html);
+    if (hasTarzan || miss.length) {
+      reason = 'R9';
+      detail = hasTarzan ? '题图仍在粉笔 CDN（离线打不开）' : `公式图缺 ${miss.length} 个`;
+    }
   }
 
   if (!reason) continue;

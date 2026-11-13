@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.8.4';
+const APP_VERSION = '0.8.6';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -4436,12 +4436,20 @@ async function startDailyTask() {
   // 先安排到期复习：错过的题不补，明天只会滚得更大
   const rq = Math.min(reviewQuota(), remain);
   if (rq > 0) {
-    for (const id of dueIds().slice(0, rq)) {
-      try {
-        const q = await api('/api/question?id=' + encodeURIComponent(id));
-        if (q && q.id != null && !seen.has(q.id)) { seen.add(q.id); qs.push(q); }
-      } catch { /* 单题取不到就跳过 */ }
-    }
+    // 到期题并发取：以前是一道一道 await，到期 40 道时（每道一次原生查询）界面会静默好几秒
+    const ids = dueIds().slice(0, rq);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(6, ids.length) }, async () => {
+      for (;;) {
+        const i = cursor++;
+        if (i >= ids.length) return;
+        try {
+          const q = await api('/api/question?id=' + encodeURIComponent(ids[i]));
+          if (q && q.id != null && !seen.has(q.id)) { seen.add(q.id); qs.push(q); }
+        } catch { /* 单题取不到就跳过 */ }
+      }
+    });
+    await Promise.all(workers);
   }
   const newN = Math.min(remain - qs.length, 15);
   if (newN > 0) {
