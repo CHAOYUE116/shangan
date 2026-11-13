@@ -26,7 +26,7 @@ const Q_PAPERS_BY_CATEGORY =
 const Q_PAPER_BY_ID =
   'SELECT id, subjectName, category, name, questionCount, difficulty, chapters FROM papers WHERE id = ?';
 const Q_QUESTIONS_BY_PAPER =
-  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
+  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
 const Q_QUESTION_BY_ID =
   'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, difficulty_est, diff_band, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
 const Q_MATERIALS_BY_PAPER =
@@ -146,7 +146,7 @@ const Q_CAT_INDEX = (withSub, dc = '') => withSub
   ? `SELECT qc.question_id FROM question_categories qc
      JOIN questions q ON q.questionId = qc.question_id
      JOIN papers p ON p.id = q.paperId
-     WHERE qc.category = ? AND qc.sub = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc}${badCond('q')} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`
+     WHERE qc.category = ? AND COALESCE(qc.sub, '') = ? AND qc.subject = ? AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}${dc}${badCond('q')} GROUP BY qc.question_id ORDER BY RANDOM() LIMIT ?`
   : `SELECT qc.question_id FROM question_categories qc
      JOIN questions q ON q.questionId = qc.question_id
      JOIN papers p ON p.id = q.paperId
@@ -316,6 +316,10 @@ export function sourceTagOf(name) {
   return `（${[year, region].filter(Boolean).join('·')}）`;
 }
 
+function safeParse(v) {
+  try { return JSON.parse(v); } catch { return null; }
+}
+
 /** 组装题目响应（与 server toQuestion 相同：字段名为 id） */
 export function toQuestion(q) {
   return {
@@ -327,6 +331,8 @@ export function toQuestion(q) {
     content: q.content,
     contentHtml: q.contentHtml,
     options: JSON.parse(q.options || '[]'),
+    // 选项的富文本（只有「选项里带公式/图」的题有）：与 options 一一对应，前端优先用它渲染
+    optionsHtml: q.optionsHtml ? safeParse(q.optionsHtml) : null,
     answer: q.answer,
     answerIndex: q.answerIndex,
     difficulty: q.difficulty,
@@ -421,7 +427,7 @@ function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
   }
   const sel = picks.slice(0, n);
   const qs = tiku.all(
-    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
+    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
      FROM questions q WHERE q.id IN (${sel.map(() => '?').join(',')})`,
     ...sel
   );
@@ -489,7 +495,7 @@ function enrichGroups(tiku, practice, rows, subject, diffFilter) {
   const allIds = [...new Set([...qids, ...[...groupMembers.values()].flat()])];
   let qs = [];
   if (allIds.length) {
-    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
+    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
   }
   const orderOf = new Map(qs.map((q) => [q.questionId, q.id]));
   const byId = new Map(qs.map((q) => [q.questionId, q]));
@@ -972,7 +978,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         ).map((r) => r.questionId);
         if (!ids.length) return [];
         const qs = tiku.all(
-          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
            FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
           ...ids
         );
@@ -983,13 +989,16 @@ export function createLocalApi(tiku, practice, stats = {}) {
         // 分类表里没有这些名字，必须走下面按 chapter 取题的分支
         if (subject === '公务员·行测' || subject === '事业编·职测') {
           const dc = diffCond(difficulty);
+          // 「其他」是 chapters() 算出来的兜底桶（题库里这些题的 qc.sub 是空串），
+          // 直接按名字查会 0 条 —— 这里把「其他」映射成空 sub
+          const subKey = sub === '其他' ? '' : sub;
           const ids = (sub === '全部'
             ? practice.all(Q_CAT_INDEX(false, dc), group, subject, fetchN)
-            : practice.all(Q_CAT_INDEX(true, dc), group, sub, subject, fetchN)
+            : practice.all(Q_CAT_INDEX(true, dc), group, subKey, subject, fetchN)
           ).map((r) => r.question_id);
           if (!ids.length) return [];
           const qs = tiku.all(
-            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
              FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
             ...ids
           );
@@ -1014,7 +1023,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         }
         if (ids.length) {
           const qs = tiku.all(
-            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
                FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
             ...ids
           );

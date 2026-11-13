@@ -88,6 +88,11 @@ function renderRichText(s) {
 function renderOption(o) {
   return renderRichText(o);
 }
+/** 选项里带公式/图时优先用 optionsHtml（与 options 同序，缺省回落纯文本） */
+function optRich(q, plain, i) {
+  const rich = q && Array.isArray(q.optionsHtml) ? q.optionsHtml[i] : null;
+  return rich || plain;
+}
 
 async function api(path, opts) {
   if (window.__LOCAL_API_PROMISE__) return (await window.__LOCAL_API_PROMISE__)(path, opts);
@@ -117,7 +122,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.8.7';
+const APP_VERSION = '0.8.9';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1727,7 +1732,7 @@ function renderExamResult() {
       const correct = (fb?.correct || []).includes(j);
       const picked = a?.selected === j;
       const cls = correct ? 'correct' : picked ? 'wrong' : '';
-      return `<div class="result-opt ${cls}"><b>${'ABCDEFGH'[j]}</b> ${renderOption(o)}${picked ? ' · 你的选择' : ''}${correct ? ' · 正确答案' : ''}</div>`;
+      return `<div class="result-opt ${cls}"><b>${'ABCDEFGH'[j]}</b> ${renderOption(optRich(q, o, j))}${picked ? ' · 你的选择' : ''}${correct ? ' · 正确答案' : ''}</div>`;
     }).join('');
     return `<details class="card result-q" style="margin-bottom:8px">
       <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${q.kp ? `<span class="tag kp">${esc(q.kp)}</span>` : ''}${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
@@ -3341,7 +3346,7 @@ function renderQuestionBlock(q, fb) {
     const correct = (fb?.correct || []).includes(i);
     const picked = (fb?.selected || []).includes(i);
     const cls = correct ? 'correct' : picked ? 'wrong' : '';
-    return `<div class="option static ${cls}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span>${correct ? '<span class="opt-note">正确答案</span>' : picked ? '<span class="opt-note">你的选择</span>' : ''}</div>`;
+    return `<div class="option static ${cls}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span>${correct ? '<span class="opt-note">正确答案</span>' : picked ? '<span class="opt-note">你的选择</span>' : ''}</div>`;
   }).join('');
   const tagText = typeTagOf(q, options);
   const stemHtml = q.contentHtml
@@ -3387,7 +3392,7 @@ function renderPractice() {
     const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
     const faved = S.favIds && S.favIds.has(String(q.id));
     const tools = `<div class="q-tools"><button class="link-sm ${faved ? 'on' : ''}" data-act="fav-toggle" aria-pressed="${faved}">${faved ? '★ 已收藏' : '☆ 收藏'}</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`;
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(o)}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
