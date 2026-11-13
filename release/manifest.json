@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.8.1",
-    "versionCode": 131,
-    "code": 131,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.1-release.apk",
+    "version": "0.8.2",
+    "versionCode": 132,
+    "code": 132,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.2-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.1-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.2-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.1-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.2-release.apk"
       }
     ],
-    "size": 238266202,
-    "sha256": "655c3adafd57cfcddceaeb4d2dc8fb0b474bd01d3f6df740a753af6afdef7ca3",
-    "name": "shangan-0.8.1-release.apk",
-    "note": "学情分析输出上限 2600→5000，AI 设置默认 6000；卡片底部加固定免责声明"
+    "size": 238266381,
+    "sha256": "cf659bf37445dcec5881709e2c740f198ebaf1cd3d690d9f4264ea6d1b1a0ce5",
+    "name": "shangan-0.8.2-release.apk",
+    "note": "学情分析不再覆盖你的最大输出长度（按 agent 配置，下限 4000）；被截断时明确报错"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "学情分析输出上限 2600→5000，AI 设置默认 6000；卡片底部加固定免责声明"
+  "note": "学情分析不再覆盖你的最大输出长度（按 agent 配置，下限 4000）；被截断时明确报错"
 }
