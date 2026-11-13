@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.8.7",
-    "versionCode": 137,
-    "code": 137,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.7-release.apk",
+    "version": "0.8.8",
+    "versionCode": 138,
+    "code": 138,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.8-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.7-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.8-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.7-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.8-release.apk"
       }
     ],
-    "size": 345130719,
-    "sha256": "ef109adc8f687678d4faed9db82a94355142f72c79c5707bba6f19e451c05542",
-    "name": "shangan-0.8.7-release.apk",
-    "note": "把题图打进包里：8,392 张图表/图形压缩后写进图片库，R9「题图未内联」从 9,478 降到 0，坏题 14,358→4,880（3.1%），可用 151,402 道"
+    "size": 345125108,
+    "sha256": "c40e9b94ebcfac2e2f3d7efc2df8c96a0f71073f404bd877507a3133ab6c6f19",
+    "name": "shangan-0.8.8-release.apk",
+    "note": "选项里的公式/分数不再丢（回填 1,422 道题的富文本选项）；修「判断推理→其他」点进去 0 题"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "把题图打进包里：8,392 张图表/图形压缩后写进图片库，R9「题图未内联」从 9,478 降到 0，坏题 14,358→4,880（3.1%），可用 151,402 道"
+  "note": "选项里的公式/分数不再丢（回填 1,422 道题的富文本选项）；修「判断推理→其他」点进去 0 题"
 }
