@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.8.3",
-    "versionCode": 133,
-    "code": 133,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.3-release.apk",
+    "version": "0.8.4",
+    "versionCode": 134,
+    "code": 134,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.3-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.3-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.4-release.apk"
       }
     ],
-    "size": 238266873,
-    "sha256": "029b0a4514e944d14205c4fbd243108ea50be769d5bf302014c15f656a7f64b0",
-    "name": "shangan-0.8.3-release.apk",
-    "note": "修「开始今日任务点了没反应」：整张卡片可点 + 挑题遮罩；打包流程加了 APK 内容校验"
+    "size": 236272600,
+    "sha256": "46cde7eabff3aaa6b819eea2e7da93dfb33b2447291133e938196ed4536e5cef",
+    "name": "shangan-0.8.4-release.apk",
+    "note": "拦掉 1.6 万道做不了的图形/图表题（选项是 A/B/C/D 占位、题图指向粉笔 CDN）；修题库升级后仍读旧库"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "修「开始今日任务点了没反应」：整张卡片可点 + 挑题遮罩；打包流程加了 APK 内容校验"
+  "note": "拦掉 1.6 万道做不了的图形/图表题（选项是 A/B/C/D 占位、题图指向粉笔 CDN）；修题库升级后仍读旧库"
 }
