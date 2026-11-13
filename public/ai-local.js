@@ -434,8 +434,13 @@ async function callChat(agent, userContent, request) {
   }
   const msg = data?.choices?.[0]?.message;
   const content = msg?.content;
+  const finishReason = data?.choices?.[0]?.finish_reason;
+  // 有内容但被截断：以前会把半截 JSON 当成功返回，现在明确报错，避免「返回内容不完整」这种糊涂账
+  if (content && finishReason === 'length') {
+    return { error: `输出被截断（finish_reason=length，max_tokens=${body.max_tokens}）：思维链或正文吃光了额度。请把 AI 设置里的「最大输出长度」调大后重试` };
+  }
   if (!content) {
-    const reason = data?.choices?.[0]?.finish_reason;
+    const reason = finishReason;
     const hasReasoning = !!msg?.reasoning_content;
     if (reason === 'length' && hasReasoning) {
       return { error: '回答超长被截断：思维链吃光了 max_tokens。请在 AI 设置里把“最大输出长度”调大到 4000 以上' };
@@ -744,7 +749,7 @@ export async function createAiApi({ request, tiku, query, defaultsUrl = DEFAULT_
       const userContent = `【学情数据】\n${JSON.stringify(payload)}\n\n【输出要求】\n${rules}`;
       // 网关没有超时会一直挂着，界面就永远转圈 —— 这里硬性 60 秒收口
       const res = await Promise.race([
-        callChat({ ...agent, temperature: 0.3, max_tokens: 5000, skill: '' }, userContent, request),
+        callChat({ ...agent, temperature: 0.3, max_tokens: Math.max(4000, Number(agent.max_tokens) || 0), skill: '' }, userContent, request),
         new Promise((resolve) => setTimeout(() => resolve({ error: '分析超时（60 秒）：网关没响应，检查网络或换个模型再试' }), 60000)),
       ]);
       if (res.error) return { error: res.error };
