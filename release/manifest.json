@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.1",
-    "versionCode": 141,
-    "code": 141,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.1-release.apk",
+    "version": "0.9.3",
+    "versionCode": 143,
+    "code": 143,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.3-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.1-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.3-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.1-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.3-release.apk"
       }
     ],
-    "size": 347403210,
-    "sha256": "d07b64a3c046fdc3771e77ea48314112c797c3015f3dc3609ece7e756a2a3344",
-    "name": "shangan-0.9.1-release.apk",
-    "note": "用考点把"
+    "size": 347403376,
+    "sha256": "a276bf5722e93008b85552951cc3c0f4f414a274a5ccc1bef2e64f7a9c071f64",
+    "name": "shangan-0.9.3-release.apk",
+    "note": "修首页「开始复习」点不进去（今日新题额度用完时直接进复习）；我的页错题数字可点"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "用考点把"
+  "note": "修首页「开始复习」点不进去（今日新题额度用完时直接进复习）；我的页错题数字可点"
 }
