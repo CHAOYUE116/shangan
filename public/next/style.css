@@ -1603,3 +1603,7 @@ html[data-theme="dark"] .rp-mod { border-bottom-color: #2A2E37; }
 
 .ai-rev-foot > span { flex: 1 1 auto; }
 .ai-rev-foot .link-sm { flex: 0 0 auto; white-space: nowrap; }
+
+
+/* 取题占位文案（练习页在等 /api/practice 返回时） */
+.loading-msg { margin-top: 10px; text-align: center; font-size: 13px; color: var(--text-3); }

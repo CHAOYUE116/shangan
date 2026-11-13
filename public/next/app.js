@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.3';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -917,7 +917,7 @@ function renderHome() {
     <span class="eyebrow" style="color:var(--text-3)">${new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}</span>
   </div>
   ${renderUpdateBanner()}
-  <section class="home-hero">
+  <section class="home-hero" data-act="${act}">
     <div class="hero-kick">今天这一件事</div>
     <h1 class="hero-h1">${title}</h1>
     <div class="hero-sub">${sub}</div>
@@ -3131,7 +3131,8 @@ function go(tab) {
 /* ---------- 练习 ---------- */
 async function startPracticeByUrl(url, title, subject, kind = '', kp = '') {
   $('#practice').hidden = false;
-  $('#p-body').innerHTML = '<div class="spinner"></div>';
+  $('#p-body').innerHTML = '<div class="spinner"></div><div class="loading-msg">正在取题…</div>';
+  const busy = busyShow('正在取题', title || '');
   try {
     // 随机类练习去重：库里 9 万题，纯随机出题会把你做过的题再端上来。
     // 服务端单次最多给 15 道，所以过滤后不足就再要一轮，最多补 3 轮。
@@ -3162,6 +3163,7 @@ async function startPracticeByUrl(url, title, subject, kind = '', kp = '') {
     if (!Array.isArray(qs) || !qs.length) { toast('暂无题目'); $('#practice').hidden = true; return; }
     startPractice(qs, title, subject, kind, null, kp);
   } catch (e) { toast(e.message); $('#practice').hidden = true; }
+  finally { busy.done(); }
 }
 
 /** 做过的题号集合（IndexedDB records），缓存 60 秒，避免每次进去都全表扫一遍 */
@@ -4310,6 +4312,25 @@ function diagLoading() {
   };
 }
 
+// 通用「正在干点什么」遮罩：点按钮到出结果之间给个反馈，避免点了像没反应
+function busyShow(title, sub) {
+  const el = document.createElement('div');
+  el.className = 'diag-load busy-load';
+  el.innerHTML = `<div class="spinner"></div><div class="diag-load-t">${title || '正在处理'}</div>
+    <div class="diag-load-s">${sub || ''}</div><div class="diag-load-bar"><i></i></div>`;
+  document.body.appendChild(el);
+  const bar = el.querySelector('.diag-load-bar > i');
+  const t0 = Date.now();
+  if (bar) requestAnimationFrame(() => { bar.style.width = '70%'; });
+  return {
+    done() {
+      const left = 260 - (Date.now() - t0);
+      const finish = () => { if (bar) bar.style.width = '100%'; el.remove(); };
+      if (left > 0) setTimeout(finish, left); else finish();
+    },
+  };
+}
+
 async function startDiag(fromOnboard) {
   const load = diagLoading();
   const t0 = Date.now();
@@ -4405,6 +4426,11 @@ function renderDiagResult() {
 async function startDailyTask() {
   const remain = dailyRemaining();
   if (remain <= 0) { toast('今日任务已完成，想多练可以点「继续上次」或随机练习'); return; }
+  // 点下去先给反馈：挑题要查库、可能几百毫秒到几秒，不吭声就像按钮坏了
+  if (S.dailyBusy) return;
+  S.dailyBusy = true;
+  const busy = busyShow('正在挑题', `今日还差 ${remain} 题，先补薄弱点再补到期复习`);
+  try {
   const qs = [];
   const seen = new Set();
   // 先安排到期复习：错过的题不补，明天只会滚得更大
@@ -4430,6 +4456,12 @@ async function startDailyTask() {
   const rn = qs.length - Math.min(newN, qs.length);
   const label = rn > 0 ? `复习 ${rn} + 新题 ${qs.length - rn}` : `新题 ${qs.length}`;
   startPractice(qs, `今日任务 · ${label}`, qs[0].subject || dailySubject(), rn > 0 ? 'review' : 'new');
+  } catch (e) {
+    toast('挑题失败：' + (e.message || '未知错误'));
+  } finally {
+    busy.done();
+    S.dailyBusy = false;
+  }
 }
 function openSmartPaper() {
   const d = S.smart;
