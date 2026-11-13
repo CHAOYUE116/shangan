@@ -271,7 +271,7 @@ export function createRecordsApi(store, tiku, onChanged) {
       return new Set(rows.map((r) => String(r.question_id)));
     },
     /** 提交做题记录（与 /api/records POST 同构；同卷同题同日去重，重复则更新；写入即按题目真实来源归档） */
-    async addRecord({ questionId, subject, chapter, type, selected, correct, costMs, paperId, autoDrop }) {
+    async addRecord({ questionId, subject, chapter, type, selected, correct, costMs, diff, paperId, autoDrop }) {
       if (questionId == null) throw new Error('缺少 questionId');
       const now = Date.now();
       // 按本地时区（中国 UTC+8）取当天零点：UTC 零点会在上午 8 点前把记录归到前一天，
@@ -285,7 +285,7 @@ export function createRecordsApi(store, tiku, onChanged) {
       );
       // 主观题（申论/综应，correct=null）is_correct 存 NULL（与 server 同构）：不计入错题本
       const cls = classifyLocal(store, tiku, questionId);
-      const row = { question_id: questionId, paper_id: paperId ?? cls.paperId ?? null, subject: subject || '', chapter: chapter || '', question_type: type ?? null, selected: selected ?? null, is_correct: correct == null ? null : (correct ? 1 : 0), cost_ms: costMs ?? null, group_key: cls.groupKey, sub_key: cls.subKey, created_at: now };
+      const row = { question_id: questionId, paper_id: paperId ?? cls.paperId ?? null, subject: subject || '', chapter: chapter || '', question_type: type ?? null, selected: selected ?? null, is_correct: correct == null ? null : (correct ? 1 : 0), cost_ms: costMs ?? null, difficulty: diff ?? null, group_key: cls.groupKey, sub_key: cls.subKey, created_at: now };
       if (existing.length) await store.deleteBy('records', 'id', existing[0].id);
       await store.put('records', row);
       // 订正正确即移出错题本（默认开，跟粉笔「订正正确自动移除错题」一致）：
@@ -311,9 +311,135 @@ export function createRecordsApi(store, tiku, onChanged) {
       if (onChanged) await onChanged();
       return { ok: true };
     },
+    /**
+     * 学情分析用的聚合数据（喂给 AI 用，不含任何题目正文）。
+     * 与前端约定：返回 { overall, modules, chapters, difficulty, types, behavior, errors }，
+     * meta（考试日期/目标分）由前端补。
+     */
+    async studyPayload({ days = 21, subject } = {}) {
+      const all = await store.getAll('records');
+      const base = subject ? all.filter((r) => r.subject === subject) : all;
+      const now = Date.now();
+      const winStart = now - Number(days) * 86400000;
+      const rows = base.filter((r) => Number(r.created_at) >= winStart);
+
+      const dayKey = (ts) => {
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+      const pct = (ok, n) => (n ? Math.round((ok / n) * 100) : 0);
+      const secs = (list) => list.map((r) => Number(r.cost_ms) || 0).filter((s) => s > 500 && s < 1800000);
+      const median = (a) => { if (!a.length) return 0; const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+      const p90 = (a) => { if (!a.length) return 0; const b = [...a].sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(b.length * 0.9))]; };
+      const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+
+      const graded = rows.filter((r) => r.is_correct === 1 || r.is_correct === 0);
+      const rightN = graded.filter((r) => r.is_correct === 1).length;
+      const secList = secs(rows);
+
+      // 每日题数（近 N 天，按日期升序）
+      const daily = [];
+      for (let i = Number(days) - 1; i >= 0; i--) {
+        const k = dayKey(now - i * 86400000);
+        daily.push(rows.filter((r) => dayKey(r.created_at) === k).length);
+      }
+      // 连续天数：从今天往回数（今天没做则从昨天起算）
+      let streak = 0;
+      for (let i = daily.length - 1; i >= 0; i--) {
+        if (daily[i] > 0) streak++;
+        else if (i === daily.length - 1) continue;
+        else break;
+      }
+      let longest = 0; let cur = 0;
+      for (const n of daily) { if (n > 0) { cur++; longest = Math.max(longest, cur); } else cur = 0; }
+
+      // 模块（chapter）/ 二级（sub_key）
+      const agg = (keyOf) => {
+        const m = new Map();
+        for (const r of rows) {
+          const k = keyOf(r) || '未分类';
+          const e = m.get(k) || { name: k, n: 0, ok: 0, secs: [] };
+          e.n++;
+          if (r.is_correct === 1) e.ok++;
+          e.secs.push(Number(r.cost_ms) || 0);
+          m.set(k, e);
+        }
+        return [...m.values()];
+      };
+      const bandRate = (list, lo, hi) => {
+        const sub = list.filter((r) => {
+          const d = Number(r.difficulty);
+          return d >= lo && d <= hi;
+        });
+        return { 做: sub.length, 正确率: sub.length ? pct(sub.filter((r) => r.is_correct === 1).length, sub.length) : null };
+      };
+
+      const modules = agg((r) => r.chapter)
+        .filter((x) => x.n > 0)
+        .map((x) => {
+          const list = rows.filter((r) => (r.chapter || '未分类') === x.name);
+          return {
+            模块: x.name, 做: x.n, 对: x.ok, 正确率: pct(x.ok, x.n),
+            中位用时秒: Math.round(median(x.secs.filter((s) => s > 0)) / 1000),
+            用时P90秒: Math.round(p90(x.secs.filter((s) => s > 0)) / 1000),
+            易档正确率: bandRate(list, 1, 3).正确率, 中档正确率: bandRate(list, 4, 6).正确率, 难档正确率: bandRate(list, 7, 9).正确率,
+          };
+        })
+        .sort((a, b) => a.正确率 - b.正确率);
+
+      const subs = agg((r) => r.sub_key)
+        .filter((x) => x.n >= 8)
+        .map((x) => ({ 章节: x.name, 做: x.n, 正确率: pct(x.ok, x.n), 中位用时秒: Math.round(median(x.secs.filter((s) => s > 0)) / 1000) }))
+        .sort((a, b) => a.正确率 - b.正确率);
+
+      const TYPE_NAME = { 1: '单选', 2: '多选', 3: '判断', 5: '不定项' };
+      const types = agg((r) => TYPE_NAME[r.question_type] || '其他')
+        .map((x) => ({ 题型: x.name, 做: x.n, 正确率: pct(x.ok, x.n) }))
+        .sort((a, b) => b.做 - a.做);
+
+      const difficulty = [
+        { 档: '易', ...bandRate(rows, 1, 3), 中位用时秒: Math.round(median(secs(rows.filter((r) => Number(r.difficulty) <= 3))) / 1000) },
+        { 档: '中', ...bandRate(rows, 4, 6), 中位用时秒: Math.round(median(secs(rows.filter((r) => Number(r.difficulty) >= 4 && Number(r.difficulty) <= 6))) / 1000) },
+        { 档: '难', ...bandRate(rows, 7, 9), 中位用时秒: Math.round(median(secs(rows.filter((r) => Number(r.difficulty) >= 7))) / 1000) },
+      ];
+
+      // 错题：每题只认最近一次；重复错 = 同一题错了 ≥2 次；二次答对率 = 错过之后又做对的题占比
+      const lastByQ = new Map();
+      const wrongCount = new Map();
+      for (const r of base) {
+        const k = String(r.question_id);
+        const prev = lastByQ.get(k);
+        if (!prev || Number(r.created_at) >= Number(prev.created_at)) lastByQ.set(k, r);
+        if (r.is_correct === 0) wrongCount.set(k, (wrongCount.get(k) || 0) + 1);
+      }
+      const wrongUnique = [...lastByQ.values()].filter((r) => r.is_correct === 0).length;
+      const repeatWrong = [...wrongCount.values()].filter((c) => c >= 2).length;
+      const everWrong = new Set([...wrongCount.keys()]);
+      const fixed = [...everWrong].filter((k) => lastByQ.get(k)?.is_correct === 1).length;
+
+      const last7Start = now - 7 * 86400000;
+
+      return {
+        overall: {
+          做: rows.length, 对: rightN, 正确率: pct(rightN, graded.length),
+          中位用时秒: Math.round(median(secList) / 1000), 平均单题秒: Math.round(avg(secList) / 1000),
+          估计分: pct(rightN, graded.length), 活跃天数: daily.filter((n) => n > 0).length,
+          连续天数: streak, 最长连续: longest, 窗口天数: Number(days),
+        },
+        modules,
+        chapters: { 最弱: subs.slice(0, 6), 最强: subs.slice(-4).reverse() },
+        difficulty,
+        types,
+        behavior: {
+          每日题数: daily,
+          秒选占比: rows.length ? Math.round((secList.filter((s) => s <= 6000).length / rows.length) * 100) : 0,
+          超时占比: rows.length ? Math.round((secList.filter((s) => s >= 120000).length / rows.length) * 100) : 0,
+        },
+        errors: { 错题: wrongUnique, 近7天: base.filter((r) => r.is_correct === 0 && Number(r.created_at) >= last7Start).length, 重复错: repeatWrong, 二次答对率: everWrong.size ? Math.round((fixed / everWrong.size) * 100) : null },
+      };
+    },
     /** 统计（与 /api/records/stats 同构，聚合本地记录） */
-    async stats() {
-      const records = await store.getAll('records');
+    async stats() {      const records = await store.getAll('records');
       const agg = aggregateStats(records, tiku);
       const total = records.length;
       const done = new Set(records.filter((r) => r.is_correct).map((r) => `${r.subject}|${r.question_id}`)).size;

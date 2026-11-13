@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.12';
+const APP_VERSION = '0.8.0';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -2837,8 +2837,114 @@ function ringSvg(score) {
   </svg>`;
 }
 
-function renderStatsPage() {
-  const st = S.stats || {};
+// ---------- AI 学情分析 ----------
+// 只把聚合数字发给 AI（题目正文一条都不发），结果在本次会话里缓存，方便反复看。
+const AI_REV_KEY = 'sg_ai_review_v1';
+
+function examSubjectForAi() {
+  const p = S.profile || {};
+  if (S.practice && S.practice.subject) return S.practice.subject;
+  return p.examType === '公务员' ? '公务员·行测' : '事业编·职测';
+}
+
+async function runAiReview(force) {
+  const days = S.statsDays || 21;
+  if (S.aiRev && S.aiRev.data && !force) return; // 已有结果就不重复烧 token
+  S.aiRev = { loading: true };
+  go('me');
+  try {
+    const agents = await api('/api/ai/agents');
+    const hasKey = (agents || []).some((x) => x.api_key_masked || x.api_key);
+    if (!hasKey) {
+      S.aiRev = { err: '还没填 AI Key。到「我的 → AI 设置」填一个，就能让 AI 读你的数据。', needKey: true };
+      go('me');
+      return;
+    }
+    const p = await api(`/api/records/study-payload?days=${days}`);
+    if (!p || !p.overall || !p.overall.做) {
+      S.aiRev = { err: '还没有做题记录，先做 20 道再来看分析。' };
+      go('me');
+      return;
+    }
+    const dLeft = S.profile && S.profile.examDate ? Math.max(0, Math.ceil((new Date(S.profile.examDate).getTime() - Date.now()) / 86400000)) : null;
+    const payload = {
+      meta: { 距考试天数: dLeft, 目标分: Number(S.profile && S.profile.targetScore) || 70, 科目: examSubjectForAi(), 每日目标题量: Number(S.profile && S.profile.dailyGoal) || 20 },
+      ...p,
+    };
+    const res = await api('/api/ai/study-review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payload }) });
+    if (!res || !res.data) {
+      S.aiRev = { err: (res && res.notice) || '分析失败，请重试' };
+      go('me');
+      return;
+    }
+    S.aiRev = { data: res.data, at: Date.now(), days };
+    try { localStorage.setItem(AI_REV_KEY, JSON.stringify(S.aiRev)); } catch { /* 存不下就算了 */ }
+    go('me');
+  } catch (e) {
+    S.aiRev = { err: String(e.message || e) };
+    go('me');
+  }
+}
+
+async function runAiDrill(target, n, diff) {
+  if (!target) return;
+  try {
+    if (target === '错题') {
+      const r = await api('/api/records/wrong?limit=50');
+      const ids = ((r && r.list) || []).map((x) => x.questionId);
+      if (!ids.length) { toast('错题本是空的'); return; }
+      const qs = await fetchQuestions(ids.slice(0, Math.max(5, n)));
+      if (qs.length) startPractice(qs, 'AI 建议 · 错题重做', qs[0].subject || examSubjectForAi(), 'wrong');
+      else toast('错题加载失败');
+      return;
+    }
+    const subj = examSubjectForAi();
+    const url = `/api/practice?subject=${encodeURIComponent(subj)}&chapter=${encodeURIComponent(target)}&n=${Math.max(5, n)}&difficulty=${encodeURIComponent(diff)}&year=10`;
+    const qs = await api(url);
+    const list = Array.isArray(qs) ? qs : (qs && qs.qs) || [];
+    if (!list.length) { toast(`「${target}」暂时没有这档题`); return; }
+    startPractice(list, `AI 建议 · ${target}`, list[0].subject || subj, 'custom-ai');
+  } catch (e) {
+    toast(String(e.message || e));
+  }
+}
+
+function aiReviewBlock() {
+  if (!S.aiRev) {
+    try { const c = JSON.parse(localStorage.getItem(AI_REV_KEY) || 'null'); if (c && c.data) S.aiRev = c; } catch { /* 忽略 */ }
+  }
+  const r = S.aiRev || {};
+  const head = '<div class="section-head"><h2 class="section-title">AI 学情分析</h2><span class="muted">只喂数字，不传题目</span></div>';
+  if (r.loading) {
+    return `${head}<div class="card"><div class="ai-loading"><span class="spinner ai-spinner"></span><span>正在读你的数据，十几秒…</span></div></div>`;
+  }
+  if (!r.data) {
+    const msg = r.err || '让 AI 读一遍你的做题数据，给一份「先补哪、怎么练」的方案。';
+    return `${head}<div class="card"><div class="rp-mod"><div class="subject-main"><div class="subject-title">还没分析</div><div class="subject-sub">${esc(msg)}</div></div>
+      <button class="btn btn-primary btn-sm" data-act="${r.needKey ? 'ai' : 'ai-review'}">${r.needKey ? '去填 Key' : '分析一下'}</button></div></div>`;
+  }
+  const d = r.data;
+  const scores = (d.scores || []).map((s) => `<div class="ai-rev-score"><span>${esc(s.维度)}</span><div class="ai-rev-bar"><i style="width:${Math.max(2, Math.min(100, s.分))}%"></i></div><b>${s.分}</b><em>${esc(s.说明 || '')}</em></div>`).join('');
+  const diag = (d.diagnosis || []).map((x) => `<div class="ai-rev-diag"><div class="ai-rev-diag-h"><b>${esc(x.标题)}</b><span class="ai-rev-imp i${x.影响 === '高' ? 'h' : x.影响 === '中' ? 'm' : 'l'}">影响${esc(x.影响 || '中')}</span></div><p>${esc(x.依据)}</p></div>`).join('');
+  const causes = (d.root_causes || []).map((c) => `<div class="ai-rev-cause"><b>${esc(c.现象)}</b><p>原因：${esc(c.原因)}</p>${c.误区 ? `<p class="muted">常见误区：${esc(c.误区)}</p>` : ''}</div>`).join('');
+  const daily = ((d.plan && d.plan.每日) || []).map((x, i) => `<li><b>${i + 1}. ${esc(x.动作)}</b><span>${esc(x.时长)}</span><em>${esc(x.说明)}</em></li>`).join('');
+  const drills = (d.drills || []).map((x) => `<div class="ai-rev-drill"><div><b>${esc(x.名称)}</b><em>${esc(x.为什么)}</em></div>
+    <button class="btn btn-primary btn-sm" data-act="ai-drill" data-target="${esc(x.目标)}" data-n="${x.题量}" data-diff="${esc(x.难度)}">去练 ${x.题量} 题</button></div>`).join('');
+  const risks = (d.risks || []).map((x) => `<li>${esc(x)}</li>`).join('');
+  return `${head}<div class="card rp-card">
+    <div class="ai-rev-sum">${esc(d.summary)}</div>
+    <div class="ai-rev-sub">基于 ${r.days || 21} 天数据 · 置信度 ${esc(d.confidence || '中')}</div>
+    ${scores ? `<div class="ai-rev-sec">六维评分</div>${scores}` : ''}
+    ${diag ? `<div class="ai-rev-sec">诊断</div>${diag}` : ''}
+    ${causes ? `<div class="ai-rev-sec">根因</div>${causes}` : ''}
+    ${daily ? `<div class="ai-rev-sec">这周怎么练</div>${d.plan.本周目标 ? `<div class="ai-rev-goal">${esc(d.plan.本周目标)}</div>` : ''}<ol class="ai-rev-list">${daily}</ol>${d.plan.里程碑 ? `<div class="ai-rev-sub">验收：${esc(d.plan.里程碑)}</div>` : ''}` : ''}
+    ${drills ? `<div class="ai-rev-sec">给你配好的训练</div>${drills}` : ''}
+    ${risks ? `<div class="ai-rev-sec">要注意</div><ul class="ai-rev-list">${risks}</ul>` : ''}
+    ${d.next_check ? `<div class="ai-rev-foot"><span>${esc(d.next_check)}</span><button class="link-sm" data-act="ai-review" data-force="1">重新分析</button></div>` : ''}
+  </div>`;
+}
+
+function renderStatsPage() {  const st = S.stats || {};
   const by = (st.byChapter || []).slice().sort((a, b) => (a.c ? a.ok / a.c : 0) - (b.c ? b.ok / b.c : 0));
   const filled = fillLast7(st.last7);
   const pct = (x) => (x.c ? Math.round((x.ok / x.c) * 100) : 0);
@@ -2875,6 +2981,8 @@ function renderStatsPage() {
     ${showRadar ? radarSvg(picked) : '<div class="empty-state">至少做 3 个模块，才能画出能力图</div>'}
     <div class="rp-legend"><i class="me"></i>我的 <i class="tg"></i>目标</div>
   </div>
+
+  ${aiReviewBlock()}
 
   <div class="section-head"><h2 class="section-title">模块正确率</h2></div>
   <div class="card">${by.length ? by.slice().sort((a, b) => (b.c || 0) - (a.c || 0)).map((x) => {
@@ -3332,7 +3440,7 @@ async function confirmAnswer() {
         })
         .catch(() => {});
     }
-    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(P.selected), correct: r.ok, costMs: qCostOf(P.idx), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+    await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(P.selected), correct: r.ok, costMs: qCostOf(P.idx), diff: Number(q.difficultyEst || q.difficulty || 5), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
     // 实验版（0.7）：逐题喂能力账本，答完这道账本就变，不用等整轮结束
     if (window.__ENGINE_ON__ && window.__ENGINE2__) {
       const kpName = q.kp || P.kp || '';
@@ -3763,7 +3871,15 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'close-sheet') { closeSheet(); return; }
   if (a === 'stats') { S.meView = 'stats'; go('me'); return; }
-  if (a === 'report') { S.meView = 'report'; go('me'); api('/api/records/stats?days=14').then((x) => { S.stats14 = x; if (S.meView === 'report') render(); }).catch(() => {}); return; }
+  if (a === 'stats-scope') {
+    const d = Number(act.dataset.days || 0);
+    S.statsDays = d;
+    api('/api/records/stats' + (d ? `?days=${d}` : '')).then((x) => { S.stats = x; go('me'); }).catch((e) => toast(e.message));
+    return;
+  }
+  if (a === 'ai-review') { runAiReview(!!act.dataset.force); return; }
+  if (a === 'ai-drill') { runAiDrill(act.dataset.target || '', Number(act.dataset.n || 15), act.dataset.diff || 'balanced'); return; }
+  if (a === 'report') { S.meView = 'report'; go('me'); api('/api/records/stats?days=14').then((x) => { S.stats14 = x; if (S.meView === 'report') go('me'); }).catch(() => {}); return; }
   if (a === 'backup') { S.meView = 'backup'; go('me'); return; }
   if (a === 'about') { sheet(`<div class="sheet-head"><b>关于上岸</b><button class="sheet-close">✕</button></div><div class="card-sub">上岸 v${APP_VERSION} · 本地离线题库<br>题库与解析来源：粉笔等公开整理，仅限个人学习使用，请勿传播或商用。<br>不提供公开商店分发。</div>`); return; }
   if (a === 'ai') { openAi(); return; }
@@ -4426,7 +4542,7 @@ async function submitExam() {
       P.answers[i] = { ...a, confirmed: true, feedback: r };
       if (r.ok) right++;
       updateReview(q.id, !!r.ok, Number((P.qCost || {})[i]) || 0, q.difficulty);
-      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(a.selected), correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0, autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
+      await api('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, subject: q.subject || P.subject, chapter: q.chapter, type: q.type, selected: selArr(a.selected), correct: r.ok, costMs: Number((P.qCost || {})[i]) || 0, diff: Number(q.difficultyEst || q.difficulty || 5), autoDrop: S.settings.dropFixed !== false }) }).catch(() => {});
     } catch { /* 单题判分失败不阻塞交卷 */ }
   }
   P.lastWrongIds = P.qs.filter((q, i) => P.answers[i]?.confirmed && !P.answers[i].feedback?.ok).map((q) => q.id);

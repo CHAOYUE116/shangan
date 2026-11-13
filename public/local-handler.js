@@ -204,6 +204,13 @@ export function createLocalHandler({ query, records, store, ai }) {
       });
     }
     if (route === 'GET /records/recent') return records.recent({ limit: Number(qs.get('limit') || 20) });
+    // 学情分析聚合包（只含数字，不含题目正文）
+    if (route === 'GET /records/study-payload') {
+      return records.studyPayload({
+        days: qs.get('days') ? Number(qs.get('days')) : 21,
+        subject: qs.get('subject') || undefined,
+      });
+    }
     // 每套试卷做过多少题（试卷列表的「做过」角标用）：{ "123": { n: 30, ok: 18, last: ts } }
     if (route === 'GET /records/papers') {
       const all = await store.getAll('records');
@@ -298,6 +305,12 @@ export function createLocalHandler({ query, records, store, ai }) {
       return r;
     }
     if (route === 'GET /ai/agents') return ai.agents();
+    // 学情分析：入参 { payload, agentId? } → 返回 { notice, data } 或 { notice, data:null }
+    if (route === 'POST /ai/study-review') {
+      const r = await ai.studyReview(body || {});
+      if (r.error) return { notice: r.error, data: null };
+      return { notice: '分析完成', data: r.data, raw: r.raw || null };
+    }
     if (route === 'DELETE /ai/explain-cache') return ai.clearExplainCache();
     if (route === 'POST /ai/structure') {
       const r = await ai.structure(body);

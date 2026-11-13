@@ -705,9 +705,100 @@ export async function createAiApi({ request, tiku, query, defaultsUrl = DEFAULT_
       return callChat(agent, String(text), request);
     },
 
+    /**
+     * POST /api/ai/study-review — 学情分析（只吃聚合数字，不出题、不传正文）
+     * payload: { meta, overall, modules, chapters, difficulty, types, behavior, errors }
+     */
+    async studyReview({ payload, agentId } = {}) {
+      const agents = loadAgents(defaults);
+      const agent = agents.find((a) => String(a.id) === String(agentId))
+        || agents.find((a) => a.role === 'xingce-explainer')
+        || agents[0];
+      if (!agent) return { error: '未配置 AI，请到 AI 设置页填 Key' };
+      if (!payload || !payload.overall || !payload.overall.做) return { error: '还没有做题记录，先做几道再来分析' };
+
+      // 允许 AI 引用的名字（模块 / 二级章节），用来校验 drills.target
+      const names = new Set();
+      for (const m of payload.modules || []) names.add(String(m.模块 || ''));
+      for (const c of (payload.chapters && payload.chapters.最弱) || []) names.add(String(c.章节 || ''));
+      for (const c of (payload.chapters && payload.chapters.最强) || []) names.add(String(c.章节 || ''));
+      const ALLOW = new Set([...names].filter(Boolean));
+
+      const rules = [
+        '你是备考教练，只依据【学情数据】里的数字做判断，不许补充数据里没有的信息，不许编造题目、出处、政策。',
+        '所有结论都必须能对应到数据里的某个数字；引用不到数字的诊断不要输出。',
+        '若数据里 overall.做 < 100 或某模块 做 < 20，confidence 最高只能填「中」，并在该模块相关结论里注明「样本少」。',
+        'drills[].目标 只能从这些名字里选（原样抄）：' + [...ALLOW].join(' / ') + '；也可以写「错题」表示错题重做。',
+        '只输出 JSON，不要 Markdown 代码块、不要解释。JSON 结构：',
+        '{"summary":"一句话结论，≤60字","scores":[{"维度":"知识覆盖|正确率|解题速度|稳定度|记忆保持|坚持度","分":0-100,"说明":"≤28字"}],'
+          + '"diagnosis":[{"标题":"≤18字","依据":"必须含具体数字","影响":"高|中|低"}],'
+          + '"root_causes":[{"现象":"≤16字","原因":"≤40字","误区":"≤30字"}],'
+          + '"plan":{"本周目标":"≤40字","每日":[{"动作":"≤18字","时长":"如 20 分钟","说明":"≤26字"}],"里程碑":"≤40字"},'
+          + '"drills":[{"名称":"≤22字","目标":"上面白名单里的名字","题量":数字,"难度":"easy|balanced|hard|same","为什么":"≤28字"}],'
+          + '"risks":["≤34字"],"next_check":"≤30字","confidence":"高|中|低"}',
+        'scores 必须正好 6 项，维度按上面顺序写；diagnosis 3–4 条；每日 3–4 条；drills 正好 3 条；risks 2–3 条。',
+      ].join('\n');
+
+      const userContent = `【学情数据】\n${JSON.stringify(payload)}\n\n【输出要求】\n${rules}`;
+      // 网关没有超时会一直挂着，界面就永远转圈 —— 这里硬性 60 秒收口
+      const res = await Promise.race([
+        callChat({ ...agent, temperature: 0.3, max_tokens: 2600, skill: '' }, userContent, request),
+        new Promise((resolve) => setTimeout(() => resolve({ error: '分析超时（60 秒）：网关没响应，检查网络或换个模型再试' }), 60000)),
+      ]);
+      if (res.error) return { error: res.error };
+
+      let raw = String(res.content || '').trim();
+      raw = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+      const s = raw.indexOf('{'); const e = raw.lastIndexOf('}');
+      if (s >= 0 && e > s) raw = raw.slice(s, e + 1);
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        return { error: 'AI 返回的不是合法 JSON，请重试', raw: raw.slice(0, 400) };
+      }
+
+      // —— 兜底校验：把越界/编造的内容削掉，宁缺勿错 ——
+      const cut = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+      const out = { summary: cut(data.summary, 80), scores: [], diagnosis: [], root_causes: [], plan: { 本周目标: '', 每日: [], 里程碑: '' }, drills: [], risks: [], next_check: cut(data.next_check, 40), confidence: '中' };
+      for (const sc of Array.isArray(data.scores) ? data.scores.slice(0, 6) : []) {
+        out.scores.push({ 维度: cut(sc.维度, 8), 分: Math.max(0, Math.min(100, Number(sc.分) || 0)), 说明: cut(sc.说明, 40) });
+      }
+      for (const d of Array.isArray(data.diagnosis) ? data.diagnosis.slice(0, 4) : []) {
+        if (!d) continue;
+        out.diagnosis.push({ 标题: cut(d.标题, 22), 依据: cut(d.依据, 90), 影响: ['高', '中', '低'].includes(d.影响) ? d.影响 : '中' });
+      }
+      for (const c of Array.isArray(data.root_causes) ? data.root_causes.slice(0, 3) : []) {
+        if (!c) continue;
+        out.root_causes.push({ 现象: cut(c.现象, 20), 原因: cut(c.原因, 60), 误区: cut(c.误区, 40) });
+      }
+      const p = data.plan || {};
+      out.plan.本周目标 = cut(p.本周目标, 60);
+      out.plan.里程碑 = cut(p.里程碑, 60);
+      for (const d of Array.isArray(p.每日) ? p.每日.slice(0, 4) : []) {
+        if (!d) continue;
+        out.plan.每日.push({ 动作: cut(d.动作, 24), 时长: cut(d.时长, 12), 说明: cut(d.说明, 36) });
+      }
+      for (const dr of Array.isArray(data.drills) ? data.drills.slice(0, 3) : []) {
+        if (!dr) continue;
+        const target = String(dr.目标 || '');
+        if (target !== '错题' && !ALLOW.has(target)) continue; // 编造的落点直接丢
+        out.drills.push({
+          名称: cut(dr.名称, 26), 目标: target,
+          题量: Math.max(5, Math.min(50, Number(dr.题量) || 15)),
+          难度: ['easy', 'balanced', 'hard', 'same'].includes(dr.难度) ? dr.难度 : 'balanced',
+          为什么: cut(dr.为什么, 36),
+        });
+      }
+      for (const r of Array.isArray(data.risks) ? data.risks.slice(0, 3) : []) out.risks.push(cut(r, 44));
+      out.confidence = ['高', '中', '低'].includes(data.confidence) ? data.confidence : '中';
+      if ((payload.overall?.做 || 0) < 100 && out.confidence === '高') out.confidence = '中';
+      if (!out.summary || !out.diagnosis.length) return { error: 'AI 返回内容不完整，请重试', raw: raw.slice(0, 300) };
+      return { data: out };
+    },
+
     /** POST /api/ai/grade — 申论/主观题批改 */
-    async grade({ questionId, answer, image }) {
-      const agent = loadAgents(defaults).find((x) => x.role === 'shenlun-grader');
+    async grade({ questionId, answer, image }) {      const agent = loadAgents(defaults).find((x) => x.role === 'shenlun-grader');
       if (!agent) return { error: '申论批改 AI 未启用，请到 AI 设置页配置' };
       if (!answer && !image) return { error: '缺少作答内容' };
       let q = null;
