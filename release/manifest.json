@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.11",
-    "versionCode": 119,
-    "code": 119,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.11-release.apk",
+    "version": "0.7.12",
+    "versionCode": 120,
+    "code": 120,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.11-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.11-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk"
       }
     ],
-    "size": 238258400,
-    "sha256": "2bf645ce4838717f32e072bb1301af0b41ed707356ffb64166589f650e1c2a1c",
-    "name": "shangan-0.7.11-release.apk",
-    "note": "界面小修：题库三卡图标统一并居中；修 AI 等待动画把文字挤到右边的问题"
+    "size": 238258383,
+    "sha256": "f617265bc4735112556ede0401a967822c5a23e015ed0b12f2929f26ab44070e",
+    "name": "shangan-0.7.12-release.apk",
+    "note": "题库三张卡删掉底部「练/测」链接，整卡可点"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "界面小修：题库三卡图标统一并居中；修 AI 等待动画把文字挤到右边的问题"
+  "note": "题库三张卡删掉底部「练/测」链接，整卡可点"
 }
