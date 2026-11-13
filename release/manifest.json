@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.8",
-    "versionCode": 148,
-    "code": 148,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.8-release.apk",
+    "version": "0.9.9",
+    "versionCode": 149,
+    "code": 149,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.9-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.8-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.9-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.8-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.9-release.apk"
       }
     ],
-    "size": 347405467,
-    "sha256": "2ac02991b120ac5687f54e7cbf31afb79e96c1d9798745dbb6b99be0f300dae8",
-    "name": "shangan-0.9.8-release.apk",
-    "note": "题库树照粉笔画成三层：一级只留名称，展开后是浅灰面板（全部"
+    "size": 347405249,
+    "sha256": "67d0436e46bd38d1af8410376bdb718c5c64f87cbe3f8d53789736ad1f0ad8a2",
+    "name": "shangan-0.9.9-release.apk",
+    "note": "题库树回到两级：模块"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "题库树照粉笔画成三层：一级只留名称，展开后是浅灰面板（全部"
+  "note": "题库树回到两级：模块"
 }
