@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.9';
+const APP_VERSION = '0.7.11';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1186,9 +1186,9 @@ function renderLibrary() {
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
   <div class="stats-row three" style="margin-top:14px">
-    <button class="stat stat-link" data-act="wrong-train"><span class="stat-ico">${iconSvg('repeat', 17)}</span><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
-    <button class="stat stat-link" data-act="library-exam"><span class="stat-ico">${iconSvg('timer', 17)}</span><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时</span></span><span class="stat-go">测 ›</span></button>
-    <button class="stat stat-link" data-act="subject-random"><span class="stat-ico">${iconSvg('shuffle', 17)}</span><span class="stat-txt"><b>随机 20 题</b><span>本${esc(shortName)} · 不计时</span></span><span class="stat-go">练 ›</span></button>
+    <button class="stat stat-link" data-act="wrong-train"><span class="stat-ico" style="background:var(--primary-soft);color:var(--primary)">${iconSvg('repeat', 18)}</span><span class="stat-txt"><b>错题再练</b><span>${wrong} 道待巩固</span></span><span class="stat-go">练 ›</span></button>
+    <button class="stat stat-link" data-act="library-exam"><span class="stat-ico" style="background:var(--amber-soft);color:#9a6700">${iconSvg('timer', 18)}</span><span class="stat-txt"><b>随堂测</b><span>10 题 · 限时</span></span><span class="stat-go">测 ›</span></button>
+    <button class="stat stat-link" data-act="subject-random"><span class="stat-ico" style="background:var(--green-soft);color:var(--green)">${iconSvg('shuffle', 18)}</span><span class="stat-txt"><b>随机 20 题</b><span>本${esc(shortName)} · 不计时</span></span><span class="stat-go">练 ›</span></button>
   </div>
   <button class="paper-entry" data-act="papers">
     <div class="subject-ico">${iconFor('')}</div>
