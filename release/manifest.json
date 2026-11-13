@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.8.9",
-    "versionCode": 139,
-    "code": 139,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.9-release.apk",
+    "version": "0.9.0",
+    "versionCode": 140,
+    "code": 140,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.0-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.9-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.0-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.9-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.0-release.apk"
       }
     ],
-    "size": 345102542,
-    "sha256": "a43b352ae1da5e868f392a21c642b6dc96c1559018ce6c3bea28451357c3f847",
-    "name": "shangan-0.8.9-release.apk",
-    "note": "判断推理的「其他」按粉笔二级分类归位：图形319"
+    "size": 345177579,
+    "sha256": "6af7097a3dd977b6a9f5fe6d13b1a784da9c2d7c80853b7fef9ca53030818594",
+    "name": "shangan-0.9.0-release.apk",
+    "note": "公基"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "判断推理的「其他」按粉笔二级分类归位：图形319"
+  "note": "公基"
 }
