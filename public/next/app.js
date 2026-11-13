@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.8.0';
+const APP_VERSION = '0.8.1';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1896,7 +1896,7 @@ function editAgent(id) {
       <div class="ai-form-sec">生成参数</div>
       <div class="ai-two">
         <label class="ai-field"><span>温度</span><input class="field" id="ai-temp" type="number" step="0.1" min="0" max="1" value="${a.temperature ?? 0.5}"></label>
-        <label class="ai-field"><span>最大 tokens</span><input class="field" id="ai-maxtok" type="number" step="100" min="100" value="${a.max_tokens ?? 4000}"></label>
+        <label class="ai-field"><span>最大输出长度（tokens）</span><input class="field" id="ai-maxtok" type="number" step="500" min="500" value="${a.max_tokens ?? 6000}"><span class="ai-hint">推理模型的思维链也算在里面，建议 6000 以上</span></label>
       </div>
       <label class="ai-field"><span>挂哪套技能</span><input class="field" id="ai-skill" list="ai-skill-list" value="${esc(a.skill || '')}" placeholder="不挂也行"><datalist id="ai-skill-list">${skills.map((s) => `<option value="${esc(s.name)}">`).join('')}</datalist></label>
       <div class="ai-form-sec">人设</div>
@@ -1914,7 +1914,7 @@ function agentFields() {
     skill: ($('#ai-skill')?.value || '').trim(),
     system_prompt: $('#ai-prompt')?.value || '',
     temperature: Number($('#ai-temp')?.value || 0.5),
-    max_tokens: Number($('#ai-maxtok')?.value || 4000),
+    max_tokens: Number($('#ai-maxtok')?.value || 6000),
   };
   const key = ($('#ai-key')?.value || '').trim();
   if (key) f.api_key = key;
@@ -2909,6 +2909,8 @@ async function runAiDrill(target, n, diff) {
   }
 }
 
+const AI_REV_DISC = '<div class="ai-rev-disc">AI 分析仅供参考：结论由模型根据你的做题统计生成，可能有误，也不构成备考建议；以真题、官方考纲和你自己的判断为准。</div>';
+
 function aiReviewBlock() {
   if (!S.aiRev) {
     try { const c = JSON.parse(localStorage.getItem(AI_REV_KEY) || 'null'); if (c && c.data) S.aiRev = c; } catch { /* 忽略 */ }
@@ -2916,12 +2918,12 @@ function aiReviewBlock() {
   const r = S.aiRev || {};
   const head = '<div class="section-head"><h2 class="section-title">AI 学情分析</h2><span class="muted">只喂数字，不传题目</span></div>';
   if (r.loading) {
-    return `${head}<div class="card"><div class="ai-loading"><span class="spinner ai-spinner"></span><span>正在读你的数据，十几秒…</span></div></div>`;
+    return `${head}<div class="card"><div class="ai-loading"><span class="spinner ai-spinner"></span><span>正在读你的数据，十几秒…</span></div>${AI_REV_DISC}</div>`;
   }
   if (!r.data) {
     const msg = r.err || '让 AI 读一遍你的做题数据，给一份「先补哪、怎么练」的方案。';
     return `${head}<div class="card"><div class="rp-mod"><div class="subject-main"><div class="subject-title">还没分析</div><div class="subject-sub">${esc(msg)}</div></div>
-      <button class="btn btn-primary btn-sm" data-act="${r.needKey ? 'ai' : 'ai-review'}">${r.needKey ? '去填 Key' : '分析一下'}</button></div></div>`;
+      <button class="btn btn-primary btn-sm" data-act="${r.needKey ? 'ai' : 'ai-review'}">${r.needKey ? '去填 Key' : '分析一下'}</button></div>${AI_REV_DISC}</div>`;
   }
   const d = r.data;
   const scores = (d.scores || []).map((s) => `<div class="ai-rev-score"><span>${esc(s.维度)}</span><div class="ai-rev-bar"><i style="width:${Math.max(2, Math.min(100, s.分))}%"></i></div><b>${s.分}</b><em>${esc(s.说明 || '')}</em></div>`).join('');
@@ -2941,6 +2943,7 @@ function aiReviewBlock() {
     ${drills ? `<div class="ai-rev-sec">给你配好的训练</div>${drills}` : ''}
     ${risks ? `<div class="ai-rev-sec">要注意</div><ul class="ai-rev-list">${risks}</ul>` : ''}
     ${d.next_check ? `<div class="ai-rev-foot"><span>${esc(d.next_check)}</span><button class="link-sm" data-act="ai-review" data-force="1">重新分析</button></div>` : ''}
+    ${AI_REV_DISC}
   </div>`;
 }
 
