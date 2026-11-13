@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.26",
-    "versionCode": 166,
-    "code": 166,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.26-release.apk",
+    "version": "0.9.28",
+    "versionCode": 168,
+    "code": 168,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.26-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.26-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.28-release.apk"
       }
     ],
-    "size": 347413350,
-    "sha256": "43440c0defae12a26503ccc63867eb8e67e2638a78f8a9543850111f14707ad5",
-    "name": "shangan-0.9.26-release.apk",
-    "note": "学习报告重做：跟上周比、这一周的节奏（七天柱+最猛一天）、模块在往哪走（环比±pt）、本周最稳/最弱考点；另外点设置/展开不再跳回顶部、考试页入口改回「基础测评」、题库页恢复自定义刷题、修好模考返回首页与报告↔统计的返回链"
+    "size": 347414173,
+    "sha256": "ce6c873b2fac08c6ce50686546b5d8a02b32aa35fc7db0c9f4a01c8348d00feb",
+    "name": "shangan-0.9.28-release.apk",
+    "note": "材料题的材料终于不丢了：题目表里本来就有"
   },
   "tiku": {
     "dbVersion": "0.5.38-20261113-1915",
@@ -67,6 +67,6 @@
     ]
   },
   "mirrors": [],
-  "note": "学习报告重做：跟上周比、这一周的节奏（七天柱+最猛一天）、模块在往哪走（环比±pt）、本周最稳/最弱考点；另外点设置/展开不再跳回顶部、考试页入口改回「基础测评」、题库页恢复自定义刷题、修好模考返回首页与报告↔统计的返回链",
+  "note": "材料题的材料终于不丢了：题目表里本来就有",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
