@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.32",
-    "versionCode": 172,
-    "code": 172,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk",
+    "version": "0.9.34",
+    "versionCode": 174,
+    "code": 174,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.32-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk"
       }
     ],
-    "size": 347452184,
-    "sha256": "c9a0ffcd18b82dbbff82a1171b239efe89e9381470303fc4a6f4c530318ea96b",
-    "name": "shangan-0.9.32-release.apk",
-    "note": "一级分类的展开三角放大到"
+    "size": 362643894,
+    "sha256": "8f3e6714b8c8f08804459fe66d221d4564ff19cf17161bdf74fb345edeb42a75",
+    "name": "shangan-0.9.34-release.apk",
+    "note": "展开图标换成"
   },
   "tiku": {
     "dbVersion": "0.5.39-20261113-2305",
@@ -55,6 +55,6 @@
     ]
   },
   "mirrors": [],
-  "note": "一级分类的展开三角放大到",
+  "note": "展开图标换成",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
