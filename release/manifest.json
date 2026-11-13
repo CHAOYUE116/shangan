@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.8",
-    "versionCode": 116,
-    "code": 116,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk",
+    "version": "0.7.9",
+    "versionCode": 117,
+    "code": 117,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.9-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.9-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.9-release.apk"
       }
     ],
-    "size": 238257853,
-    "sha256": "9159d686f3557b6a4bc8be911de45b062c2a25dd80c219f1cab91c89911120b0",
-    "name": "shangan-0.7.8-release.apk",
-    "note": "App 0.7.8：综应完全按粉笔三层结构（题型 → 单一题/综合题 → 考点），三层都能展开点练"
+    "size": 238258102,
+    "sha256": "d35acaf43fd2ca33a355c6bc5de035006c68ec2ea1fd46656c7fb4d85e61afc9",
+    "name": "shangan-0.7.9-release.apk",
+    "note": "App 0.7.9：题库页三个快捷按钮加矢量图标"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "App 0.7.8：综应完全按粉笔三层结构（题型 → 单一题/综合题 → 考点），三层都能展开点练"
+  "note": "App 0.7.9：题库页三个快捷按钮加矢量图标"
 }
