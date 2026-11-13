@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.12",
-    "versionCode": 120,
-    "code": 120,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk",
+    "version": "0.8.0",
+    "versionCode": 130,
+    "code": 130,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.0-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.0-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.12-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.8/shangan-0.8.0-release.apk"
       }
     ],
-    "size": 238258383,
-    "sha256": "f617265bc4735112556ede0401a967822c5a23e015ed0b12f2929f26ab44070e",
-    "name": "shangan-0.7.12-release.apk",
-    "note": "题库三张卡删掉底部「练/测」链接，整卡可点"
+    "size": 238265811,
+    "sha256": "a89cd7a0b249ee44caa6bddbcd60a0ab0df5c28ffdc8862b9c60391912531f64",
+    "name": "shangan-0.8.0-release.apk",
+    "note": "AI 学情分析上线：学习统计一键出诊断与训练计划；统计范围切换修复；题量 15.6 万、官方难度覆盖 97%"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "题库三张卡删掉底部「练/测」链接，整卡可点"
+  "note": "AI 学情分析上线：学习统计一键出诊断与训练计划；统计范围切换修复；题量 15.6 万、官方难度覆盖 97%"
 }
