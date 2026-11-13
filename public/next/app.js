@@ -117,7 +117,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.7.2';
+const APP_VERSION = '0.7.7';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1349,10 +1349,26 @@ function renderPapers(opts = {}) {
   const inExam = opts.host === 'exam' || (opts.host == null && !!S.examPapers);
   const f = S.lib.filter;
   const uniq = (arr) => [...new Set(arr)];
-  const regions = ['全部', ...uniq(S.lib.papers.map((p) => regionOf(p.name))).sort((a, b) => a.localeCompare(b, 'zh'))];
+  // 地区 chip 排序：统考/联考、浙江在前，其余按拼音（用户主要考浙江事业单位）
+  const REGION_TOP = ['统考', '联考', '浙江', '全国'];
+  const regionRank = (r) => { const i = REGION_TOP.indexOf(r); return i < 0 ? REGION_TOP.length + 1 : i; };
+  const regions = ['全部', ...uniq(S.lib.papers.map((p) => regionOf(p.name))).sort((a, b) => regionRank(a) - regionRank(b) || a.localeCompare(b, 'zh'))];
   const years = ['全部', ...[...new Set(S.lib.papers.map((p) => yearOf(p.name)))].filter((y) => y !== '其他').sort((a, b) => Number(b) - Number(a)).slice(0, 7), '其他'];
   const kinds = ['全部', '真题', '模拟'];
-  const list = S.lib.papers.filter((p) => (f.region === '全部' || regionOf(p.name) === f.region) && (f.year === '全部' || yearOf(p.name) === f.year) && (f.kind === '全部' || kindOf(p.name) === f.kind));
+  // 卷子列表也按「统考/联考 → 浙江 → 年份」排，最新、最像自己要考的放最前
+  const paperRank = (p) => {
+    const n = String(p.name || '');
+    let r = 0;
+    if (/统考|联考/.test(n)) r -= 4;
+    if (/浙江/.test(n)) r -= 2;
+    r -= Number(yearOf(n)) / 10000;
+    return r;
+  };
+  const list = S.lib.papers
+    .filter((p) => (f.region === '全部' || regionOf(p.name) === f.region) && (f.year === '全部' || yearOf(p.name) === f.year) && (f.kind === '全部' || kindOf(p.name) === f.kind))
+    .sort((a, b) => paperRank(a) - paperRank(b))
+    // 同名卷（重复导入）只留一套，按题多的那套留
+    .filter((p, i, arr) => arr.findIndex((x) => String(x.name || '') === String(p.name || '')) === i);
   const chip = (key, val) => `<button class="chip ${f[key] === val ? 'active' : ''}" data-pf="${key}" data-val="${esc(val)}">${esc(val)}</button>`;
   return `
   ${inExam
@@ -4847,9 +4863,21 @@ document.addEventListener('click', (e) => {
   if (obDate) { S.ob.draft.examDate = obDate.dataset.obDate; S.ob.draft.examName = obDate.dataset.obName; renderOnboarding(); return; }
   if (obGoal) { S.ob.draft.dailyGoal = Number(obGoal.dataset.obGoal); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-skills]')) { S.ob.draft.skills = S.ob.draft.skills === false; renderOnboarding(); return; }
-  if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(3, S.ob.step + 1); renderOnboarding(); return; }
+  const obGw = e.target.closest('[data-ob-gw]');
+  if (obGw) {
+    S.ob.draft.aiKey = ($('#ob-ai-key')?.value || S.ob.draft.aiKey || '').trim();
+    S.ob.draft.aiGw = Number(obGw.dataset.obGw);
+    const g = AI_GATEWAYS[S.ob.draft.aiGw] || {};
+    S.ob.draft.aiModel = g.model || '';
+    S.ob.draft.aiBase = g.url || '';
+    renderOnboarding();
+    return;
+  }
+  if (e.target.closest('[data-ob-ai-skip]')) { try { localStorage.setItem(AI_OB_KEY, 'skip'); } catch { /* ignore */ } S.ob.step = 4; renderOnboarding(); return; }
+  if (e.target.closest('[data-ob-ai-next]')) { obSaveAi().then(() => { if (S.ob) { S.ob.step = 4; renderOnboarding(); } }); return; }
+  if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(4, S.ob.step + 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-back]')) { S.ob.step = Math.max(0, S.ob.step - 1); renderOnboarding(); return; }
-  if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700)); return; }
+  if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')); return; }
   if (e.target.closest('[data-ob-finish-skip]') || e.target.closest('[data-ob-finish]')) {
     const skipDiag = !!e.target.closest('[data-ob-finish-skip]');
     const want = S.ob.draft.skills !== false;
@@ -4862,7 +4890,7 @@ document.addEventListener('click', (e) => {
       try { localStorage.setItem(DIAG_SKIP_KEY, String(Date.now())); } catch { /* ignore */ }
       toast('先跳过测评。随时可以在「考试 → 基础测评」里补做', 4200);
     }
-    loadHome().then(() => go('home')).catch(() => go('home')).then(() => setTimeout(maybeAiOnboard, 700));
+    loadHome().then(() => go('home')).catch(() => go('home'));
     return;
   }
   if (e.target.closest('[data-ob-diag]')) {
@@ -4930,7 +4958,9 @@ const PROVINCES = [
   '内蒙古', '广西', '西藏', '宁夏', '新疆',
 ];
 function openOnboarding() {
-  S.ob = { step: 0, draft: { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, targetScore: 70, minutes: 90, skills: true } };
+  // 默认按事业单位考生走（用户群主体），省份默认浙江
+  const ds0 = OB_DATES['事业编'][0];
+  S.ob = { step: 0, draft: { examType: '事业编', province: '浙江', examName: ds0.name, examDate: ds0.date, dailyGoal: 20, targetScore: 70, minutes: 90, skills: true, aiGw: 0, aiKey: '', aiModel: (AI_GATEWAYS[0] || {}).model || '', aiBase: (AI_GATEWAYS[0] || {}).url || '' } };
   renderOnboarding();
 }
 function renderOnboarding() {
@@ -4939,11 +4969,24 @@ function renderOnboarding() {
   if (ob.step === 0) {
     el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第一次见面</div><div class="ob-title">你准备考什么？</div><div class="ob-sub">选好方向，题库、试卷和推荐都会跟着变</div><div class="ob-cards">${['公务员', '事业编', '三支一扶'].map((x) => `<button class="ob-card ${d.examType === x ? 'active' : ''}" data-ob-exam="${x}"><b>${x}</b><span>${x === '公务员' ? '国考 / 省考' : x === '事业编' ? '职测 / 综应 / 公基' : '公基 / 行测'}</span></button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-skip>先随便逛逛</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else if (ob.step === 1) {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 2 步 / 共 4 步</div><div class="ob-title">目标省份</div><div class="ob-sub">省考、事业单位统考的卷子按省份区分</div><div class="ob-grid">${PROVINCES.map((x) => `<button class="ob-chip ${d.province === x ? 'active' : ''}" data-ob-province="${x}">${x}</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 2 步 / 共 5 步</div><div class="ob-title">目标省份</div><div class="ob-sub">省考、事业单位统考的卷子按省份区分</div><div class="ob-grid">${PROVINCES.map((x) => `<button class="ob-chip ${d.province === x ? 'active' : ''}" data-ob-province="${x}">${x}</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else if (ob.step === 2) {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 4 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div><div class="ob-label">AI 技能</div><button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>内置技能：申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button><div class="ob-sub" style="margin-top:6px">技能是给 AI 用的答题规范，不配 Key 也能先装着，配了就直接生效。后面在「我的 → AI 助手」随时能改</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 5 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
+  } else if (ob.step === 3) {
+    const gw = AI_GATEWAYS[d.aiGw] || AI_GATEWAYS[0];
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 4 步 / 共 5 步 · 可跳过</div><div class="ob-title">接一个 AI（可选）</div><div class="ob-sub">讲题、申论批改、排计划都靠它。填自己的 Key 才生效，Key 只存在这台手机上。</div>
+      <div class="ob-list">${AI_GATEWAYS.map((x, i) => `<button class="ob-row ${d.aiGw === i ? 'active' : ''}" data-ob-gw="${i}"><span>${esc(x.label)}${x.tip ? `<br><span class="muted" style="font-size:12px">${esc(x.tip)}</span>` : ''}</span><span class="muted">${d.aiGw === i ? '已选' : ''}</span></button>`).join('')}</div>
+      <div class="ob-label">API Key</div>
+      <input class="field" id="ob-ai-key" type="password" value="${esc(d.aiKey || '')}" placeholder="粘贴 Key，一般以 sk- 开头">
+      <div class="ob-label">模型</div>
+      <input class="field" id="ob-ai-model" value="${esc(d.aiModel || gw.model || '')}" placeholder="例如 deepseek-chat">
+      <div class="ob-label">内置技能</div>
+      <button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button>
+      <div class="ob-hint">技能是给 AI 用的答题规范，不配 Key 也能先装着；配了就直接生效。随时可在「我的 → AI 设置」改。</div>
+      <div class="ob-hint">没 Key 就先跳过，做题、统计、引擎都不受影响。</div></div>
+    <div class="ob-foot"><button class="btn btn-ghost" data-ob-ai-skip>先跳过</button><button class="btn btn-primary" data-ob-ai-next>${d.aiKey ? '保存并继续' : '继续'}</button></div>`;
   } else {
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 4 步 / 共 4 步 · 可跳过</div><div class="ob-title">先做个基础测评？</div><div class="ob-sub">六个模块各抽几道题，约 25 分钟。测完不用自己判断强弱 —— 每日任务会先补错得多的那几块。</div>
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 5 步 / 共 5 步 · 可跳过</div><div class="ob-title">先做个基础测评？</div><div class="ob-sub">六个模块各抽几道题，约 25 分钟。测完不用自己判断强弱 —— 每日任务会先补错得多的那几块。</div>
       <div class="ob-ai-list">
         <div class="ob-ai-row"><b>测什么</b><span>六个模块各 6 题，由易到难</span></div>
         <div class="ob-ai-row"><b>测完给你</b><span>模块强弱排序 + 最该补的考点</span></div>
@@ -5033,6 +5076,32 @@ function humanAiError(msg) {
   if (m.includes('网络请求失败')) return '连不上这个服务。确认手机能正常访问该域名（部分服务商需要代理）。';
   if (!m) return '未知错误';
   return m.slice(0, 200);
+}
+
+async function obSaveAi() {
+  const d = S.ob && S.ob.draft;
+  if (!d) return;
+  d.aiKey = ($('#ob-ai-key')?.value || d.aiKey || '').trim();
+  d.aiModel = ($('#ob-ai-model')?.value || d.aiModel || '').trim();
+  const g = AI_GATEWAYS[d.aiGw] || AI_GATEWAYS[0];
+  d.aiBase = d.aiBase || g.url || '';
+  // 没填 Key 就当跳过，不打扰
+  if (!d.aiKey) return;
+  const ids = (g.agents && g.agents.length) ? g.agents.slice() : ((S.agents || []).map((a) => a.id).filter((x) => x != null));
+  const idList = ids.length ? ids : [1];
+  const base = String(d.aiBase || g.url || '').replace(/\/+$/, '');
+  let ok = 0;
+  try {
+    if (window.__LOCAL_API_PROMISE__) { try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ } }
+    for (const id of idList) {
+      try {
+        await api(`/api/ai/agents/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base_url: base, model: d.aiModel, api_key: d.aiKey }) });
+        ok += 1;
+      } catch { /* 跳过不存在的 id */ }
+    }
+  } catch { /* ignore */ }
+  if (ok) { try { localStorage.setItem(AI_OB_KEY, 'done'); } catch { /* ignore */ } toast('AI 已保存，做题时会用到'); }
+  else toast('Key 没写进去，稍后可以到「我的 → AI 设置」再配');
 }
 
 async function aiOnboardTest() {

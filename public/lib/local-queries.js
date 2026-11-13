@@ -15,7 +15,7 @@
  *   const api = createLocalApi(tikuEngine, { doneBySubject, chapterStats });
  */
 
-import { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE } from './fenbi-tree.js';
+import { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_ZY_PATS, ESSAY_SL_PATS, ESSAY_ZY_GROUPS, ESSAY_ZY_CONTENT, ESSAY_ZY_ORDER, ESSAY_SL_CONTENT } from './fenbi-tree.js';
 import { mapChapterToNode } from './xingce-chapter-map.js';
 
 // ============ SQL（与 server.mjs 预编译语句 1:1） ============
@@ -778,11 +778,19 @@ export function createLocalApi(tiku, practice, stats = {}) {
            OR CAST(substr(name, MAX(1, instr(name, '20')), 4) AS INTEGER) BETWEEN ${YEAR_FROM} AND ${YEAR_TO})
         GROUP BY subjectName
       `);
-      // 综应只保留 A 类：主界面题目数按分类树口径（question_categories），与专项练习一致
-      const zongyingN = Number(tiku.get(`SELECT COUNT(DISTINCT qc.question_id) AS n FROM question_categories qc
-        JOIN questions q ON q.questionId = qc.question_id
-        JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
-        WHERE qc.subject = '事业编·综应'`)?.n || 0);
+      // 综应题量：优先用预计算表（qc-counts.json 的 group 总和），否则按实库题数兜底。
+      // 早期这里数的是 question_categories，扫描导入进来的题没有分类行，
+      // 结果主界面只剩 163 道（实际 2,800+），题库页看起来像「题被吞了」。
+      const zongyingN = (() => {
+        const pre = globalThis.__QC_COUNTS__ && globalThis.__QC_COUNTS__.subjects
+          && globalThis.__QC_COUNTS__.subjects['事业编·综应'];
+        if (pre && pre.group) {
+          const n = Object.values(pre.group).reduce((s, v) => s + (Number(v) || 0), 0);
+          if (n > 0) return n;
+        }
+        return Number(tiku.get(`SELECT COUNT(DISTINCT q.questionId) AS n FROM questions q
+          JOIN papers p ON p.id = q.paperId WHERE p.subjectName = '事业编·综应'`)?.n || 0);
+      })();
       return rows.map((r) => ({
         subjectName: r.subjectName,
         papers: Number(r.papers),
@@ -1176,12 +1184,22 @@ export function createLocalApi(tiku, practice, stats = {}) {
     chapters(subject, mock) {
       if (!subject) throw new Error('缺少 subject');
       const cond = mockCond(mock);
-      // 优先走 papers 聚合（≈0.3s）；老库没有 chapters 字段时退回 questions 精确统计
-      const totals = chapterTotalsFromPapers(tiku, subject, `${cond}${yearCond('10')}`)
-        || tiku.all(`
-        SELECT q.chapter, COUNT(*) c FROM questions q JOIN papers p ON p.id = q.paperId
-        WHERE p.subjectName = ? ${cond}${yearCond('10')} GROUP BY q.chapter ORDER BY c DESC
-      `, subject);
+      // 申论/综应的卷子里有 2008 年以前的、也有名字里没年份的，套年份过滤会漏题
+      // （综应曾因此少 156 道），这两科与公基一样不做年份过滤。
+      const isEssay = subject === '公务员·申论' || subject === '事业编·综应';
+      const yc = isEssay ? '' : yearCond('10');
+      // 申论/综应的卷子里有 2008 年以前的、也有名字里没年份的，套年份过滤会漏题
+      // （综应曾因此少 156 道）；这两科直接按题目去重统计章节，不走 papers 预聚合。
+      const totals = isEssay
+        ? tiku.all(`
+          SELECT q.chapter, COUNT(DISTINCT q.questionId) c FROM questions q JOIN papers p ON p.id = q.paperId
+          WHERE p.subjectName = ? GROUP BY q.chapter ORDER BY c DESC
+        `, subject)
+        : (chapterTotalsFromPapers(tiku, subject, `${cond}${yc}`)
+          || tiku.all(`
+          SELECT q.chapter, COUNT(*) c FROM questions q JOIN papers p ON p.id = q.paperId
+          WHERE p.subjectName = ? ${cond}${yc} GROUP BY q.chapter ORDER BY c DESC
+        `, subject));
       const doneMap = statOf('chapterStats').get(subject) || new Map();
       const list = totals.map((t) => {
         const d = doneMap.get(t.chapter);
@@ -1314,43 +1332,85 @@ export function createLocalApi(tiku, practice, stats = {}) {
           return { group: g.group, total, done: subs.reduce((s, x) => s + x.done, 0), rate: null, chapters: [], subs };
         });
       } else {
-        const essayFromIndex = essaySubjects.includes(subject);
-        const nodeStats = (group, sub2) => {
-          if (essayFromIndex) {
-            const okCount = statOf('subStats').get(subject)?.get(`${group}|${sub2}`) ?? null;
-            // 预计算表里同一个 category|sub 的题数（综应 105 个 sub，逐个查库就是 105 × 回表）
-            const pre = qcPre && qcPre.idx ? qcPre.idx[`${group}|${sub2}`] : undefined;
-            if (pre != null) return { total: Number(pre) || 0, done: okCount ?? null, rate: null };
-            const r = practice.get(`
-              SELECT COUNT(DISTINCT qc.question_id) c FROM question_categories qc
-              JOIN questions q ON q.questionId = qc.question_id
-              JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
-              WHERE qc.category = ? AND qc.sub = ? AND qc.subject = ?
-            `, group, sub2, subject);
-            return { total: r?.c || 0, done: okCount ?? null, rate: null };
-          }
-          const cs = nodeChapters.get(`${group}|${sub2}`) || [];
-          return { ...sum(cs), chapters: cs.map((c) => c.name) };
+        // 申论 / 综应：照粉笔的题型树分组。
+        // 我们库里的 chapter 只有「一、」「二、」「作答要求」这类序号，靠不住；
+        // 粉笔的题按「题型 → 具体子类」组织（案例分析题 > 单一题 > 提出对策类 …），
+        // 这些名字正好都在 question_keypoints 里，所以直接用考点当题型、按题型分组。
+        const isZy = subject !== '公务员·申论';
+        const pats = isZy ? ESSAY_ZY_GROUPS : ESSAY_SL_PATS;
+        const order = isZy ? ESSAY_ZY_ORDER : pats.map((p) => p[1]);
+        const contentRules = isZy ? ESSAY_ZY_CONTENT : ESSAY_SL_CONTENT;
+        const byContent = (text) => {
+          const t = String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+          for (const [re, group] of contentRules) if (re.test(t)) return group;
+          return '';
         };
-        // 申论用 SHENLUN_TREE（标准五题型），综应用 ZONGYING_TREE（A/B/C/D 类），其他用 ESSAY_TREE
-        const tree = subject === '公务员·申论' ? SHENLUN_TREE : subject === '事业编·综应' ? ZONGYING_TREE : ESSAY_TREE;
-        groups = tree.map((g) => {
-          const subs = g.subs.map((sub2) => {
-            const st = nodeStats(g.group, sub2.name);
-            return { name: sub2.name, ...st, chapters: st.chapters || [], leaves: [] };
-          });
-          const total = subs.reduce((s, x) => s + x.total, 0);
-          return { group: g.group, total, done: subs.reduce((s, x) => s + (x.done || 0), 0), rate: null, chapters: [], subs };
-        });
-        if (objectiveChapters.length) {
-          const typeSubs = [...objByType.entries()].map(([t, cs]) => ({
-            name: t === '其他' ? '其他题型' : `${t}选择题`,
-            ...sum(cs),
-            chapters: cs.map((c) => c.name),
-            leaves: [],
-          }));
-          groups.push({ group: '客观题', ...sum(objectiveChapters), chapters: objectiveChapters.map((c) => c.name), subs: typeSubs });
+        const classify = (text) => {
+          const t = String(text || '');
+          for (const [re, group] of pats) if (re.test(t)) return group;
+          return '';
+        };
+        // 一次拿「每题：考点 + chapter」，2.8k～4.3k 行，比逐题回表快得多
+        const rows = tiku.all(`
+          SELECT q.questionId AS qid, q.chapter AS chapter, q.content AS content,
+                 (SELECT GROUP_CONCAT(k.kpName, '|') FROM question_keypoints k WHERE k.questionId = q.questionId) AS kps
+          FROM questions q JOIN papers p ON p.id = q.paperId
+          WHERE p.subjectName = ?`, subject);
+        const chapterGroup = new Map();
+        const agg = new Map(); // group → { total, subs: Map(name → total) }
+        const bump = (group, sub) => {
+          if (!agg.has(group)) agg.set(group, { total: 0, subs: new Map() });
+          const g = agg.get(group);
+          g.total += 1;
+          g.subs.set(sub, (g.subs.get(sub) || 0) + 1);
+        };
+        const seenQ = new Set();
+        for (const r of rows) {
+          if (seenQ.has(r.qid)) continue;
+          seenQ.add(r.qid);
+          const kps = String(r.kps || '').split('|').filter(Boolean);
+          let group = '';
+          let sub = '';
+          for (const k of kps) {
+            const g = classify(k);
+            if (g) { group = g; sub = k; break; }
+          }
+          if (!group) {
+            // 考点只写了「主观题/开放题」→ 用题干措辞判断题型（概括类、公文类、作文类）
+            const byText = byContent(r.content);
+            group = byText || classify(r.chapter) || '未分类';
+            const bare = String(r.chapter || '').replace(/^[一二三四五六七八九十]+\s*[、.．]\s*/, '').trim();
+            sub = group === '未分类' ? (bare || '其他') : (byText ? '题干判断' : (bare || '其他'));
+          }
+          bump(group, sub);
+          if (!chapterGroup.has(r.chapter)) chapterGroup.set(r.chapter, group);
         }
+        const doneMap2 = statOf('chapterStats').get(subject) || new Map();
+        const doneOf = new Map();
+        for (const [chap, g] of chapterGroup) {
+          const d = doneMap2.get(chap);
+          if (!d) continue;
+          const cur = doneOf.get(g) || { c: 0, ok: 0 };
+          cur.c += d.c || 0;
+          cur.ok += d.ok || 0;
+          doneOf.set(g, cur);
+        }
+        const allGroups = [...new Set([...order, '未分类'])].filter((g) => agg.has(g));
+        groups = allGroups.map((name) => {
+          const g = agg.get(name);
+          const d = doneOf.get(name) || { c: 0, ok: 0 };
+          const subs = [...g.subs.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([sname, n]) => ({ name: sname, total: n, done: null, rate: null, chapters: [], leaves: [] }));
+          return {
+            group: name,
+            total: g.total,
+            done: d.c || 0,
+            rate: d.c ? Math.round((d.ok / d.c) * 100) : null,
+            chapters: [],
+            subs,
+          };
+        });
       }
       return groups;
     },
@@ -1402,5 +1462,5 @@ export function classifySource(qid, lookup) {
   return { groupKey: subject, groupName: sourceGroupName(subject), subKey: sub, subName: sub, paperId: q.paperId ?? null };
 }
 
-export { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, mapChapterToNode };
+export { FENBI_TREE, GONGJI_TREE, ESSAY_TREE, SHENLUN_TREE, ZONGYING_TREE, ESSAY_ZY_PATS, ESSAY_SL_PATS, ESSAY_ZY_GROUPS, ESSAY_ZY_CONTENT, ESSAY_ZY_ORDER, ESSAY_SL_CONTENT, mapChapterToNode };
 
