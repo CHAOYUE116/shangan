@@ -122,7 +122,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.9.26';
+const APP_VERSION = '0.9.31';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -1876,7 +1876,7 @@ function renderExamResult() {
     }).join('');
     return `<details class="card result-q" style="margin-bottom:8px">
       <summary style="cursor:pointer;list-style:none"><div class="paper-top"><span class="tag">第 ${i + 1} 题</span>${q.kp ? `<span class="tag kp">${esc(q.kp)}</span>` : ''}${fgSet.has(i) ? '<span class="tag flag">待定</span>' : ''}<span class="tag" style="color:${color}">${status}</span><span class="tag">${costTxt}</span></div><div class="subject-title" style="margin-top:8px">${esc(String(q.content || '').replace(/\s+/g, ' ').slice(0, 70))}${String(q.content || '').length > 70 ? '…' : ''}</div></summary>
-      <div class="q-stem" style="margin-top:12px">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
+      <div class="q-stem" style="margin-top:12px">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(blankify(q.contentHtml || esc(q.content || '')))}</div>${renderMaterial(q)}${opts}<div class="explain" style="margin-top:12px"><h4>解析</h4><p>${renderRichText(q.analysisHtml || q.analysis || '暂无解析')}</p></div>
     </details>`;
   };
   const reviewHtml = gList.length ? gList.map((g) => `<section class="rv-group">
@@ -3539,14 +3539,24 @@ function renderQuestionBlock(q, fb) {
     return `<div class="option static ${cls}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span>${correct ? '<span class="opt-note">正确答案</span>' : picked ? '<span class="opt-note">你的选择</span>' : ''}</div>`;
   }).join('');
   const tagText = typeTagOf(q, options);
-  const stemHtml = q.contentHtml
+  const stemHtml = blankify(q.contentHtml
     ? String(q.contentHtml).replace(TYPE_PREFIX, '')
-    : esc(String(q.content || '').replace(TYPE_PREFIX, ''));
+    : esc(String(q.content || '').replace(TYPE_PREFIX, '')));
   // 出处标识只放在题干最前面，不写进 content：题库里同一道题可能属于多套卷，
   // 写死会把「跨卷复用」改错，也会污染搜索与指纹匹配。
   const src = q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : '';
   return `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${tagText}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${src}${safeHtml(stemHtml)}</div>${renderMaterial(q)}${opts}`;
 }
+/** 填空横线：题库里的空是 <u> </u>（只含一个空格），在手机上短到看不见。
+ *  统一换成定宽的下划线块；纯文本里的 ＿＿＿＿ 也一并处理。 */
+function blankify(html) {
+  let out = String(html == null ? '' : html);
+  out = out.replace(/<u>\s*<\/u>/g, '<u class="blk"></u>');
+  out = out.replace(/＿{2,}/g, '<u class="blk"></u>');
+  out = out.replace(/_{3,}/g, '<u class="blk"></u>');
+  return out;
+}
+
 function renderPractice() {
   const P = S.practice; const q = currentQ(); if (!q) return;
   const answeredCount = Object.values(P.answers || {}).filter((a) => a.selected != null).length;
@@ -3582,7 +3592,7 @@ function renderPractice() {
     const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
     const faved = S.favIds && S.favIds.has(String(q.id));
     const tools = `<div class="q-tools"><button class="link-sm ${faved ? 'on' : ''}" data-act="fav-toggle" aria-pressed="${faved}">${faved ? '★ 已收藏' : '☆ 收藏'}</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`;
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(q.contentHtml || esc(q.content || ''))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
+    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(blankify(q.contentHtml || esc(q.content || '')))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
@@ -4274,7 +4284,7 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'smart-paper') { openSmartPaper(); return; }
   if (a === 'smart-start') { startSmartPaper(); return; }
-  if (a === 'diag-start') { startDiag(false); return; }
+  if (a === 'diag-start') { closeSheet(); startDiag(false); return; }
   if (a === 'ability-back') { S.examView = ''; go('exam'); return; }
   if (a === 'diag-view') {
     const ready = abilityReady();
@@ -4330,6 +4340,40 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/**
+ * 清掉「题库里已经没有的题」的作答记录。
+ * 题库每次更新都会删掉一批做不了的题（选项图丢失、材料缺失…），
+ * 但作答记录只认 questionId —— 那些题删掉后，错题本里就成了永远点不开的僵尸，
+ * 复习时挨个 404，以前只能靠「清空数据」解决。这里做两件事：
+ *   1) 让带库的实现批量核对并删掉僵尸记录；
+ *   2) 把复习队列（sg_review_v1）里指向这些题的条目也摘掉。
+ */
+async function pruneStaleRecords(silent) {
+  let removed = 0;
+  try {
+    const r = await api('/api/records/prune-stale', { method: 'POST', body: {} });
+    removed = (r && Number(r.removed)) || 0;
+  } catch { /* 老包没有这个接口，就当没清 */ }
+  if (removed) {
+    // 复习队列跟着清：否则明天还会把它们排进到期列表，再撞一遍
+    try {
+      const m = loadReviewState();
+      const alive = new Set();
+      const ids = Object.keys(m);
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        for (const id of chunk) {
+          try { const q = await api('/api/question?id=' + encodeURIComponent(id)); if (q && q.id != null) alive.add(id); } catch { /* dead */ }
+        }
+      }
+      let touched = false;
+      for (const id of ids) if (!alive.has(id)) { delete m[id]; touched = true; }
+      if (touched) saveReviewState(m);
+    } catch { /* ignore */ }
+  }
+  if (!silent && removed) toast(`已清理 ${removed} 道题库里已经没有的题`);
+  return removed;
+}
 async function reviewTrain() {
   try {
     // 模块筛选（回顾页 chips）选了什么，就只复习那个模块的错题
@@ -4343,15 +4387,34 @@ async function reviewTrain() {
     }
     if (!ids.length) { toast(chap ? `「${chap}」暂时没有需要复习的题` : '暂无需要复习的题'); return; }
     const qs = [];
+    const missing = [];
     for (const id of ids) {
-      try { const q = await api('/api/question?id=' + encodeURIComponent(id)); if (q && q.id != null) qs.push(q); } catch { /* skip */ }
+      try { const q = await api('/api/question?id=' + encodeURIComponent(id)); if (q && q.id != null) qs.push(q); else missing.push(id); }
+      catch { missing.push(id); }
     }
-    if (!qs.length) { toast('题目加载失败'); return; }
+    if (!qs.length) {
+      // 全部取不到：多半是这些题在题库更新时被删了，清掉僵尸记录并说清楚，
+      // 而不是丢一句「题目加载失败」让用户自己去清数据。
+      const removed = await pruneStaleRecords(true);
+      const m = loadReviewState();
+      for (const id of missing) delete m[id];
+      saveReviewState(m);
+      const n = Math.max(removed, missing.length);
+      toast(n ? `${n} 道题在题库更新时被清掉了，已从错题本移除` : '这些题暂时打不开，已跳过');
+      if (S.meView === 'review') { try { await loadReview('wrong'); } catch { /* ignore */ } }
+      return;
+    }
+    if (missing.length) {
+      const m = loadReviewState();
+      for (const id of missing) delete m[id];
+      saveReviewState(m);
+      toast(`跳过 ${missing.length} 道题库里已经没有的题`);
+    }
     startPractice(qs, chap ? `复习 · ${chap}` : (due.length ? '今日复习' : '错题训练'), qs[0].subject || '', 'review');
   } catch (e) { toast(e.message); }
 }
 async function startNewDaily() {
-  const n = Math.min(dailyRemaining(), 15);
+  const n = Math.min(dailyRemaining(), 30);   // 首页写「还剩 N 道」，这里就抽 N 道（单次上限 30）
   if (n <= 0) { toast('今日任务已完成'); return; }
   const list = await buildNewQuestions(n);
   if (!list.length) { toast('暂无题目'); return; }
@@ -4713,6 +4776,7 @@ async function startDailyTask() {
   try {
   const qs = [];
   const seen = new Set();
+  const missingDue = [];
   // 先安排到期复习：错过的题不补，明天只会滚得更大
   const rq = Math.min(reviewQuota(), remain);
   if (rq > 0) {
@@ -4726,12 +4790,20 @@ async function startDailyTask() {
         try {
           const q = await api('/api/question?id=' + encodeURIComponent(ids[i]));
           if (q && q.id != null && !seen.has(q.id)) { seen.add(q.id); qs.push(q); }
-        } catch { /* 单题取不到就跳过 */ }
+          else missingDue.push(ids[i]);
+        } catch { missingDue.push(ids[i]); /* 题库里已经没有这道题了 */ }
       }
     });
     await Promise.all(workers);
   }
-  const newN = Math.min(remain - qs.length, 15);
+  // 题库更新删掉的题会一直留在到期队列里，每轮都撞一次 404 → 顺手清掉
+  if (missingDue.length) {
+    const m = loadReviewState();
+    for (const id of missingDue) delete m[id];
+    saveReviewState(m);
+    pruneStaleRecords(true).catch(() => {});
+  }
+  const newN = Math.min(remain - qs.length, 30);   // 首页说「还差 N 道」就给 N 道（单次上限 30，别一口气 50）
   if (newN > 0) {
     const fresh = await buildNewQuestions(newN);
     for (const q of fresh) {
@@ -5852,6 +5924,9 @@ function bindAndroidBack() {
   // 内置技能：只要开关是开的、且这台机器还没灌过，就静默装一次。
   // 放在 6 秒后，别和首屏抢 IO；装的是文本（两套合计约 330 KB），失败不打扰用户。
   setTimeout(() => { ensureBuiltinSkills().catch(() => {}); }, 6000);
+  // 僵尸记录清扫：题库更新删掉的题，作答记录还指着它 —— 启动后静默清一次，
+  // 免得用户复习时一道道 404、以为坏了只能清数据。
+  setTimeout(() => { pruneStaleRecords(true).catch(() => {}); }, 8000);
 
   // 覆盖安装后内置题库可能落后，静默看一眼有没有增量（几 MB），不打断用户
   setTimeout(silentTikuCheck, 6000);

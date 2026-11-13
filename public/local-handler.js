@@ -252,6 +252,8 @@ export function createLocalHandler({ query, records, store, ai }) {
     // 一键整理：历史未分类题按真实来源自动归类（幂等，可重复执行）
     if (route === 'POST /organize') return records.organize((body || {}).target);
     if (route === 'GET /records/wrong') return records.wrong({ limit: Number(qs.get('limit') || 50), offset: Number(qs.get('offset') || 0), group: qs.has('group') ? (qs.get('group') || '') : undefined, sub: qs.get('sub') || undefined, chapter: qs.get('chapter') || undefined, keepFixed: qs.get('keepFixed') === '1' });
+    // 清理僵尸记录：题库更新删掉的题，作答记录还指着它（错题本里点开就 404）
+    if (route === 'POST /records/prune-stale') return records.pruneStale();
     // 每题考点名（报告按考点下钻）+ 每题参照统计（本地口径）。
     // 注意不能叫 /keypoints —— 上面 128 行已经占了那个路由（考点树列表），会被先命中返回空数组。
     if (route === 'GET /kp') return records.keypoints({ ids: (qs.get('ids') || '').split(',').filter(Boolean) });

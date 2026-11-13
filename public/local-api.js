@@ -540,6 +540,29 @@ export function createRecordsApi(store, tiku, onChanged) {
       }
       return { list, total, offset, limit, hasMore: offset + list.length < total };
     },
+    /**
+     * 清理「指向已不存在题目」的作答记录。
+     * 题库每次更新都会删掉一批做不了的题（选项图丢失、材料缺失等），
+     * 但作答记录只认 questionId —— 那些题被删后，错题本里就成了永远点不开的僵尸，
+     * 每次复习都要撞一次 404、还得手动清数据。这里按 400 一批核对存在性，删掉僵尸行。
+     */
+    async pruneStale() {
+      const all = await store.getAll('records');
+      const ids = [...new Set(all.map((r) => r.question_id).filter((x) => x != null))];
+      if (!ids.length) return { checked: 0, removed: 0 };
+      const alive = new Set();
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = ids.slice(i, i + 400);
+        const rows = tiku.all(
+          'SELECT questionId FROM questions WHERE questionId IN (' + batch.map(() => '?').join(',') + ')',
+          ...batch
+        );
+        for (const r of rows) alive.add(String(r.questionId));
+      }
+      const dead = all.filter((r) => !String(r.question_id).startsWith('custom-') && !alive.has(String(r.question_id)));
+      for (const r of dead) await store.deleteBy('records', 'id', r.id);
+      return { checked: ids.length, removed: dead.length };
+    },
     /** 最近记录（与 /api/records/recent 同构） */
     async recent({ limit = 20 } = {}) {
       const rows = (await store.getAll('records')).sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
