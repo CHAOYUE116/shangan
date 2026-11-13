@@ -122,7 +122,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.8.9';
+const APP_VERSION = '0.9.26';
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -541,6 +541,72 @@ function weakPoints() {
   return b.filter((x) => x.c >= 5).map((x) => ({ name: x.chapter, pct: Math.round((x.ok / x.c) * 100), total: x.c }))
     .sort((a, b2) => a.pct - b2.pct).slice(0, 3);
 }
+/**
+ * 「最弱的一块」唯一口径：首页 / 学习统计 / 学习报告 都调这一个。
+ * 之前三处各算一套（首页按考点、统计按模块顺序取了最后一个、报告按 c>=3），
+ * 同一个用户能同时看到「判断推理 10% / 资料分析 0% / 数量关系」三个答案。
+ * 这里统一：按模块正确率升序，样本 ≥ minN 才参评（默认 5 题，太少没意义）。
+ */
+function weakestModule(minN = 5) {
+  const b = ((S.stats && S.stats.byChapter) || []).filter((x) => (x.c || 0) >= minN);
+  if (!b.length) return null;
+  const w = b.slice().sort((a, b2) => (a.ok / a.c) - (b2.ok / b2.c))[0];
+  return { name: w.chapter, pct: Math.round((w.ok / w.c) * 100), total: w.c };
+}
+
+/**
+ * 能力画像只有一个账本：首次测评（每模块 6 题的先验）+ 之后所有做题记录。
+ * 模块正确率 = (W * prior + ok) / (W + c)，W = 6（首测六模块各 6 题）。
+ * 该模块再刷 6 题，先验与记录各半；刷到 30 题，先验只占 1/6，记录说话。
+ */
+const ABILITY_W = 6;
+function abilityOrder() {
+  const by = (S.stats && S.stats.byChapter) || [];
+  const has = new Set(by.map((x) => x.chapter));
+  const gj = ['法律常识', '综合常识', '经济常识', '科技常识', '人文常识', '地理国情', '公文写作'].filter((n) => has.has(n));
+  return gj.length ? ['政治理论', ...gj] : ['政治理论', '常识判断', '言语理解与表达', '数量关系', '判断推理', '资料分析'];
+}
+function blendModules() {
+  const by = (S.stats && S.stats.byChapter) || [];
+  const d = S.diag || loadDiag();
+  const prior = new Map();
+  if (d && Array.isArray(d.modules)) for (const m of d.modules) prior.set(m.name, Number(m.rate) || 0);
+  const hasDiag = prior.size > 0;
+  return abilityOrder().map((name) => {
+    const row = by.find((x) => x.chapter === name) || { c: 0, ok: 0 };
+    const c = Number(row.c) || 0;
+    const ok = Number(row.ok) || 0;
+    const p = hasDiag ? prior.get(name) : null;
+    const w = hasDiag && p != null ? ABILITY_W : 0;
+    const nEff = c + w;
+    const rate = nEff ? (w * p + ok) / nEff : 0;
+    return {
+      chapter: name,
+      c, ok,
+      prior: p, priorW: w,
+      nEff,
+      rate,
+      done: nEff > 0,
+      thin: c < 5,
+      target: (typeof MOD_TARGET !== 'undefined' && MOD_TARGET[name]) || 70,
+    };
+  });
+}
+/** 样本够不够看画像：做过首测 → 够；否则至少 20 题且覆盖 ≥3 个模块 */
+function abilityReady() {
+  const d = S.diag || loadDiag();
+  if (d && Array.isArray(d.modules) && d.modules.length) return { ready: true, why: 'diag' };
+  const mods = blendModules().filter((m) => m.c > 0);
+  const total = mods.reduce((s2, m) => s2 + m.c, 0);
+  if (total >= 20 && mods.length >= 3) return { ready: true, why: 'records' };
+  return { ready: false, total, mods: mods.length };
+}
+/** 画像估分：模块正确率均值（有先验的按融合后算） */
+function abilityScore() {
+  const mods = blendModules().filter((m) => m.done);
+  if (!mods.length) return 0;
+  return Math.round((mods.reduce((s2, m) => s2 + m.rate, 0) / mods.length) * 100);
+}
 
 /* ---------- 数据加载 ---------- */
 async function refreshStats() {
@@ -873,10 +939,15 @@ function renderHome() {
   const shown = Math.min(today, goal);
   const pct = Math.min(100, Math.round((today / goal) * 100));
   const weak = weakPoints();
-  const topWeak = (weak[0] && weak[0].name) || '按模块轮换';
-  // 考点级重点：记录够 8 题就用记录，否则用测评结果（见 weakKpList）
+  const weakMod = weakestModule(5);
+  const topWeak = (weakMod && weakMod.name) || (weak[0] && weak[0].name) || '按模块轮换';
+  // 今日重点：考点级（记录够 8 题用记录，否则用测评结果）。和上面「最弱的一块」重名的跳过，
+  // 否则首页会连着两行都在说「判断推理」
   const kpFocus = (() => {
-    try { return weakKpList(dailySubject()).slice().sort((x, y) => x.rate - y.rate).slice(0, 2); } catch { return []; }
+    try {
+      return weakKpList(dailySubject()).slice().sort((x, y) => x.rate - y.rate)
+        .filter((k) => k.name !== topWeak).slice(0, 2);
+    } catch { return []; }
   })();
   const focusLine = kpFocus.length
     ? `今日重点：<b>${kpFocus.map((k) => esc(k.name)).join('、')}</b>${kpFocus[0].src === 'diag' ? '（测评给的）' : `（正确率 ${Math.round(kpFocus[0].rate * 100)}%）`}`
@@ -901,7 +972,7 @@ function renderHome() {
       + (st > 1 ? ` · 已连续 <b>${st}</b> 天` : '')
       + ` · 弱项是<b>${esc(topWeak)}</b>`;
     cta = remain > 0 ? '开始今日任务' : '开始复习';
-    act = 'daily-task';
+    act = remain > 0 ? 'daily-task' : 'review-train';
   } else if (remain > 0) {
     title = `今天还剩 <em>${remain}</em> 道`;
     const rq = reviewQuota();
@@ -927,15 +998,14 @@ function renderHome() {
     <h1 class="hero-h1">${title}</h1>
     <div class="hero-sub">${sub}</div>
     <div class="hero-bar"><i style="width:${pct}%"></i></div>
-    <div class="hero-barfoot"><span>${over ? `今日 ${today} 题 · 目标已完成` : `今日任务 ${shown} / ${goal}`}</span><span>${over ? '✓' : `还差 ${goal - today} 题`}</span></div>
+    <div class="hero-barfoot">${remain > 0
+      ? `<span>今日任务 ${shown} / ${goal}</span><span>还差 ${goal - today} 题</span>`
+      : due > 0
+        ? `<span>到期 ${due} 道 · 约 ${Math.max(5, Math.round(due * 1.2))} 分钟</span><span>${reviewCountOn(1) > 0 ? `明天还有 ${reviewCountOn(1)} 道` : '今天的目标已完成'}</span>`
+        : `<span>今日 ${today} 题 · 目标已完成</span><span>✓</span>`}</div>
     <button class="btn btn-primary btn-block hero-btn" data-act="${act}">${cta}</button>
   </section>
-  ${remain <= 0 && due > 0 ? (() => {
-    // 今日任务已完成时才单独露这张卡；任务没做完时 hero 里已经包含复习，两张卡并列会让人犯选择困难
-    const tmr = reviewCountOn(1);
-    return `<button class="home-alt due-card" data-act="review-train"><span>再复习 <b>${due} 道</b>到期题${tmr > 0 ? `<i class="due-sub">明天还有 ${tmr} 道</i>` : ''}</span><span class="home-alt-r">开始复习 ›</span></button>`;
-  })() : ''}
-  ${weak.length && weak[0].pct > 0 ? `<button class="home-alt" data-act="weak" data-name="${esc(weak[0].name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weak[0].name)} ${weak[0].pct}%</b></span><span class="home-alt-r">专项练 ›</span></button>` : ''}
+  ${weakMod ? `<button class="home-alt" data-act="weak" data-name="${esc(weakMod.name)}" style="margin-top:12px"><span>最弱的一块：<b>${esc(weakMod.name)} ${weakMod.pct}%</b><i class="due-sub">${weakMod.total} 题</i></span><span class="home-alt-r">专项练 ›</span></button>` : ''}
   ${focusLine ? `<div class="home-yday"><span>${focusLine}</span><span data-act="diag-view" class="link-sm">看画像 ›</span></div>` : ''}
   ${yd ? `<div class="home-yday"><span>昨天</span><span>${yd.n < 5 ? `${yd.n} 题 · 刚起步` : `${yd.n} 题 · 正确率 ${yd.rate}%`}</span></div>` : ''}
   <div class="quick-row three">
@@ -952,7 +1022,7 @@ function renderHome() {
       <span class="quick-main"><b>模考</b><i>整卷 / 随机</i></span>
     </button>
   </div>
-  ${resume && (resume.ids || []).length >= 3 ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">继续上次：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
+  ${resume && (resume.ids || []).length >= 3 ? `<button class="continue-card" data-act="resume-session" style="width:100%;text-align:left;border:0;cursor:pointer"><div class="subject-ico">${iconFor('')}</div><div class="continue-main"><div class="continue-title">上次没做完：${esc(resume.title)}</div><div class="continue-sub">${esc(resume.subject || '')} · 第 ${Math.min(resume.idx + 1, resume.ids.length)} / ${resume.ids.length} 题 · 点击继续</div></div><span style="color:var(--text-3)">›</span></button>` : ''}
   ${(() => {
     const w = weekSummary();
     const got = new Map(((S.stats && S.stats.last7) || [])
@@ -1114,14 +1184,16 @@ async function openLibrary(subject) {
   S.tab = 'library';
   $('#view').innerHTML = '<div class="spinner"></div>';
   try {
-    const [chapters, categories, chapDone] = await Promise.all([
+    const [chapters, categories, chapDone, kpDone] = await Promise.all([
       api('/api/chapters?subject=' + encodeURIComponent(next)),
       api('/api/categories?subject=' + encodeURIComponent(next)),
       api('/api/records/chapters').catch(() => ({})),
+      api('/api/records/kp-done?subject=' + encodeURIComponent(next)).catch(() => ({ kp: {}, sub: {} })),
     ]);
     S.lib.chapters = chapters || [];
     S.lib.categories = categories || [];
     S.lib.chapDone = chapDone || {};
+    S.lib.kpDone = kpDone || { kp: {}, sub: {} };
     go('library');
   } catch (e) {
     // 出错时必须把 spinner 换掉，否则整页永远停在那儿，看起来就是「题库打不开」
@@ -1165,7 +1237,7 @@ function renderLibrary() {
   <div class="topline"><span class="eyebrow">题库</span><div style="display:flex;align-items:center;gap:6px"><button class="icon-btn" data-act="search" aria-label="搜索题目">${iconSvg('search', 20)}</button><button class="profile-chip" data-act="profile">${esc(S.profile.examType)} · ${esc(S.profile.province)} ›</button></div></div>
   <h1 class="page-title">刷题</h1>
   <div class="lib-head">
-    <div class="lib-head-sub">${esc(subject)} · 共 ${total} 题</div>
+    <div class="lib-head-sub">${esc(subject)} · 共 ${total} 题${S.settings.recite ? '<span class="lib-head-note">背题只收有答案的客观题</span>' : ''}</div>
     <div class="segmented seg-sm"><button class="${S.settings.recite ? '' : 'active'}" data-lib-mode="do">做题</button><button class="${S.settings.recite ? 'active' : ''}" data-lib-mode="recite">背题</button></div>
   </div>
   <div class="chips nowrap" style="margin-bottom:10px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${notInScheme(s.subjectName) ? 'dim' : ''}" data-lib-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
@@ -1181,12 +1253,7 @@ function renderLibrary() {
         // 二级的「已做」直接用接口算好的 x.done（按 category|sub 索引统计），
         // 之前用 doneOf(name) 是按 chapter 名匹配，二级名和 chapter 对不上，永远显示 0
         const sd = x.done != null ? x.done : doneOf(x.name);
-        // 三级：考点叶子（提出对策类 / 原因类 / 理论分析题…），粉笔也是这么一层层点下去的
-        const lv = (x.leaves || []).filter((l) => l.total > 0);
-        const skey = `${g.group}|${x.name}`;
-        const sopen = !!openSubs[skey];
-        const scare = lv.length > 1 ? `<button class="module-caret ${sopen ? 'open' : ''}" data-toggle-sub="${esc(skey)}" aria-label="${sopen ? '收起' : '展开'}">${sopen ? '▾' : '▸'}</button>` : '<span class="module-caret ghost"></span>';
-        return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}">${scare}<div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>${sopen ? lv.map((l) => `<div class="module-row leaf" data-act="leaf" data-kp="${esc(l.name)}"><div class="module-name">${esc(l.name)}</div><div class="module-count">${l.total}</div></div>`).join('') : ''}`;
+        return `<div class="module-row sub" data-act="group" data-group="${esc(g.group)}" data-sub="${esc(x.name)}"><span class="module-caret ghost"></span><div class="module-name">${esc(x.name)}</div><div class="module-count ${sd ? 'has' : ''}">${sd}/${x.total}</div></div>`;
       }).join('') : ''}`;
     }).join('') || '<div class="empty-state">暂无专项数据</div>'}
   </div>
@@ -1204,7 +1271,46 @@ function renderLibrary() {
     <div class="subject-ico">${iconFor('')}</div>
     <div class="continue-main"><div class="continue-title">按考点练</div><div class="continue-sub">按真题考点专项突破 · 专攻一个，练完再换</div></div>
     <span class="chev">›</span>
+  </button>
+  <button class="paper-entry" data-act="custom-drill">
+    <div class="subject-ico">${iconFor('')}</div>
+    <div class="continue-main"><div class="continue-title">自定义刷题</div><div class="continue-sub">科目、题量、难度、年份都自己定 · 想练多少练多少</div></div>
+    <span class="chev">›</span>
   </button>`;
+}
+/** 自定义刷题：科目 / 题量 / 难度 / 年份 四档，直接开练 */
+function cdState() {
+  const subject = (S.cd && S.cd.subject) || S.lib.subject || dailySubject();
+  return {
+    subject,
+    n: (S.cd && S.cd.n) || 20,
+    difficulty: (S.cd && S.cd.difficulty) || 'random',
+    year: S.cd && S.cd.year != null ? S.cd.year : 10,
+  };
+}
+function openCustomDrill(reopen) {
+  const st = cdState();
+  const subjects = ((S.subjects || []).map((x) => x && x.name).filter(Boolean));
+  const list = subjects.length ? subjects : ['事业编·职测', '事业编·综应', '事业编·公基', '公务员·行测', '公务员·申论'];
+  const chip = (k, v, cur, label) => `<button class="chip ${String(cur) === String(v) ? 'active' : ''}" data-act="cd-set" data-k="${k}" data-v="${v}">${label}</button>`;
+  sheet(`<div class="sheet-head"><b>自定义刷题</b><button class="sheet-close">✕</button></div>
+    <div class="filter-label">科目</div>
+    <div class="chips">${list.map((x) => chip('subject', esc(x), st.subject, esc(x))).join('')}</div>
+    <div class="filter-label">题量</div>
+    <div class="chips">${[10, 20, 30, 50].map((x) => chip('n', x, st.n, x + ' 题')).join('')}</div>
+    <div class="filter-label">难度</div>
+    <div class="chips">${chip('difficulty', 'random', st.difficulty, '随机')}${chip('difficulty', 'easy', st.difficulty, '易')}${chip('difficulty', 'balanced', st.difficulty, '中')}${chip('difficulty', 'hard', st.difficulty, '难')}</div>
+    <div class="filter-label">年份</div>
+    <div class="chips">${chip('year', 3, st.year, '近 3 年')}${chip('year', 5, st.year, '近 5 年')}${chip('year', 10, st.year, '近 10 年')}${chip('year', 0, st.year, '全部')}</div>
+    <div class="card-sub" style="margin:10px 0 12px">会抽 ${st.n} 道 ${esc(st.subject)}${st.difficulty === 'random' ? '' : ' · ' + { easy: '易档', balanced: '中档', hard: '难档' }[st.difficulty]}，年份${st.year ? '近 ' + st.year + ' 年' : '不限'}。</div>
+    <button class="btn btn-primary btn-block" data-act="cd-start">开始做题（${st.n} 题）</button>`);
+  if (reopen) return;
+}
+function startCustomDrill() {
+  const st = cdState();
+  closeSheet();
+  const url = `/api/practice?subject=${encodeURIComponent(st.subject)}&n=${st.n}&mock=0&year=${st.year}&difficulty=${st.difficulty}`;
+  startPracticeByUrl(url, `自定义 ${st.n} 题`, st.subject, 'custom');
 }
 function openKeypoints(subject) {
   if (subject) S.lib.subject = subject;
@@ -1229,15 +1335,48 @@ function renderKeypointsPage() {
   const subject = S.lib.subject || defaultSubject();
   const subs = visibleSubjects();
   const withKp = S.lib.kpSubjects || {};
+  // 考点按「一级模块」分组显示：以前模块和考点平铺在一起只按题量排，
+  // 用户分不清哪个是模块哪个是考点（报告里 P0-3）
+  const groupOf = new Map();
+  for (const g of (S.lib.chapters || [])) {
+    for (const s of (g.subs || [])) for (const l of (s.leaves || [])) if (!groupOf.has(l.name)) groupOf.set(l.name, g.group);
+  }
+  const kpDone = (S.lib.kpDone && S.lib.kpDone.kp) || {};
+  const buckets = new Map();
+  // 章节级伪考点（职测·判断推理 这种）不是真考点，不进列表
+  const MODNAME = /^(职测|行测|公基)·/;
+  for (const k of kps) {
+    if (MODNAME.test(String(k.name || ''))) continue;
+    const gname = k.group || groupOf.get(k.name) || '其他考点';
+    if (!buckets.has(gname)) buckets.set(gname, []);
+    buckets.get(gname).push(k);
+  }
+  const groups = [...buckets.entries()]
+    .map(([name, list]) => ({ name, list: list.slice().sort((a, b) => (b.questions || 0) - (a.questions || 0)), total: list.reduce((s, x) => s + (x.questions || 0), 0) }))
+    .sort((a, b) => b.total - a.total);
+  const open = S.lib.openKpGroups || (S.lib.openKpGroups = {});
   const max = Math.max(1, ...kps.map((k) => k.questions || 0));
   return `<div class="subpage-head"><button class="icon-btn" data-act="back-library">‹</button><div class="subpage-title">按考点练</div><span style="width:38px"></span></div>
   <div class="chips nowrap" style="margin:0 0 12px">${subs.map((s) => `<button class="chip ${s.subjectName === subject ? 'active' : ''} ${withKp[s.subjectName] === 0 ? 'dim' : ''}" data-kp-subject="${esc(s.subjectName)}">${esc(s.subjectName)}</button>`).join('')}</div>
-  <div class="hint" style="margin:0 2px 12px">考点来自真题标注，练完一个考点再换下一个，比乱刷有用。</div>
-  ${loading ? '<div class="spinner"></div>' : kps.length ? `<div class="card" style="padding:6px 14px">${kps.slice(0, 120).map((k) => `
-    <div class="kp-row" data-kp="${esc(k.name)}">
-      <div class="kp-main"><div class="kp-name">${esc(k.name)}</div><div class="kp-bar"><i style="width:${Math.round(((k.questions || 0) / max) * 100)}%"></i></div></div>
-      <div class="kp-num">${k.questions || 0} 题${kpBadge(k.name)}</div>
-    </div>`).join('')}</div>` : `<div class="empty-state">${esc(subject)} 还没有考点数据<br><span class="card-sub" style="display:inline-block;margin-top:6px">可以在上面换个科目，或先用「按试卷练习」</span></div>`}
+  <div class="hint" style="margin:0 2px 12px">考点来自真题标注，按模块分组；练完一个考点再换下一个，比乱刷有用。</div>
+  ${loading ? '<div class="spinner"></div>' : kps.length ? `<div class="card" style="padding:6px 14px">${groups.map((g) => {
+    const isOpen = open[g.name] !== false;
+    return `<div class="kp-group">
+      <div class="kp-group-head" data-toggle-kp="${esc(g.name)}">
+        <span class="kp-group-tri ${isOpen ? 'open' : ''}"></span>
+        <span class="kp-group-name">${esc(g.name)}</span>
+        <span class="kp-group-num">${g.list.length} 个考点 · ${g.total} 题</span>
+      </div>
+      ${isOpen ? g.list.slice(0, 80).map((k) => {
+        const dn = kpDone[k.name] || 0;
+        const pct = k.questions ? Math.min(100, Math.round((dn / k.questions) * 100)) : 0;
+        return `<div class="kp-row" data-kp="${esc(k.name)}">
+          <div class="kp-main"><div class="kp-name">${esc(k.name)}</div><div class="kp-bar"><i style="width:${pct}%"></i></div></div>
+          <div class="kp-num">${dn ? `${dn}/` : ''}${k.questions || 0} 题${kpBadge(k.name)}</div>
+        </div>`;
+      }).join('') : ''}
+    </div>`;
+  }).join('')}</div>` : `<div class="empty-state">${esc(subject)} 还没有考点数据<br><span class="card-sub" style="display:inline-block;margin-top:6px">可以在上面换个科目，或先用「按试卷练习」</span></div>`}
   `;
 }
 function openSearch() {
@@ -1388,7 +1527,7 @@ function renderPapers(opts = {}) {
     ? `<div class="subpage-head"><button class="icon-btn" data-act="back-exam">‹</button><div class="subpage-title">真题整卷</div><span style="width:38px"></span></div>`
     : `<div class="subpage-head"><button class="icon-btn" data-act="back-subject">‹</button><div class="subpage-title">筛选试卷</div><span style="width:38px"></span></div>`}
   <div class="filter-group"><div class="filter-label">科目</div><div class="chips nowrap">${visibleSubjects().map((x) => `<button class="chip ${S.lib.subject === x.subjectName ? 'active' : ''}" data-pf-subject="${esc(x.subjectName)}">${esc(x.subjectName)}</button>`).join('')}</div></div>
-  <div class="card-sub" style="margin:-4px 0 10px">${esc(S.lib.subject)} · 共 ${list.length} 套</div>
+  <div class="card-sub" style="margin:-4px 0 10px">${esc(S.lib.subject)} · 共 ${list.length} 套<span class="lib-head-note">只算成套真题卷；散题和扫描导入的题不在这个列表里</span></div>
   <div class="filter-group"><div class="filter-label">地区</div><div class="chips nowrap">${regions.map((c) => chip('region', c)).join('')}</div></div>
   <div class="filter-group"><div class="filter-label">年份</div><div class="chips nowrap">${years.map((y) => chip('year', y)).join('')}</div></div>
   <div class="filter-group"><div class="filter-label">卷型</div><div class="chips nowrap">${kinds.map((t) => chip('kind', t)).join('')}</div></div>
@@ -1507,10 +1646,10 @@ function renderReview() {
     seenQ.add(id);
     return true;
   }).filter((it) => {
-    // 错题按当前考试组合过滤：换档案后别的科目的错题不再混进来（收藏/笔记是用户主动存的，保留）
-    if (tab !== 'wrong') return true;
-    const s = it && it.subject;
-    return !s || !notInScheme(s);
+    // 错题曾按「当前考试组合」过滤，结果用户做了公基的错题被藏起来，
+    // 页面写「错题本 0 道」却又提示「另有 34 道属于组合以外的科目」——等于让他去数数。
+    // 现在全部显示，只是把组合外的题在行里标灰（见 wrong-other）。
+    return true;
   });
   // 模块筛选：错题本里同一个模块（chapter）的题常常占一半以上，
   // 不给筛选就只能从头翻。只列出现 ≥2 次的模块，最多 6 个，避免 chips 铺满一屏。
@@ -1532,7 +1671,7 @@ function renderReview() {
   // 不解释清楚就会出现「我的说 62 道、错题本说 25 道」的割裂感，这里直接说明差额去哪了。
   const allWrong = Number(S.stats && S.stats.wrong) || 0;
   const otherWrong = !S.review.chapter && allWrong > shown.length ? allWrong - shown.length : 0;
-  const otherHint = otherWrong > 0 ? `<i class="wrong-other">另有 ${otherWrong} 道属于当前考试组合以外的科目</i>` : '';
+  const otherHint = otherWrong > 0 ? `<i class="wrong-other">其中 ${otherWrong} 道不在当前考试组合里，也一起列出来了</i>` : '';
   return `${head}
   ${chapChips}
   ${tab === 'wrong' ? `<section class="training-card"><div class="training-title">${dueN ? '今日复习' : '错题训练'}</div><div class="training-sub">${dueN ? `到期 <b>${dueN}</b> 道 · ${S.review.chapter ? `「${esc(S.review.chapter)}」共 ` : '错题本共 '}${shown.length} 道 · ${dueLine(shown)}` : `${S.review.chapter ? `「${esc(S.review.chapter)}」` : '错题本'} <b>${shown.length}</b> 道 · ${dueLine(shown)}`}${otherHint}</div><button class="btn btn-primary btn-block" data-act="wrong-train">${dueN ? `开始今日复习（${Math.min(dueN, 15)} 道）` : '开始训练'}</button><div class="training-foot"><span>做对的题自动移出错题本</span><button class="switch ${S.settings.dropFixed !== false ? 'on' : ''}" data-drop-fixed aria-label="做对的题自动移出错题本"><i></i></button></div></section>` : ''}
@@ -1564,6 +1703,7 @@ function examPresets() {
   return [...base, mk('04', '行测全真', 130)];
 }
 function renderExam() {
+  if (S.examView === 'ability') return renderAbilityPage();
   if (S.examResult) return renderExamResult();
   if (S.planView) return renderPlan();
   if (S.diagResult) return renderDiagResult();
@@ -1582,11 +1722,11 @@ function renderExam() {
   ${(() => {
     const d = S.diag || loadDiag();
     const age = diagAgeDays();
+    const ready = abilityReady();
     if (!d || !d.modules || !d.modules.length) {
-      return `<section class="training-card diag-card" data-act="diag-start"><div class="training-kicker">先摸摸底</div><div class="training-title">基础测评 · 约 25 分钟</div><div class="training-sub">六个模块各抽几道题，测出哪块最弱。做完之后，每日任务就按这个顺序给你推题。</div><button class="btn btn-ghost btn-block" data-act="diag-start">开始测评</button></section>`;
+      return `<button class="diag-mini" data-act="diag-view"><span class="diag-mini-txt"><span class="diag-mini-top"><b>基础测评</b> · 还没做</span><span class="diag-mini-sub">做完才出六维画像${ready.ready ? '；现在样本够了，也能先看个粗判' : ''}</span></span><span class="chev">›</span></button>`;
     }
-    // 测过之后就没什么存在感了：收成一行，别一直占着大块版面
-    const w = d.modules[0];
+    const w = ([...(d.modules || [])].sort((x, y) => x.rate - y.rate))[0];
     const stale = age != null && age >= 30;
     return `<button class="diag-mini" data-act="diag-view"><span class="diag-mini-txt"><span class="diag-mini-top"><b>基础测评</b> · ${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前'}</span><span class="diag-mini-sub">最该补 ${esc(w.name)} ${Math.round(w.rate * 100)}%${stale ? ' · 已过一个月，建议重测' : ''}</span></span><span class="chev">›</span></button>`;
   })()}
@@ -2551,6 +2691,17 @@ function openInApp(url, title) {
 // 让它跟直连一起赛跑，它反而最快，拿到的却是半天前的清单（会误判"已是最新"）。
 // 每个地址都带时间戳，避免任何一层拿到旧 manifest。
 const MANIFEST_PATH = 'release/manifest.json';
+// 版本号逐段比大小：0.5.37-20261113-1720 这种带日期的也能比
+// （以前只判断「不同」，本地比清单新时会显示成 0.5.37 → 0.5.30 的「有更新」）
+function verNewer(a, b) {
+  const norm = (v) => String(v || '').split(/[^0-9]+/).filter(Boolean).map(Number);
+  const x = norm(a); const y = norm(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const p = x[i] || 0; const q = y[i] || 0;
+    if (p !== q) return p > q;
+  }
+  return false;
+}
 function manifestUrls(fresh) {
   const ts = fresh || Date.now();
   const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/${MANIFEST_PATH}?t=${ts}`;
@@ -2575,7 +2726,9 @@ function updProgress(opts) {
   const o = opts || {};
   const p = Math.max(0, Math.min(100, Number(o.pct) || 0));
   const mb = (n) => (Number(n) > 0 ? (Number(n) / 1048576).toFixed(1) + ' MB' : '');
-  const size = Number(o.total) > 0 ? `${mb(o.got) || '0.0 MB'} / ${mb(o.total)}` : (mb(o.total) || '');
+  const size = Number(o.total) > 0
+    ? `${mb(o.got) || '0.0 MB'} / ${mb(o.total)}`
+    : (mb(o.got) ? `已下载 ${mb(o.got)}（服务器没给总大小）` : (mb(o.total) || ''));
   const bar = p > 0
     ? `<div class="upd-prog-bar"><i style="width:${Math.max(3, p)}%"></i></div>`
     : '<div class="upd-prog-bar indet"><i></i></div>';
@@ -2671,7 +2824,9 @@ function checkUpdate(mode) {
         <div class="card-sub" style="margin:0 0 12px">${sub}</div>
         ${(dling || appStalled) ? updProgress({
           pct: appPct, got: dl, total: tt, label: appPct > 0 ? '正在下载' : '',
-          tip: appStalled ? '网络慢，正在换源重试…（可以留在这一页，也可以退出去让它后台下）' : '',
+          tip: appStalled
+            ? '网络慢，正在换源重试…（可以留在这一页，也可以退出去让它后台下）'
+            : (s.notifOk === false ? '状态栏看不到进度条：系统的「通知」权限没给。去 设置 → 应用 → 上岸 → 通知 打开即可' : ''),
         }) : ''}
         ${done ? '<div class="card-sub" style="margin:0 0 10px;color:var(--green,#1a7f37)">下载完成。点下面按钮安装（安装时 App 会关闭）</div>' : ''}
         ${s.newAppState === 'needPermission' ? '<div class="card-sub" style="margin:0 0 10px;color:var(--orange,#b26a00)">要先允许「安装未知应用」。已帮你打开系统设置，打开开关后回来点安装。</div>' : ''}
@@ -2679,12 +2834,17 @@ function checkUpdate(mode) {
         ${(done || s.newAppState === 'needPermission') && s.newAppAvailable
           ? `<button class="btn btn-primary btn-block" id="upd-install">立即安装</button>
              <button class="btn btn-ghost btn-block" style="margin-top:10px" id="upd-app">重新下载</button>`
-          : (s.newAppAvailable ? `<button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? `下载中 ${appPct}%` : (appErr ? '重试下载' : '下载并安装')}</button>` : '')}
+          : (s.newAppAvailable ? `<button class="btn btn-primary btn-block" id="upd-app"${dling ? ' disabled' : ''}>${dling ? (appPct > 0 ? `下载中 ${appPct}%` : '下载中…') : (appErr ? '重试下载' : '下载并安装')}</button>` : '')}
         ${(stuck || s.state === 'error') ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="upd-retry">重新检查</button>' : ''}`;
     } else {
-      const ver = `${esc(s.localVersion || '无记录')}${s.remoteVersion && s.remoteVersion !== s.localVersion ? ' → ' + esc(s.remoteVersion) : ''}`;
+      const tikuNewer = verNewer(s.remoteVersion, s.localVersion);
+      const ver = tikuNewer
+        ? `${esc(s.localVersion || '无记录')} → ${esc(s.remoteVersion)}`
+        : `${esc(s.localVersion || s.remoteVersion || '无记录')}（已是最新）`;
       // 用缓存时原生已经把说明拼进 message 了，这里去掉，避免和下面的诊断行重复
       let line = esc(String(s.message || '处理中…').replace(/（网络不稳，用的是本机 \d+ 分钟前的清单）$/, ''));
+      // 原生那句是按「只要不同就算更新」写的，本地比清单新时会自相矛盾，这里统一改口径
+      if (!tikuNewer && s.state !== 'downloading' && s.state !== 'done' && s.state !== 'error') line = '题库已是最新，不需要更新';
       // 下载中原生那条 message 自己带着百分比和大小，和下面进度条重复，换成一句人话
       if (s.state === 'downloading') line = '题库有更新，正在下载增量包';
       if (stuck) line = '检查超时 —— 换个网络或点下面重试';
@@ -2724,7 +2884,14 @@ function checkUpdate(mode) {
     const ab = $('#upd-app');
     if (ab) ab.onclick = () => {
       if (s.newAppState === 'downloading') return;
-      try { AppUpdate.downloadApp(); toast('正在下载新版 App…'); } catch (e) { toast('下载失败：' + e.message); }
+      try {
+        AppUpdate.downloadApp();
+        toast('正在下载新版 App…');
+        // 原生把状态切成 downloading 有几百毫秒延迟，这期间轮询可能已经把定时器停掉，
+        // 结果弹层一直停在「下载并安装」按钮上（就是「点了没进度条」那种）。先乐观渲染一屏。
+        box.innerHTML = updProgress({ pct: 0, label: '正在准备下载…' })
+          + '<div class="card-sub" style="margin-top:8px">已经开始下载，进度一两秒后出来</div>';
+      } catch (e) { toast('下载失败：' + e.message); }
     };
     const ap = $('#upd-apply');
     if (ap) ap.onclick = () => {
@@ -2742,7 +2909,10 @@ function checkUpdate(mode) {
       clearInterval(checkUpdate._t);
       setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
     }
-    if (['error', 'uptodate'].includes(s.state)
+    // 注意：只查 App 时 s.state 是「题库」那条线的状态，一般是 uptodate/error，
+    // 以前这里不分模式就停表 —— 点完下载的那一瞬间 newAppState 还没变成 downloading，
+    // 定时器被误杀，弹层永远停在「下载并安装」，进度条再也不出现。
+    if (!onlyApp && ['error', 'uptodate'].includes(s.state)
         && !['downloading'].includes(s.newAppState)) clearInterval(checkUpdate._t);
     // 下载完成后轮询没意义了，App 更新这一支可以停（题库那支还要继续）
     if (onlyApp && ['done', 'needPermission', 'error'].includes(s.newAppState)) clearInterval(checkUpdate._t);
@@ -2805,7 +2975,10 @@ function radarSvg(mods) {
     const x = CX + Math.cos(a) * (R + 26);
     const y = CY + Math.sin(a) * (R + 20);
     const anchor = Math.abs(Math.cos(a)) < 0.3 ? 'middle' : Math.cos(a) > 0 ? 'start' : 'end';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="rp-lb" fill="#7A8194" font-size="11" font-weight="500" style="fill:#7A8194;font-size:11px;font-weight:500">${esc(modLabel(m.chapter))}</text>`;
+    const zero = !(Number(m.c) > 0);
+    const col = zero ? '#B9BFC9' : '#7A8194';
+    const label = zero ? `${modLabel(m.chapter)}·未做` : modLabel(m.chapter);
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="rp-lb${zero ? ' zero' : ''}" fill="${col}" font-size="11" font-weight="500" style="fill:${col};font-size:11px;font-weight:500">${esc(label)}</text>`;
   }).join('');
   return `<svg class="rp-radar" viewBox="0 0 260 240" role="img" aria-label="模块能力雷达">
     ${[1, 0.75, 0.5, 0.25].map((k) => `<polygon points="${ring(k)}" class="rp-grid${k === 1 ? ' outer' : ''}" />`).join('')}
@@ -2959,18 +3132,13 @@ function renderStatsPage() {  const st = S.stats || {};
   const days = S.statsDays || 0;
   const scopeName = days ? `近 ${days} 天` : '全部';
 
-  // 雷达取「做过的模块」里题量最多的 6 个，按考试常见顺序排
-  const picked = by.slice()
-    .filter((x) => x.c > 0)
-    .sort((a, b) => b.c - a.c)
-    .slice(0, 6)
-    .map((x) => ({ ...x, target: MOD_TARGET[x.chapter] || 70 }));
-  picked.sort((a, b) => {
-    const ia = MOD_ORDER.indexOf(a.chapter); const ib = MOD_ORDER.indexOf(b.chapter);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  });
-  const score = estimateScore(st.byChapter);
-  const showRadar = picked.length >= 3;
+  // 雷达固定轴 + 融合口径：首次测评先验（6 题/模块）+ 之后的做题记录，画像是同一个账本
+  const blend = blendModules();
+  const picked = blend.map((m) => ({ chapter: m.chapter, c: m.nEff, ok: Math.round(m.rate * m.nEff), target: m.target }));
+  const radarMods = picked;
+  const score = abilityScore();
+  const showRadar = picked.some((x) => x.c > 0);
+  const blendedWeak = blend.filter((m) => m.nEff >= 5).slice().sort((a2, b2) => a2.rate - b2.rate)[0] || null;
 
   return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习统计</div><span style="width:38px"></span></div>
   <div class="segmented seg-sm rp-scope">${[7, 30, 0].map((d) => `<button class="${days === d ? 'active' : ''}" data-act="stats-scope" data-days="${d}">${d ? `近 ${d} 天` : '全部'}</button>`).join('')}</div>
@@ -2982,7 +3150,7 @@ function renderStatsPage() {  const st = S.stats || {};
       ${ringSvg(score)}
       <div class="rp-top-txt">
         <div class="rp-top-t">按模块正确率折算的估分</div>
-        <div class="rp-top-s">${picked.length ? `最该补：${esc(picked[picked.length - 1].chapter)} ${modPct(picked[picked.length - 1])}%` : '做完几道题后出现'}</div>
+        <div class="rp-top-s">${blendedWeak ? `最该补：${esc(blendedWeak.chapter)} ${Math.round(blendedWeak.rate * 100)}%（${blendedWeak.c} 题）` : '做完几道题后出现'}</div>
         <div class="rp-top-s">样本 ${st.total || 0} 题 · ${scopeName}</div>
       </div>
     </div>
@@ -2993,10 +3161,10 @@ function renderStatsPage() {  const st = S.stats || {};
   ${aiReviewBlock()}
 
   <div class="section-head"><h2 class="section-title">模块正确率</h2></div>
-  <div class="card">${by.length ? by.slice().sort((a, b) => (b.c || 0) - (a.c || 0)).map((x) => {
-    const p = pct(x); const tg = MOD_TARGET[x.chapter] || 70;
-    return `<div class="rp-mod"><div class="subject-main"><div class="subject-title">${esc(x.chapter)}${x.c < 5 ? ' <span class="tag">样本少</span>' : ''}</div>
-      <div class="subject-sub">做 ${x.c} · 对 ${x.ok} · 目标 ${tg}%</div>
+  <div class="card">${blend.some((m) => m.done) ? blend.filter((m) => m.done).sort((a, b) => b.c - a.c).map((m) => {
+    const p = Math.round(m.rate * 100); const tg = m.target;
+    return `<div class="rp-mod"><div class="subject-main"><div class="subject-title">${esc(m.chapter)}${m.thin ? ' <span class="tag">样本少</span>' : ''}</div>
+      <div class="subject-sub">做 ${m.c}${m.priorW ? ` · 首测 ${m.priorW} 题` : ''} · 目标 ${tg}%</div>
       <div class="rp-bar"><i style="width:${p}%;background:${p >= tg ? 'var(--green)' : p >= tg - 20 ? 'var(--amber)' : 'var(--red)'}"></i><b class="rp-tick" style="left:${tg}%"></b></div></div>
       <div class="weak-pct">${p}%</div></div>`;
   }).join('') : '<div class="empty-state">还没有做题记录</div>'}</div>
@@ -3008,64 +3176,81 @@ function renderStatsPage() {  const st = S.stats || {};
 }
 
 function renderWeeklyReport() {
-  const st = S.stats || {};
-  const last = fillLast7(st.last7 || []);
-  const sumOf = (arr) => ({
-    c: arr.reduce((s, x) => s + (Number(x.c) || 0), 0),
-    ok: arr.reduce((s, x) => s + (Number(x.ok) || 0), 0),
-    days: arr.filter((x) => Number(x.c) > 0).length,
-  });
-  const s14 = S.stats14 && Array.isArray(S.stats14.last7) && S.stats14.last7.length >= 14 ? S.stats14.last7 : null;
-  const cur = s14 ? sumOf(s14.slice(-7)) : sumOf(last);
-  const prev = s14 ? sumOf(s14.slice(-14, -7)) : null;
-  const rate = cur.c ? Math.round((cur.ok / cur.c) * 100) : 0;
-  const prevRate = prev && prev.c ? Math.round((prev.ok / prev.c) * 100) : 0;
+  const w = S.weekly || null;
+  const cur = (w && w.cur) || { n: 0, ok: 0, rate: 0, days: 0, medianSec: 0 };
+  const prev = (w && w.prev) || { n: 0, ok: 0, rate: 0, days: 0, medianSec: 0 };
   const goal = Number(S.profile.dailyGoal) || 30;
-  const hitDays = last.filter((x) => (Number(x.c) || 0) >= goal).length;
-  const by = (st.byChapter || []).filter((x) => x.c >= 3).sort((a, b) => a.ok / a.c - b.ok / b.c);
-  const weak = by[0] || null;
+  const weakMod = weakestModule(5);
+  const weak = weakMod ? { chapter: weakMod.name, pct: weakMod.pct } : null;
   const wrongTotal = Number(S.wrongTotal) || 0;
-  const verdict = !cur.c ? '这周还没开张' : rate < 45 ? '还在打底' : rate < 65 ? '进入提分期' : '节奏稳了';
-  const line = !cur.c
+  const verdict = !cur.n ? '这周还没开张' : cur.rate < 45 ? '还在打底' : cur.rate < 65 ? '进入提分期' : '节奏稳了';
+  const line = !cur.n
     ? '先把今天的任务做掉，报告才有东西可算。'
-    : rate < 45
-      ? `正确率 ${rate}%，先把最弱的${weak ? '「' + esc(weak.chapter) + '」' : '基础模块'}补到 50%，比刷新题划算。`
-      : rate < 65
-        ? `正确率 ${rate}%，这个分段最值钱的是错题：把错的彻底弄懂，比多刷 50 道新题涨得快。`
-        : `正确率 ${rate}%，保持节奏，重点转到限时和查漏。`;
-  const delta = (a, b) => (!prev ? '' : a - b > 0 ? `+${a - b}` : a - b < 0 ? `${a - b}` : '持平');
-  const cmp = prev
-    ? `<div class="card" style="margin-top:12px"><div class="subject-title">跟上周比</div>
-      <div class="rep-cmp">
-        <div><b>${cur.c}</b><span>做题 ${delta(cur.c, prev.c)}</span></div>
-        <div><b>${rate}%</b><span>正确率 ${delta(rate, prevRate)}</span></div>
-        <div><b>${cur.days}</b><span>活跃 ${delta(cur.days, prev.days)} 天</span></div>
-      </div></div>`
-    : '';
+    : cur.rate < 45
+      ? '正确率 ' + cur.rate + '%，先把最弱的' + (weak ? '「' + weak.chapter + '」' : '基础模块') + '补到 50%，比刷新题划算。'
+      : cur.rate < 65
+        ? '正确率 ' + cur.rate + '%，这个分段最值钱的是错题：把错的彻底弄懂，比多刷 50 道新题涨得快。'
+        : '正确率 ' + cur.rate + '%，保持节奏，重点转到限时和查漏。';
+  const delta = (a, b) => (a - b > 0 ? '+' + (a - b) : a - b < 0 ? String(a - b) : '持平');
+  const cmpRow = (v, label, d, unit) =>
+    '<div><b>' + v + '</b><span>' + label + ' ' + d + (unit || '') + '</span></div>';
+  const cmp = prev.n
+    ? '<div class="card" style="margin-top:12px"><div class="subject-title">跟上周比</div>' +
+      '<div class="rep-cmp">' +
+      cmpRow(cur.n, '做题', delta(cur.n, prev.n)) +
+      cmpRow(cur.rate + '%', '正确率', delta(cur.rate, prev.rate), '') +
+      cmpRow(cur.days, '活跃', delta(cur.days, prev.days), ' 天') +
+      '</div>' +
+      '<div class="card-sub" style="margin-top:8px">上周 ' + prev.n + ' 题 · 正确率 ' + prev.rate + '% · 活跃 ' + prev.days + ' 天</div></div>'
+    : '<div class="card" style="margin-top:12px"><div class="subject-title">跟上周比</div><div class="card-sub" style="margin-top:6px">上周没有记录，下周就能比了。</div></div>';
+
+  const days = (w && w.daily) || [];
+  const maxN = Math.max(1, ...days.map((d) => d.n));
+  const rhythm = '<div class="card" style="margin-top:12px"><div class="subject-title">这一周的节奏</div>' +
+    '<div class="rep-week">' + days.map((d) => {
+      const h = d.n ? Math.max(18, Math.round((d.n / maxN) * 76)) : 6;
+      const hit = d.n >= goal;
+      return '<div class="rep-day"><i class="' + (d.n ? (hit ? 'hit' : '') : 'zero') + '" style="height:' + h + 'px"></i><b>' + d.d + '</b><span>' + (d.n || '') + '</span></div>';
+    }).join('') + '</div>' +
+    '<div class="card-sub" style="margin-top:6px">' + (w && w.bestDay && w.bestDay.n ? '最猛的一天：' + w.bestDay.d + '，' + w.bestDay.n + ' 题' : '这周还没开始记') +
+    ' · 每日目标 ' + goal + ' 题 · 中位用时 ' + (cur.medianSec || 0) + ' 秒/题</div></div>';
+
+  const mods = ((w && w.modules) || []).slice(0, 5);
+  const modCard = mods.length ? '<div class="card" style="margin-top:12px"><div class="subject-title">模块在往哪走</div>' +
+    mods.map((m) => {
+      const d = m.delta;
+      const tag = d === null ? '<em class="rep-tag">上周没做</em>' : d > 0 ? '<em class="rep-up">+' + d + 'pt</em>' : d < 0 ? '<em class="rep-down">' + d + 'pt</em>' : '<em class="rep-tag">持平</em>';
+      return '<div class="rep-mod"><div class="rep-mod-l"><b>' + m.name + '</b><span>' + m.n + ' 题 · ' + m.rate + '%</span></div>' + tag + '</div>';
+    }).join('') + '</div>' : '';
+
+  const best = ((w && w.best) || []).slice(0, 1);
+  const worst = ((w && w.worst) || []).slice(0, 2);
+  const kpCard = (best.length || worst.length) ? '<div class="card" style="margin-top:12px"><div class="subject-title">这一周的考点</div>' +
+    best.map((x) => '<div class="rep-mod"><div class="rep-mod-l"><b>' + x.name + '</b><span>本周 ' + x.n + ' 题</span></div><em class="rep-up">' + x.rate + '% 最稳</em></div>').join('') +
+    worst.map((x) => '<div class="rep-mod"><div class="rep-mod-l"><b>' + x.name + '</b><span>本周 ' + x.n + ' 题</span></div><em class="rep-down">' + x.rate + '% 最弱</em></div>').join('') +
+    '</div>' : '';
+
   const todo = [
     weak
-      ? `<div class="plan-stage"><div class="subject-main"><div class="subject-title">补最弱：${esc(weak.chapter)}</div><div class="subject-sub">正确率 ${Math.round((weak.ok / weak.c) * 100)}% · 做过 ${weak.c} 题</div></div><button class="btn btn-ghost btn-sm" data-act="weak" data-name="${esc(weak.chapter)}">去练</button></div>`
+      ? '<div class="plan-stage"><div class="subject-main"><div class="subject-title">补最弱：' + weak.chapter + '</div><div class="subject-sub">正确率 ' + weak.pct + '%</div></div><button class="btn btn-ghost btn-sm" data-act="weak" data-name="' + weak.chapter + '">去练</button></div>'
       : '',
     wrongTotal
-      ? `<div class="plan-stage"><div class="subject-main"><div class="subject-title">清错题：${wrongTotal} 道</div><div class="subject-sub">错过的题再错一次最不划算</div></div><button class="btn btn-ghost btn-sm" data-act="wrong-train">去清</button></div>`
+      ? '<div class="plan-stage"><div class="subject-main"><div class="subject-title">清错题：' + wrongTotal + ' 道</div><div class="subject-sub">错过的题再错一次最不划算</div></div><button class="btn btn-ghost btn-sm" data-act="wrong-train">去清</button></div>'
       : '',
-    `<div class="plan-stage"><div class="subject-main"><div class="subject-title">今日目标：${goal} 题</div><div class="subject-sub">本周达标 ${hitDays}/7 天</div></div><button class="btn btn-primary btn-sm" data-act="daily-task">开做</button></div>`,
+    '<div class="plan-stage"><div class="subject-main"><div class="subject-title">今日目标：' + goal + ' 题</div><div class="subject-sub">本周达标 ' + cur.days + '/7 天</div></div><button class="btn btn-primary btn-sm" data-act="daily-task">开做</button></div>',
   ].filter(Boolean).join('');
-  return `<div class="subpage-head"><button class="icon-btn" data-act="me-back">‹</button><div class="subpage-title">学习报告</div><span style="width:38px"></span></div>
-  <div class="rp-card" style="margin-top:2px">
-    <div class="rp-verdict">${esc(verdict)}</div>
-    <div class="rp-line">${line}</div>
-    <div class="rp-meta">本周 ${cur.c} 题 · 正确率 ${rate}% · 活跃 ${cur.days} 天</div>
-  </div>
-  ${cmp}
-  <div class="section-head"><h2 class="section-title">这周做三件事</h2></div>
-  <div class="card">${todo || '<div class="empty-state">做完几道题后，这里会给出三步待办</div>'}</div>
-  <div class="card" style="margin-top:12px"><div class="subject-title">完整数据</div>
-    <div class="subject-sub" style="margin-top:4px">估分、六维能力图、模块正确率与趋势，都在学习统计里。</div>
-    <button class="btn btn-ghost btn-block" style="margin-top:10px" data-act="stats">打开学习统计 ›</button></div>`;
+
+  return '<div class="page-head rep-hero"><div class="kicker">学习报告</div><h1 class="page-title">' + verdict + '</h1>' +
+    '<div class="rp-line" style="margin-top:10px">' + line + '</div>' +
+    '<div class="rp-meta">本周 ' + cur.n + ' 题 · 正确率 ' + cur.rate + '% · 活跃 ' + cur.days + ' 天</div></div>' +
+    cmp + rhythm + modCard + kpCard +
+    '<div class="subject-title" style="margin:18px 0 8px">下周做三件事</div>' +
+    '<div class="card">' + (todo || '<div class="empty-state">做完几道题后，这里会给出三步待办</div>') + '</div>' +
+    '<div class="card" style="margin-top:12px"><div class="subject-title">完整数据</div>' +
+    '<div class="subject-sub" style="margin-top:4px">估分、六维能力图、模块正确率与趋势，都在学习统计里。</div>' +
+    '<button class="btn btn-ghost btn-block" style="margin-top:10px" data-act="stats">打开学习统计 ›</button></div>';
 }
 
-/* ---------- 我的 ---------- */
 function renderMe() {
   if (S.meView === 'ai') return renderAiSettings();
   if (S.meView === 'backup') return renderDataPage();
@@ -3090,7 +3275,7 @@ function renderMe() {
       <div class="subject-main"><div class="subject-title">${esc(S.profile.examName)}</div><div class="subject-sub">${esc(S.profile.examType)} · ${esc(S.profile.province)} · 每日 ${S.profile.dailyGoal} 题</div></div>
       <button class="btn btn-ghost btn-sm" data-act="profile">编辑</button>
     </div>
-    <div class="me-goal"><div><b>${daysLeft()}</b><span>天后考试</span></div><div><b>${st.total || 0}</b><span>累计做题</span></div><div><b>${st.rate || 0}%</b><span>正确率</span></div><div><b>${st.wrong || 0}</b><span>错题</span></div></div>
+    <div class="me-goal"><div><b>${daysLeft()}</b><span>天后考试</span></div><div data-act="stats"><b>${st.total || 0}</b><span>累计做题 ›</span></div><div data-act="stats"><b>${st.rate || 0}%</b><span>正确率 ›</span></div><div data-act="wrong-train" class="me-goal-wrong"><b>${st.wrong || 0}</b><span>错题 ›</span></div></div>
   </section>
   <div class="section-head"><h2 class="section-title">学习数据</h2></div>
   <div class="card menu-card">
@@ -3124,13 +3309,18 @@ function renderMe() {
 
 /* ---------- 路由 ---------- */
 function go(tab) {
-  // 切页时先收掉弹层：弹层是全局的，页面换了它还挂着会盖住新页面
-  try { if (document.querySelector('.sheet-wrap:not([hidden])')) closeSheet(); } catch { /* ignore */ }
+  // 切页时先收掉弹层：弹层是全局的，页面换了它还挂着会盖住新页面。
+  // 但「本轮完成」结算是刚弹出来就要跳首页的，那种情况用 S.keepSheet 放行一次。
+  if (S.keepSheet) S.keepSheet = false;
+  else { try { if (document.querySelector('.sheet-wrap:not([hidden])')) closeSheet(); } catch { /* ignore */ } }
+  const sameTab = S.tab === tab;
+  const keepTop = sameTab ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
   S.tab = tab;
   const renders = { home: renderHome, library: renderLibrary, review: renderReview, exam: renderExam, me: renderMe };
   $('#view').innerHTML = renders[tab]();
-  $$('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-  window.scrollTo(0, 0);
+  document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  // 同一个 tab 内重绘（展开、折叠、切设置项）保持原地；只有真正换页才回顶部
+  window.scrollTo(0, keepTop);
 }
 
 /* ---------- 练习 ---------- */
@@ -3533,7 +3723,10 @@ async function finishPractice() {
     extra += `<button class="btn btn-primary btn-block" data-act="retry-wrong" style="margin-top:8px">错题再练（${P.lastWrongIds.length} 题）</button>`;
   }
   sheet(`<div class="sheet-head"><b>本轮完成</b><button class="sheet-close">✕</button></div><div class="round-hero"><div class="rbig">${rate}<i>%</i></div><div class="rlab">这一轮正确率</div>${delta == null ? '' : delta > 0 ? `<div class="rup">比上一轮高 ${delta}%</div>` : delta < 0 ? `<div class="rup flat">比上一轮低 ${-delta}%</div>` : `<div class="rup flat">和上一轮持平</div>`}<div class="round-kv"><div><b>${answered}</b><span>做题</span></div><div><b>${right}</b><span>答对</span></div><div><b>${answered - right}</b><span>答错</span></div></div><div class="card-sub" style="margin-top:12px">用时 ${fmtTime(usedSec)} · 平均每题 ${answered ? fmtTime(Math.round(usedSec / answered)) : '—'}</div></div>${kpHtml(kpInfo)}<div class="round-insight"><div class="h">这一轮最该记住的一点</div><div class="t">${ins.text}</div></div>${ins.rows.length ? `<div class="round-next">${ins.rows.map((r) => `<div class="row"><i></i><span><b>${esc(r.name)}</b> 错了 ${r.n} 道</span><em data-act="weak" data-name="${esc(r.name)}">去练 ›</em></div>`).join('')}</div>` : ''}${extra}<button class="btn ${extra ? 'btn-ghost' : 'btn-primary'} btn-block" data-act="close-sheet" style="margin-top:${extra ? '8px' : '0'}">回到首页</button>`);
-  loadHome().then(() => { if (S.tab === 'home') go('home'); }).catch(() => {});
+  // go() 会顺手收掉弹层（切页防串场），但这里刚弹出的结算必须留住：
+  // 先用 keepSheet 标记跳过那一次关闭，go() 里会把这个标记清掉
+  S.keepSheet = true;
+  loadHome().then(() => { if (S.tab === 'home') go('home'); }).catch(() => { S.keepSheet = false; });
 }
 async function openQuestionById(id, title) {
   try {
@@ -3545,6 +3738,15 @@ async function openQuestionById(id, title) {
 
 /* ---------- 事件 ---------- */
 document.addEventListener('click', (e) => {
+  // 按考点练的分组标题：只展开/收起，不进练习
+  const kpGroup = e.target.closest('[data-toggle-kp]');
+  if (kpGroup) {
+    const name = kpGroup.getAttribute('data-toggle-kp');
+    S.lib.openKpGroups = S.lib.openKpGroups || {};
+    S.lib.openKpGroups[name] = S.lib.openKpGroups[name] === false;
+    go('library');
+    return;
+  }
   // 考点行：直接开练
   const kpEl = e.target.closest('[data-kp]');
   if (kpEl) {
@@ -3726,7 +3928,20 @@ document.addEventListener('click', (e) => {
     if (S.examPapers) { S.examPapers = false; go('exam'); return; }
     goBackSmart('library'); return;
   }
-  if (a === 'back-exam') { S.examPapers = false; go('exam'); return; }
+  if (a === 'custom-drill') { openCustomDrill(); return; }
+  if (a === 'cd-set') {
+    const k = act.dataset.k; const v = act.dataset.v;
+    S.cd = S.cd || {};
+    S.cd[k] = (k === 'n' || k === 'year') ? Number(v) : v;
+    openCustomDrill(true);
+    return;
+  }
+  if (a === 'cd-start') { startCustomDrill(); return; }
+  if (a === 'back-exam') {
+    S.examPapers = false;
+    const from = S.examFrom; S.examFrom = null;
+    go(from === 'home' ? 'home' : 'exam'); return;
+  }
   if (a === 'papers') { loadPapers({ host: S.tab === 'exam' ? 'exam' : 'library' }); return; }
   if (a === 'papers-entry') { loadPapers({ host: S.tab === 'exam' ? 'exam' : 'library' }); return; }
   if (a === 'exam-papers') { openExamPapers(); return; }
@@ -3778,7 +3993,7 @@ document.addEventListener('click', (e) => {
   if (a === 'subject-random' || a === 'library-random') { startPracticeByUrl(`/api/practice?subject=${encodeURIComponent(S.lib.subject)}&n=20&mock=0&year=10&difficulty=random`, '随机 20 题', S.lib.subject); return; }
   if (a === 'library-exam') { startExam(10, '随堂测'); return; }
   // 首页那张「模考」卡：直接落到考试 tab 的整卷列表，不再先停在 tab 顶
-  if (a === 'exam-hub') { openExamPapers(); return; }
+  if (a === 'exam-hub') { S.examFrom = 'home'; openExamPapers(); return; }
   if (a === 'review-train' || a === 'wrong-train') { reviewTrain(); return; }
   if (a === 'open-q') { openQuestionById(act.dataset.id); return; }
   if (a === 'exam') { startExam(Number(act.dataset.n) || 20, '模拟考试'); return; }
@@ -3880,7 +4095,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (a === 'close-sheet') { closeSheet(); return; }
-  if (a === 'stats') { S.meView = 'stats'; go('me'); return; }
+  if (a === 'stats') { S.meHist = S.meHist || []; S.meHist.push(S.meView || 'main'); S.meView = 'stats'; go('me'); return; }
   if (a === 'stats-scope') {
     const d = Number(act.dataset.days || 0);
     S.statsDays = d;
@@ -3889,8 +4104,8 @@ document.addEventListener('click', (e) => {
   }
   if (a === 'ai-review') { runAiReview(!!act.dataset.force); return; }
   if (a === 'ai-drill') { runAiDrill(act.dataset.target || '', Number(act.dataset.n || 15), act.dataset.diff || 'balanced'); return; }
-  if (a === 'report') { S.meView = 'report'; go('me'); api('/api/records/stats?days=14').then((x) => { S.stats14 = x; if (S.meView === 'report') go('me'); }).catch(() => {}); return; }
-  if (a === 'backup') { S.meView = 'backup'; go('me'); return; }
+  if (a === 'report') { S.meHist = S.meHist || []; S.meHist.push(S.meView || 'main'); S.meView = 'report'; go('me'); api('/api/records/stats?days=14').then((x) => { S.stats14 = x; if (S.meView === 'report') go('me'); }).catch(() => {}); api('/api/records/weekly').then((x) => { S.weekly = x; if (S.meView === 'report') go('me'); }).catch(() => {}); return; }
+  if (a === 'backup') { S.meHist = S.meHist || []; S.meHist.push(S.meView || 'main'); S.meView = 'backup'; go('me'); return; }
   if (a === 'about') { sheet(`<div class="sheet-head"><b>关于上岸</b><button class="sheet-close">✕</button></div><div class="card-sub">上岸 v${APP_VERSION} · 本地离线题库<br>题库与解析来源：粉笔等公开整理，仅限个人学习使用，请勿传播或商用。<br>不提供公开商店分发。</div>`); return; }
   if (a === 'ai') { openAi(); return; }
   if (a === 'update') { checkUpdate('tiku'); return; }
@@ -3956,7 +4171,10 @@ document.addEventListener('click', (e) => {
       }
       return;
     }
-  if (a === 'me-back') { goBackSmart('me'); return; }
+  if (a === 'me-back') {
+    if (S.meHist && S.meHist.length) { S.meView = S.meHist.pop(); go('me'); return; }
+    goBackSmart('me'); return;
+  }
   if (a === 'ai-edit') { editAgent(act.dataset.id); return; }
   if (a === 'ai-toggle') {
     const id = act.dataset.id;
@@ -4057,10 +4275,21 @@ document.addEventListener('click', (e) => {
   if (a === 'smart-paper') { openSmartPaper(); return; }
   if (a === 'smart-start') { startSmartPaper(); return; }
   if (a === 'diag-start') { startDiag(false); return; }
+  if (a === 'ability-back') { S.examView = ''; go('exam'); return; }
   if (a === 'diag-view') {
-    S.diagResult = S.diag || loadDiag();
-    if (!S.diagResult) { startDiag(false); return; }
-    go('exam'); return;
+    const ready = abilityReady();
+    if (ready.ready) { S.examView = 'ability'; go('exam'); return; }
+    S.diagResult = null;
+    {
+      // 样本不够：说清楚差在哪，给一个「去做首测」的按钮，绝不偷偷开考。
+      sheet(`<div class="sheet-head"><b>能力画像</b><button class="sheet-close">✕</button></div>
+        <div class="card-sub" style="margin-bottom:10px">样本还不够（现在 ${ready.total} 道、覆盖 ${ready.mods} 个模块，至少 20 道且 3 个模块）。要么再刷几道，要么做一次首次测评，一次性把六个模块都填上。</div>
+        <div class="explain" style="margin-bottom:12px"><h4>测评是什么</h4><p>36 道题，六个模块各 6 道（2 易 3 中 1 难），大约 25 分钟。做完给你一张雷达图和「最该补的三个考点」，之后每日任务会按这个顺序给你推题。</p></div>
+        <div class="card-sub" style="margin-bottom:10px">不做也能用：每日任务照样按你刷题的正确率挑题，只是没有这张图。</div>
+        <button class="btn btn-primary btn-block" data-act="diag-start">现在做测评（36 题 · 约 25 分钟）</button>
+        <button class="btn btn-ghost btn-block" data-act="close-sheet" style="margin-top:10px">先不做</button>`);
+      return;
+    }
   }
   if (a === 'diag-redo') { startDiag(false); return; }
   if (a === 'diag-close') { S.diagResult = null; go('exam'); return; }
@@ -4396,6 +4625,47 @@ function buildDiagReport(P, used) {
   };
 }
 
+
+/** 能力画像：唯一入口。首次测评只是往同一个账本里填第一批数据，之后做题继续累加。 */
+function renderAbilityPage() {
+  const mods = blendModules();
+  const shown = mods.filter((m) => m.done);
+  const score = abilityScore();
+  const d = S.diag || loadDiag();
+  const age = diagAgeDays();
+  const weakest = shown.slice().sort((a, b) => a.rate - b.rate)[0];
+  const radar = mods.map((m) => ({ chapter: m.chapter, c: m.nEff, ok: Math.round(m.rate * m.nEff), target: m.target }));
+  const src = d && d.modules && d.modules.length
+    ? `首次测评（36 题，${age == null ? '已保存' : age === 0 ? '今天' : age + ' 天前'}）+ 之后 ${shown.reduce((x, m) => x + m.c, 0)} 道做题记录`
+    : `${shown.reduce((x, m) => x + m.c, 0)} 道做题记录（还没做首次测评）`;
+  return `<div class="subpage-head"><button class="icon-btn" data-act="ability-back">‹</button><div class="subpage-title">能力画像</div><span style="width:38px"></span></div>
+  <div class="card-sub" style="margin:-6px 0 14px">${src}</div>
+  <div class="card rp-card">
+    <div class="rp-top">
+      ${ringSvg(score)}
+      <div class="rp-top-txt">
+        <div class="rp-top-t">按模块正确率折算的估分</div>
+        <div class="rp-top-s">${weakest ? `最该补：${esc(weakest.chapter)} ${Math.round(weakest.rate * 100)}%` : '做几道题后出现'}</div>
+        <div class="rp-top-s">${d && d.modules && d.modules.length ? '首测数据按 6 题/模块计权，越刷权重越低' : '样本少，标「粗判」'}</div>
+      </div>
+    </div>
+    ${radar.some((x) => x.c > 0) ? radarSvg(radar) : '<div class="empty-state">还没有足够数据，先做首次测评或刷 20 道题</div>'}
+    <div class="rp-legend"><i class="me"></i>我的 <i class="tg"></i>目标</div>
+  </div>
+  <div class="section-head"><h2 class="section-title">按模块看</h2><span class="muted" style="font-size:12px">红 = 先补</span></div>
+  <div class="card list-card">${mods.map((m) => {
+    const p = Math.round(m.rate * 100);
+    const tag = m.c === 0 && m.priorW ? '仅首测' : m.thin ? '样本少' : '';
+    return `<div class="rp-mod"><div class="subject-main"><div class="subject-title">${esc(m.chapter)}${tag ? ` <span class="tag">${tag}</span>` : ''}</div>
+      <div class="subject-sub">做题 ${m.c}${m.priorW ? ` · 首测 ${m.priorW} 题` : ''} · 目标 ${m.target}%</div>
+      <div class="rp-bar"><i style="width:${p}%;background:${p >= m.target ? 'var(--green)' : p >= m.target - 20 ? 'var(--amber)' : 'var(--red)'}"></i><b class="rp-tick" style="left:${m.target}%"></b></div></div>
+      <div class="weak-pct">${p}%</div></div>`;
+  }).join('')}</div>
+  <div class="home-alt" style="margin-top:14px"><span>六维图 = 首测 + 日常记录，<b>不预测分数</b></span></div>
+  <button class="btn ${d && d.modules && d.modules.length ? 'btn-ghost' : 'btn-primary'} btn-block" data-act="diag-redo" style="margin-top:12px">${d && d.modules && d.modules.length ? '重新测一次（36 题 · 约 25 分钟）' : '做首次测评（36 题 · 约 25 分钟）'}</button>
+  <button class="btn btn-ghost btn-block" data-act="ability-back" style="margin-top:8px">返回</button>`;
+}
+
 function renderDiagResult() {
   const R = S.diagResult;
   if (!R) return renderExam();
@@ -4430,7 +4700,12 @@ function renderDiagResult() {
 
 async function startDailyTask() {
   const remain = dailyRemaining();
-  if (remain <= 0) { toast('今日任务已完成，想多练可以点「继续上次」或随机练习'); return; }
+  if (remain <= 0) {
+    // 今日新题额度用完，但还有到期题 → 直接进入复习，别只说一句「已完成」就把人挡在门外
+    if (dueIds().length) { await reviewTrain(); return; }
+    toast('今日任务已完成，想多练可以点「继续上次」或随机练习');
+    return;
+  }
   // 点下去先给反馈：挑题要查库、可能几百毫秒到几秒，不吭声就像按钮坏了
   if (S.dailyBusy) return;
   S.dailyBusy = true;
@@ -5612,7 +5887,7 @@ async function silentTikuCheck() {
       const localTiku = String(local.localVersion || '');
       const localName = String(local.currentVersionName || APP_VERSION);
       const num = (v) => Number(String(v).replace(/\./g, '')) || 0;
-      const tikuNew = !!(localTiku && remoteTiku && remoteTiku !== localTiku);
+      const tikuNew = !!(localTiku && remoteTiku && verNewer(remoteTiku, localTiku));
       const appNew = !!(remoteApp && num(remoteApp) > num(localName));
       if (!tikuNew && !appNew) return;                        // 都是最新，安静退出
       S.updateHint = { tiku: tikuNew ? remoteTiku : '', app: appNew ? remoteApp : '' };

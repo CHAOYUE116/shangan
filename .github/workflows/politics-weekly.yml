@@ -1,0 +1,50 @@
+﻿name: 时政每周更新
+
+# 时政热点是每天在变的栏目：每周抓一次粉笔「时政热点」，校验通过后
+# 同步写入 release/politics.json（App 的「时政刷新」从仓库里取这个文件）。
+# 也可以手动触发：Actions → 时政每周更新 → Run workflow
+
+on:
+  schedule:
+    - cron: '0 22 * * 0'   # 每周日 22:00 UTC = 周一 06:00 北京时间
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: politics-weekly
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 抓取 + 校验 + 同步三份
+        run: node tools/politics-daily.mjs --limit 12 --no-push
+
+      - name: 查看差异
+        run: |
+          git status --porcelain
+          git diff --stat
+
+      - name: 提交并推送
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "没有变化，跳过提交"
+            exit 0
+          fi
+          git config user.name "politics-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add release/politics.json
+          git add public/app-assets/politics.json 2>/dev/null || true
+          git commit -m "chore(时政): 每周自动更新 $(date -u +%Y-%m-%d)"
+          git push

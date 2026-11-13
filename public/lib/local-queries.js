@@ -814,7 +814,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         const pre = globalThis.__QC_COUNTS__ && globalThis.__QC_COUNTS__.subjects;
         const hit = pre && pre[subject] && pre[subject].kps;
         if (Array.isArray(hit) && hit.length) {
-          return hit.map((x) => ({ name: x[0], questions: x[1] }));
+          return hit.map((x) => ({ name: x[0], questions: x[1], group: x[2] || '' }));
         }
       } catch (e) { /* 预计算缺失就走库 */ }
       // 三表 join 在手机上 ≈11s（kp 46k 行 × 回表），但考点是静态数据：
@@ -1311,12 +1311,28 @@ export function createLocalApi(tiku, practice, stats = {}) {
           const gname = String(k).split('|')[0];
           gd.set(gname, (gd.get(gname) || 0) + (v?.c || 0));
         }
+        // 二级：按 question_categories.sub 统计（空串归「其他」）
+        const subGj = new Map();
+        for (const r of practice.all(`
+          SELECT qc.category, COALESCE(NULLIF(TRIM(qc.sub), ''), '其他') AS sb, COUNT(DISTINCT qc.question_id) c
+          FROM question_categories qc JOIN questions q ON q.questionId = qc.question_id
+          WHERE qc.subject = ? GROUP BY qc.category, sb`, subject)) {
+          const k = `${r.category}|${r.sb}`;
+          subGj.set(k, Number(r.c) || 0);
+        }
         groups = GONGJI_TREE.map((g) => {
           const total = gt.get(g.group) || 0;
           const done = gd.get(g.group) || 0;
+          const subs = [];
+          for (const [k, v] of subGj) {
+            const [cat, sb] = k.split('|');
+            if (cat !== g.group || !v) continue;
+            subs.push({ name: sb, total: v, done: null, rate: null, chapters: [], leaves: [] });
+          }
+          subs.sort((a, b) => b.total - a.total);
           return {
             group: g.group, total, done, rate: null, chapters: [],
-            subs: [{ name: '全部', total, done, rate: null, chapters: [], leaves: [] }],
+            subs: subs.length ? subs : [{ name: '全部', total, done, rate: null, chapters: [], leaves: [] }],
           };
         });
       } else if (isXingce) {
@@ -1351,11 +1367,33 @@ export function createLocalApi(tiku, practice, stats = {}) {
         }
         // 已做 = 该分类索引下的做题记录数（与总题量同源：question_categories，口径同 chapterStats）
         const catDone = statOf('catStats').get(subject) || new Map();
+        // 三级：粉笔的叶子考点就在 question_keypoints 里（「中心理解题」「主题词」这种）。
+        // 按 (二级, 考点) 聚合一次，前端的展开层直接用它，不再逐题回表。
+        const leafRows = (() => {
+          try {
+            return practice.all(`
+              SELECT qc.sub AS sb, k.kpName AS kp, COUNT(DISTINCT qc.question_id) AS n
+              FROM question_categories qc
+              JOIN questions q ON q.questionId = qc.question_id
+              JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
+              JOIN question_keypoints k ON k.questionId = qc.question_id
+              WHERE qc.subject = ? AND COALESCE(TRIM(qc.sub), '') <> ''
+              GROUP BY qc.sub, k.kpName
+            `, subject);
+          } catch { return []; }
+        })();
+        const leavesOf = new Map(); // sub 名 → [{name,total}]
+        for (const r of leafRows) {
+          const arr = leavesOf.get(r.sb) || [];
+          arr.push({ name: r.kp, total: Number(r.n) || 0 });
+          leavesOf.set(r.sb, arr);
+        }
+        for (const [k, arr] of leavesOf) leavesOf.set(k, arr.sort((a, b) => b.total - a.total));
         groups = FENBI_TREE.map((g) => {
           const subs = g.subs.map((sub2) => {
             const idxTotal = idxMap.get(`${g.group}|${sub2.name}`) || 0;
             const d = catDone.get(`${g.group}|${sub2.name}`);
-            return { name: sub2.name, total: idxTotal, done: d?.c || 0, rate: null, chapters: [], leaves: [] };
+            return { name: sub2.name, total: idxTotal, done: d?.c || 0, rate: null, chapters: [], leaves: leavesOf.get(sub2.name) || [] };
           });
           const subSum = subs.reduce((s, x) => s + x.total, 0);
           const real = groupReal.get(g.group) || 0;

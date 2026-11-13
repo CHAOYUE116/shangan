@@ -556,6 +556,10 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .me-goal > div { text-align: center; }
 .me-goal b { display: block; font-size: 19px; font-weight: 750; letter-spacing: -.02em; }
 .me-goal span { font-size: 11.5px; color: var(--text-3); }
+.me-goal > div[data-act] { cursor: pointer; border-radius: 10px; padding: 2px 0 4px; transition: background .15s; }
+.me-goal > div[data-act]:active { background: var(--surface-2); }
+.me-goal > div[data-act] span { color: var(--primary); }
+.me-goal-wrong b { color: var(--red, #d94a3d); }
 
 /* ---------- 首页快捷入口（时政 / 资料库） ---------- */
 .quick-row { display: flex; gap: 10px; margin: 14px 0 0; }
@@ -1607,3 +1611,75 @@ html[data-theme="dark"] .rp-mod { border-bottom-color: #2A2E37; }
 
 /* 取题占位文案（练习页在等 /api/practice 返回时） */
 .loading-msg { margin-top: 10px; text-align: center; font-size: 13px; color: var(--text-3); }
+
+/* ===== 题库三层树（照粉笔：一级只三角+名称，展开后浅灰面板：全部 / 二级 / 三级考点） ===== */
+.tree-card { background: var(--surface); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+.tree-grp + .tree-grp { border-top: 1px solid var(--line); }
+.tree-row { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px; cursor: pointer; }
+.tree-row:active { background: #F0F2F6; }
+.tree-row.lv1 { min-height: 44px; margin: 8px 12px; border-radius: 6px; background: #FAFBFC; padding: 0 14px; }
+.tree-grp:first-child .tree-row.lv1 { margin-top: 10px; }
+.tree-row.lv1 .tree-name { font-size: 16px; color: #3c464f; font-weight: 500; }
+.tree-tri { width: 0; height: 0; border-top: 5px solid #3c7cfc; border-left: 4px solid transparent; border-right: 4px solid transparent; transition: transform .18s; flex: 0 0 auto; }
+.tree-row.open > .tree-tri { transform: rotate(180deg); }
+.tree-tri.sm { border-top-color: #9aa3ad; }
+.tree-row.open > .tree-tri.sm { border-top-color: #3c7cfc; }
+.tree-name { font-size: 15px; color: #3c4450; }
+.tree-spacer { flex: 1 1 auto; }
+.tree-ind { width: 5px; flex: 0 0 auto; }
+.tree-num { margin-left: auto; font-size: 13px; color: #8a9095; font-variant-numeric: tabular-nums; }
+.tree-go { font-size: 13px; color: #3c7cfc; margin-left: 10px; white-space: nowrap; }
+.tree-panel { background: #FAFBFC; padding: 2px 0 10px; }
+.tree-row.lv2 { min-height: 44px; padding-left: 26px; }
+.tree-row.lv2 .tree-name { font-size: 14.5px; color: #8a9095; }
+.tree-row.lv2.open .tree-name { color: #3c464f; }
+.tree-row.lv2.all .tree-name { color: #3c464f; }
+.tree-leaves { position: relative; margin-left: 34px; border-left: 1px dotted #D1D9E0; padding-left: 12px; }
+.tree-row.lv3 { min-height: 40px; padding-left: 4px; }
+.tree-row.lv3 .tree-name { font-size: 14px; color: #8a9095; }
+.tree-dot { width: 5px; height: 5px; border-radius: 50%; background: #C9D1D9; flex: 0 0 auto; margin-right: 2px; }
+[data-theme="night"] .tree-card { background: #16181d; border-color: #23262d; }
+[data-theme="night"] .tree-panel { background: #1b1e24; }
+[data-theme="night"] .tree-row.lv1 .tree-name,
+[data-theme="night"] .tree-row.lv2.open .tree-name,
+[data-theme="night"] .tree-row.lv2.all .tree-name { color: #e6e8ee; }
+[data-theme="night"] .tree-row.lv2 .tree-name,
+[data-theme="night"] .tree-row.lv3 .tree-name { color: #8b909a; }
+[data-theme="night"] .tree-row:active { background: #23262d; }
+
+/* 长标签不折行（复习页「判断推理 8」曾被挤成两行） */
+.chip { white-space: nowrap; }
+/* 横向滚动的筛选条：右侧渐隐，提示还能往右滑 */
+.chips.nowrap {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
+.lib-head-note { display: block; margin-top: 2px; font-size: 11px; color: var(--text-3); }
+
+
+/* 点击热区都往 40×40 以上靠：三角按钮本体放大（不再是 22px 一个小点） */
+.module-caret { width: 40px; height: 40px; min-width: 40px; margin-left: -9px; display: inline-flex; align-items: center; justify-content: center; }
+.module-caret.ghost { width: 40px; min-width: 40px; }
+.lib-mode button, .segmented.seg-sm button { min-height: 40px; }
+.module-row { min-height: 56px; }
+
+/* 学习报告：这一周的节奏 / 模块变化 / 考点 */
+.rep-week { display: flex; align-items: flex-end; gap: 6px; height: 104px; margin-top: 10px; }
+.rep-day { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.rep-day i { display: block; width: 100%; border-radius: 6px 6px 3px 3px; background: var(--primary-soft); }
+.rep-day i.hit { background: var(--primary); }
+.rep-day i.zero { background: var(--surface-2); }
+.rep-day b { font-size: 10.5px; font-weight: 500; color: var(--text-3); }
+.rep-day span { font-size: 10px; color: var(--text-3); min-height: 12px; }
+.rep-mod { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-2); }
+.rep-mod:first-of-type { border-top: 0; }
+.rep-mod-l b { display: block; font-size: 14px; font-weight: 600; }
+.rep-mod-l span { font-size: 11.5px; color: var(--text-3); }
+.rep-mod em { font-style: normal; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+.rep-up { color: #1f8a4c; background: rgba(31, 138, 76, .1); }
+.rep-down { color: #c0392b; background: rgba(192, 57, 43, .1); }
+.rep-tag { color: var(--text-3); background: var(--surface-2); }
+
+.rep-hero { display: block; }
+.rep-hero .page-title { margin-bottom: 10px; }

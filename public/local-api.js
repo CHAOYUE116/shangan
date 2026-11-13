@@ -438,6 +438,46 @@ export function createRecordsApi(store, tiku, onChanged) {
         errors: { 错题: wrongUnique, 近7天: base.filter((r) => r.is_correct === 0 && Number(r.created_at) >= last7Start).length, 重复错: repeatWrong, 二次答对率: everWrong.size ? Math.round((fixed / everWrong.size) * 100) : null },
       };
     },
+    /** 周报（近 7 天 vs 前 7 天）：/api/records/weekly */
+    async weekly() {
+      const rows = await store.getAll('records');
+      const DAY = 86400000;
+      const now = Date.now();
+      const startCur = now - 7 * DAY;
+      const startPrev = now - 14 * DAY;
+      const bucket = (list) => {
+        const n = list.length;
+        const ok = list.filter((r) => r.is_correct === 1).length;
+        const days = new Set(list.map((r) => new Date(Number(r.created_at) || 0).toDateString())).size;
+        const costs = list.map((r) => Number(r.cost_ms) || 0).filter((x) => x > 0).sort((a, b) => a - b);
+        return { n, ok, rate: n ? Math.round((ok / n) * 100) : 0, days, medianSec: costs.length ? Math.round(costs[Math.floor(costs.length / 2)] / 1000) : 0 };
+      };
+      const cur = rows.filter((r) => Number(r.created_at) >= startCur);
+      const prev = rows.filter((r) => Number(r.created_at) >= startPrev && Number(r.created_at) < startCur);
+      const daily = [];
+      for (let i = 6; i >= 0; i--) {
+        const d0 = new Date(now - i * DAY); d0.setHours(0, 0, 0, 0);
+        const t0 = d0.getTime(); const t1 = t0 + DAY;
+        const list = cur.filter((r) => Number(r.created_at) >= t0 && Number(r.created_at) < t1);
+        daily.push({ d: (d0.getMonth() + 1) + '-' + d0.getDate(), n: list.length, ok: list.filter((r) => r.is_correct === 1).length });
+      }
+      const modOf = (r) => r.chapter || r.group_key || '未分类';
+      const names = [...new Set([...cur, ...prev].map(modOf))];
+      const modules = names.map((name) => {
+        const a = bucket(cur.filter((r) => modOf(r) === name));
+        const b = bucket(prev.filter((r) => modOf(r) === name));
+        return { name, n: a.n, rate: a.rate, prevN: b.n, prevRate: b.rate, delta: a.n && b.n ? a.rate - b.rate : null };
+      }).filter((m) => m.n > 0).sort((x, y) => y.n - x.n);
+      const chapOf = (r) => r.sub_key || r.chapter || '未分类';
+      const chapters = [...new Set(cur.map(chapOf))].map((name) => {
+        const list = cur.filter((r) => chapOf(r) === name);
+        return { name, n: list.length, rate: list.length ? Math.round((list.filter((r) => r.is_correct === 1).length / list.length) * 100) : 0 };
+      }).filter((x) => x.n >= 3);
+      const best = chapters.slice().sort((a, b) => b.rate - a.rate || b.n - a.n).slice(0, 2);
+      const worst = chapters.slice().filter((x) => x.rate < 60).sort((a, b) => a.rate - b.rate || b.n - a.n).slice(0, 2);
+      const bestDay = daily.slice().sort((a, b) => b.n - a.n)[0] || { d: '', n: 0 };
+      return { cur: bucket(cur), prev: bucket(prev), daily, modules, best, worst, bestDay };
+    },
     /** 统计（与 /api/records/stats 同构，聚合本地记录） */
     async stats() {      const records = await store.getAll('records');
       const agg = aggregateStats(records, tiku);
@@ -539,6 +579,29 @@ export function createRecordsApi(store, tiku, onChanged) {
     /** 考点名映射（question_keypoints 表）：{ [questionId]: kpName }。报告要按考点下钻，题面本身不带考点 */
     keypoints({ ids }) {
       return keypointMapOf(tiku, ids);
+    },
+    /** 每个考点 / 每个二级题型「做过多少道不同的题」（题库树三级行的 已完成/总数 用） */
+    async kpDone({ subject } = {}) {
+      const recs = await store.getAll('records');
+      const ids = [...new Set(recs.filter((r) => !subject || r.subject === subject).map((r) => Number(r.question_id)).filter(Number.isFinite))];
+      const kp = {};
+      const sub = {};
+      for (let i = 0; i < ids.length; i += 400) {
+        const chunk = ids.slice(i, i + 400);
+        const ph = chunk.map(() => '?').join(',');
+        try {
+          for (const r of tiku.all(`SELECT k.kpName AS kp, COUNT(DISTINCT k.questionId) AS n FROM question_keypoints k WHERE k.questionId IN (${ph}) GROUP BY k.kpName`, ...chunk)) {
+            if (r.kp) kp[r.kp] = (kp[r.kp] || 0) + (Number(r.n) || 0);
+          }
+        } catch { /* 没有考点表的库就跳过 */ }
+        try {
+          for (const r of tiku.all(`SELECT COALESCE(NULLIF(TRIM(c.sub), ''), '') AS sb, COUNT(DISTINCT c.question_id) AS n FROM question_categories c WHERE c.question_id IN (${ph}) GROUP BY sb`, ...chunk)) {
+            const k = r.sb || '';
+            sub[k] = (sub[k] || 0) + (Number(r.n) || 0);
+          }
+        } catch { /* 同上 */ }
+      }
+      return { kp, sub };
     },
     /** 参照统计（本地口径，明确不是「全站」）：按请求的题目 id 给出
      *  - q:   { [id]: { n, wrong, top, topN } }  该题你做过几次、错几次、最常选的错误选项

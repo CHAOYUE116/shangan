@@ -205,12 +205,15 @@ export function createLocalHandler({ query, records, store, ai }) {
     }
     if (route === 'GET /records/recent') return records.recent({ limit: Number(qs.get('limit') || 20) });
     // 学情分析聚合包（只含数字，不含题目正文）
+    if (route === 'GET /records/weekly') return records.weekly();
     if (route === 'GET /records/study-payload') {
       return records.studyPayload({
         days: qs.get('days') ? Number(qs.get('days')) : 21,
         subject: qs.get('subject') || undefined,
       });
     }
+    // 每个考点 / 二级题型做过多少道不同的题（题库树三级行的「已完成/总数」）
+    if (route === 'GET /records/kp-done') return records.kpDone({ subject: qs.get('subject') || undefined });
     // 每套试卷做过多少题（试卷列表的「做过」角标用）：{ "123": { n: 30, ok: 18, last: ts } }
     if (route === 'GET /records/papers') {
       const all = await store.getAll('records');

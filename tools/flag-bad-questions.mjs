@@ -92,6 +92,7 @@ function missingKeys(html) {
 }
 
 if (APPLY) {
+  db.exec('PRAGMA busy_timeout = 60000');
   const cols = db.prepare("SELECT name FROM pragma_table_info('questions')").all().map((r) => r.name);
   if (!cols.includes('q_bad')) db.exec('ALTER TABLE questions ADD COLUMN q_bad INTEGER DEFAULT 0');
   if (!cols.includes('q_bad_reason')) db.exec('ALTER TABLE questions ADD COLUMN q_bad_reason TEXT');
@@ -116,6 +117,7 @@ const REASONS = {
   R7: '内容被平台打码',
   R8: '选项图丢失（占位字母）',
   R9: '题图未内联（离线打不开）',
+  R10: '题干或选项是占位词',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const isPlaceholderOptions = (raw) => {
@@ -201,7 +203,22 @@ for (const r of rows) {
     if (!a && Number(r.answerIndex) < 0) reason = 'R6';
   }
 
-  // R8 选项是占位字母：图形题的选项本身是图片，抓取时只留了 A/B/C/D 占位，
+  // R10 题干/选项是占位词：库里有一批 content 直接写成「缺失」，四个选项也都是「缺失」，
+  //     做题时什么都看不到（52 道）。只认纯占位词，避免把正文里正常出现的「缺失」误杀。
+  if (!reason) {
+    const onlyPh = (x) => /^\s*(缺失|无|暂无|略|见材料)?\s*$/.test(String(x || ''));
+    let optPh = 0;
+    try {
+      const arr = JSON.parse(String(r.options || '[]'));
+      if (Array.isArray(arr)) optPh = arr.filter((o) => onlyPh(o)).length;
+    } catch { /* 忽略 */ }
+    if (onlyPh(r.content) || (isObj && optPh >= 2)) {
+      reason = 'R10';
+      detail = onlyPh(r.content) ? '题干是「缺失」这类占位词' : `选项有 ${optPh} 个是占位词`;
+    }
+  }
+
+
   //    做题时四个选项全是空白的，属于「物理上做不了」，必须拦住。
   if (!reason && isObj && isPlaceholderOptions(r.options) && /图形|如图|如下图|所给|缺口|填入问号|规律|折叠|展开|截面|立体/.test(stem)) {
     reason = 'R8';

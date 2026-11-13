@@ -132,10 +132,14 @@ if (isLocalMode()) {
     window.__LOCAL_STORE__ = api.store;
 
     // ---------- 5. 图片离线 Service Worker ----------
+    // App 里本地资源走自定义 scheme，register 一定失败；公式图已经改成渲染后
+    // 用原生桥查 images.db 换成 data: URL（app.js 的 hydrateImages），
+    // 所以 Service Worker 只在浏览器调试时注册，App 内干脆不注册，省一条 404。
     setBootProgress(96);
-    if ('serviceWorker' in navigator) {
+    const inShell = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (!inShell && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw-local.js', { scope: './' }).catch(function (e) {
-        console.warn('SW 注册失败（图片离线不可用）：', e.message);
+        console.warn('SW 注册失败（浏览器模式）：', e.message);
       });
     }
 

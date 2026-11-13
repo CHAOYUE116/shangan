@@ -84,21 +84,53 @@ for (const subject of subjects) {
     out_data.subjects[subject] = { group, idx };
   }
   // 考点题量（same 口径 as local-queries.keypoints()：COUNT(DISTINCT) ≥ 8）
-  // 三表 join 在手机上一次 10s，所以也预计算；写成 [name, questions] 紧凑数组省体积。
+  // 三表 join 在手机上一次 10s，所以也预计算；写成 [name, questions, group] 紧凑数组省体积。
+  // 第三段 group 是该考点题目的多数所属一级模块 —— 按考点练要按模块分组显示，
+  // 用「考点名去查章节树」会把言语考点挂到常识判断下面（历史错标），所以直接用题目的 category 投票。
   try {
-    out_data.subjects[subject].kps = db
+    const rows = db
       .prepare(
-        `SELECT kp.kpName AS name, COUNT(DISTINCT kp.questionId) AS questions
+        `SELECT kp.kpName AS name, qc.category AS grp, COUNT(DISTINCT kp.questionId) AS c
          FROM (${KP_SOURCE}) kp
          JOIN questions q ON q.questionId = kp.questionId
          JOIN papers p ON p.id = q.paperId
+         JOIN question_categories qc ON qc.question_id = kp.questionId AND qc.subject = p.subjectName
          WHERE p.subjectName = ?
-         GROUP BY kp.kpName
-         HAVING questions >= 8
-         ORDER BY questions DESC`
+         GROUP BY kp.kpName, qc.category`
       )
-      .all(subject)
-      .map((r) => [r.name, Number(r.questions) || 0]);
+      .all(subject);
+    const agg = new Map();
+    for (const r of rows) {
+      const cur = agg.get(r.name) || { total: 0, byGrp: new Map() };
+      cur.total += Number(r.c) || 0;
+      cur.byGrp.set(r.grp, (cur.byGrp.get(r.grp) || 0) + (Number(r.c) || 0));
+      agg.set(r.name, cur);
+    }
+    // 题量口径要跟 keypoints() 完全一致（DISTINCT questionId），投票那段是粗口径，只用来定组
+    const exact = new Map(
+      db
+        .prepare(
+          `SELECT kp.kpName AS name, COUNT(DISTINCT kp.questionId) AS questions
+           FROM (${KP_SOURCE}) kp
+           JOIN questions q ON q.questionId = kp.questionId
+           JOIN papers p ON p.id = q.paperId
+           WHERE p.subjectName = ?
+           GROUP BY kp.kpName
+           HAVING questions >= 8
+           ORDER BY questions DESC`
+        )
+        .all(subject)
+        .map((r) => [r.name, Number(r.questions) || 0])
+    );
+    out_data.subjects[subject].kps = [...exact.entries()].map(([name, questions]) => {
+      const a = agg.get(name);
+      let grp = '';
+      if (a) {
+        let best = -1;
+        for (const [g, c] of a.byGrp) if (c > best) { best = c; grp = g; }
+      }
+      return [name, questions, grp];
+    });
   } catch (e) {
     out_data.subjects[subject].kps = [];
   }
