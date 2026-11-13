@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.13",
-    "versionCode": 153,
-    "code": 153,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.13-release.apk",
+    "version": "0.9.20",
+    "versionCode": 160,
+    "code": 160,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.20-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.13-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.20-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.13-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.20-release.apk"
       }
     ],
-    "size": 347408358,
-    "sha256": "964b31b2e9f0b8c90521f7bd5704f36de5a4bc1151eb0d221d638413bb57dd10",
-    "name": "shangan-0.9.13-release.apk",
-    "note": "修测试报告里的"
+    "size": 347410702,
+    "sha256": "e7cc9317a78e06dfe6fbe37f5dfc6263506febd3ec8f9578123c0096d1b5a1e0",
+    "name": "shangan-0.9.20-release.apk",
+    "note": "能力画像合并：首次测评只往同一个账本填第一批数据（6"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "修测试报告里的"
+  "note": "能力画像合并：首次测评只往同一个账本填第一批数据（6"
 }
