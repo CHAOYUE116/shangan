@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.7.7",
-    "versionCode": 115,
-    "code": 115,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.7-release.apk",
+    "version": "0.7.8",
+    "versionCode": 116,
+    "code": 116,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.7-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.7-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.7/shangan-0.7.8-release.apk"
       }
     ],
-    "size": 238256042,
-    "sha256": "00f8ee95891d61199a2f795b6338db025d199859a97b074e2e84944c38bf55f4",
-    "name": "shangan-0.7.7-release.apk",
-    "note": "App 0.7.7：拆开「其他题型/未分类」——B/C/D 类题型各自成类，未分类按题干兜底判断（综应 209、申论 242）"
+    "size": 238257853,
+    "sha256": "9159d686f3557b6a4bc8be911de45b062c2a25dd80c219f1cab91c89911120b0",
+    "name": "shangan-0.7.8-release.apk",
+    "note": "App 0.7.8：综应完全按粉笔三层结构（题型 → 单一题/综合题 → 考点），三层都能展开点练"
   },
   "tiku": {
     "dbVersion": "0.5.30-20261113-0235",
@@ -50,5 +50,5 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "App 0.7.7：拆开「其他题型/未分类」——B/C/D 类题型各自成类，未分类按题干兜底判断（综应 209、申论 242）"
+  "note": "App 0.7.8：综应完全按粉笔三层结构（题型 → 单一题/综合题 → 考点），三层都能展开点练"
 }
