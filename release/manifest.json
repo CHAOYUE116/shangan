@@ -2,59 +2,47 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.34",
-    "versionCode": 174,
-    "code": 174,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk",
+    "version": "0.9.55",
+    "versionCode": 195,
+    "code": 195,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.34-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk"
       }
     ],
-    "size": 362643894,
-    "sha256": "8f3e6714b8c8f08804459fe66d221d4564ff19cf17161bdf74fb345edeb42a75",
-    "name": "shangan-0.9.34-release.apk",
-    "note": "展开图标换成"
+    "size": 514255448,
+    "sha256": "ab8d8f265a99b3af6c94d077987b11176f8ee69664ac1aea4335513d8ca2205e",
+    "name": "shangan-0.9.55-release.apk",
+    "note": "题库 0.5.52：华图 3.3 万道接入 + 资料分析按材料形态重分 + 外链图全本地化；AI 引导 Key 必填、深色卡片修复、多选标识"
   },
   "tiku": {
-    "dbVersion": "0.5.39-20261113-2305",
-    "questions": 151998,
-    "rows": 202843,
+    "dbVersion": "0.5.52-20261114-1720",
+    "questions": 185559,
     "full": {
-      "size": 169474672,
-      "rawSize": 790474752,
-      "sha256": "445fb44db6271f68df6f701ed692b27e8f11ab63a4273e5b4b3ac73f9b04bb5c",
-      "gzSha256": "080785ae4e517580e20bbfb940bf658015d28cdd3e4e125d86b5cfa40ec4f323",
+      "size": 192231000,
+      "rawSize": 923607040,
+      "sha256": "ec9c2e75045f8f10b351300b9eb5a953075997fbb24baf484a1df4d611050fdf",
+      "gzSha256": "e47ea07d2148c32cbed88fbadac6749e68d137418eb8aa5e305ba5985ca48691",
       "gz": true,
-      "name": "tiku_app.db.gz",
-      "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz",
-      "sources": [
-        "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz",
-        "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/tiku_app.db.gz"
-      ]
+      "name": "tiku_app.db.gz"
     },
     "delta": [],
-    "note": "题库 0.5.39：资料分析缺材料的 1,382 道全部拦掉（不再抽到空壳题）"
+    "note": "华图 33,321 道接入（官方模块/考点/难度）、资料分析按材料形态重分、外链图全本地化"
   },
   "images": {
-    "name": "images.db.gz",
-    "size": 225894400,
-    "gzSize": 172459817,
-    "sha256": "c0f796b61c691fb9c31166674e4d3b505cff556a7c5ad4abf686f1242b08f184",
-    "gzSha256": "ffb71f1431820cd1844381df09836e7a32f64e01e9ec00d40339aafef07ff9e7",
+    "size": 400576512,
+    "gzSize": 316928923,
+    "sha256": "b7adbb7fd82cf56f6bb99ee021858946984252de0660eca8e7b815ed548deaff",
     "gz": true,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz",
-    "sources": [
-      "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz",
-      "https://github.com/CHAOYUE116/shangan/releases/download/tiku-0.5.39-20261113-2305/images.db.gz"
-    ]
+    "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "展开图标换成",
+  "note": "题库 0.5.52：华图 3.3 万道接入 + 资料分析按材料形态重分 + 外链图全本地化；AI 引导 Key 必填、深色卡片修复、多选标识",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
