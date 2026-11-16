@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.62",
-    "versionCode": 202,
-    "code": 202,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk",
+    "version": "0.9.63",
+    "versionCode": 203,
+    "code": 203,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.63-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.63-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.63-release.apk"
       }
     ],
-    "size": 533037050,
-    "sha256": "47d5586a51bb6f2adc27508e72a22c31c9c912da8ff9a0f5235f306f012e962d",
-    "name": "shangan-0.9.62-release.apk",
-    "note": "修 6701 处裂图（https:https:// 双协议头）+ 补 7326 张公式图 + 新增 R12 拦掉「说见下表但没有表」的题（130 道）"
+    "size": 533060247,
+    "sha256": "a4fcf1331516a3cd6d94a680cda68ae136ea0cc2145b6dba00bbcf2ad13c6838",
+    "name": "shangan-0.9.63-release.apk",
+    "note": "资料分析再拦 455 道「材料只剩引导语」的题（R12 扩展：下列图表/具体如下/表1表2/超短引导语）"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "修 6701 处裂图（https:https:// 双协议头）+ 补 7326 张公式图 + 新增 R12 拦掉「说见下表但没有表」的题（130 道）",
+  "note": "资料分析再拦 455 道「材料只剩引导语」的题（R12 扩展：下列图表/具体如下/表1表2/超短引导语）",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
