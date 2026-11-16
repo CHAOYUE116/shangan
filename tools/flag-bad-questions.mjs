@@ -118,6 +118,8 @@ const REASONS = {
   R8: '选项图丢失（占位字母）',
   R9: '题图未内联（离线打不开）',
   R10: '题干或选项是占位词',
+  R11: '资料分析缺材料',
+  R12: '材料提到表格但表没采到',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const isPlaceholderOptions = (raw) => {
@@ -197,10 +199,13 @@ for (const r of rows) {
     if (miss) { reason = 'R5'; detail = `${miss} 个图找不到`; }
   }
 
-  // R6 客观题没答案
+  // R6 客观题没答案：必须有真选项才算客观题。主观题（type 5 / 题干标「主观题」）
+  // 本来就是「写一段」，没有 ABCD，不算缺答案 —— 否则 240 道综应/申论真题会被误杀。
   if (!reason && isObj) {
     const a = String(r.answer == null ? '' : r.answer).trim();
-    if (!a && Number(r.answerIndex) < 0) reason = 'R6';
+    const opts = String(r.options || '').replace(/[\[\]\s]/g, '');
+    const subjective = /主观/.test(String(r.questionType || '')) || opts.length <= 2;
+    if (!a && Number(r.answerIndex) < 0 && !subjective) reason = 'R6';
   }
 
   // R10 题干/选项是占位词：库里有一批 content 直接写成「缺失」，四个选项也都是「缺失」，
@@ -237,6 +242,26 @@ for (const r of rows) {
     if (hasTarzan || miss.length) {
       reason = 'R9';
       detail = hasTarzan ? '题图仍在粉笔 CDN（离线打不开）' : `公式图缺 ${miss.length} 个`;
+    }
+  }
+
+  // R11 资料分析没有材料也没有图：资料分析必须有表格/图表才有数据，
+  //     题干又短（<60 字，如「2014年全国苹果产量约占水果总产量的：」）说明数据全在材料里，
+  //     而现在 material 是空的 —— 物理上做不了。长题干（>=60）多半是被标成资料分析的数量关系应用题，正文自带数据，不动。
+  if (!reason && String(r.chapter || '') === '资料分析' && !material.trim()
+      && !hasImg(contentHtml) && String(stem).trim().length < 60) {
+    reason = 'R11';
+    detail = '题干无数据、材料为空';
+  }
+
+  // R12 材料说「见下表/如下表/下表是」但材料里没有表：
+  //     这类题的数据全在那张表里，表没采到 = 做不了（粉笔侧已下架，补不回来）。
+  if (!reason) {
+    const mat = material.trim();
+    const saysTable = /(见下表|如下表|下表是|下表为|见下表|下表)/.test(mat) || /(见下表|如下表|下表是|下表为)/.test(String(stem));
+    if (saysTable && !hasImg(mat) && !hasImg(contentHtml)) {
+      reason = 'R12';
+      detail = mat ? '材料提到表格但没有表' : '题干提到表格、材料为空';
     }
   }
 
