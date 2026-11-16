@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.61",
-    "versionCode": 201,
-    "code": 201,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk",
+    "version": "0.9.62",
+    "versionCode": 202,
+    "code": 202,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.62-release.apk"
       }
     ],
-    "size": 514256007,
-    "sha256": "44790cdd6b9b9bbbc5bb76a3276844a78db17817a0e1f34b29b36c043d237cab",
-    "name": "shangan-0.9.61-release.apk",
-    "note": "用时展示定为信息条样式（答对/答错都有）；答题解析恢复「解析」标题"
+    "size": 533037050,
+    "sha256": "47d5586a51bb6f2adc27508e72a22c31c9c912da8ff9a0f5235f306f012e962d",
+    "name": "shangan-0.9.62-release.apk",
+    "note": "修 6701 处裂图（https:https:// 双协议头）+ 补 7326 张公式图 + 新增 R12 拦掉「说见下表但没有表」的题（130 道）"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "用时展示定为信息条样式（答对/答错都有）；答题解析恢复「解析」标题",
+  "note": "修 6701 处裂图（https:https:// 双协议头）+ 补 7326 张公式图 + 新增 R12 拦掉「说见下表但没有表」的题（130 道）",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
