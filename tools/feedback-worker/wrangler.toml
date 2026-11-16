@@ -1,0 +1,10 @@
+name = "shangan-feedback"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 部署：
+#   1) npm i -g wrangler && wrangler login
+#   2) wrangler secret put ISSUE_TOKEN   （fine-grained token，只勾 issues: write）
+#   3) wrangler secret put REPO          （例如 chaoyue116/shangan-app）
+#   4) wrangler deploy
+# 之后把输出的 https://shangan-feedback.<你的>.workers.dev 填进 App 的 FEEDBACK_API

@@ -1,0 +1,41 @@
+name: 收集纠错
+
+# 把 App 端「纠错」从 ntfy 话题里搬进仓库，永久留档。
+# ntfy.sh 公共话题只缓存约 12 小时，所以这里每 30 分钟搬一次；
+# 提交历史就是数据库，之后可以随时从 feedback/feedback.jsonl 生成工单 / CSV。
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: feedback-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 拉取并追加
+        run: node tools/pull-feedback.mjs --since 6h --append feedback/feedback.jsonl
+
+      - name: 有变化就提交
+        run: |
+          git config user.name  "feedback-bot"
+          git config user.email "feedback-bot@users.noreply.github.com"
+          git add feedback/feedback.jsonl
+          if git diff --cached --quiet; then
+            echo "没有新条目"
+            exit 0
+          fi
+          git commit -m "chore(feedback): 收集 $(date -u +%FT%TZ) 的题纠错"
+          git push

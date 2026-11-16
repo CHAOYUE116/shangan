@@ -1,145 +1,106 @@
-/**
- * tools/audit-sample.mjs —— 题库抽检
- *
- * 之前做过的是「统计审计」（有多少题没解析、多少题干空），那是看表。
- * 这个脚本是「内容抽检」——真的把题捞出来逐条看，检查：
- *   1. 题干是否完整（不是半截、不是只有「如图所示」）
- *   2. 选项是否齐全（单选必须 4 个，多选至少 2 个）
- *   3. 答案格式是否合法（A/B/C/D 或 ABC）
- *   4. 解析是否真的在讲这道题（不是套话、不是别的题的解析）
- *   5. HTML 残留（未闭合标签、裸 &nbsp;、公式图丢失的 `；；；`）
- *
- * 用法：
- *   node tools/audit-sample.mjs                    # 每科抽 6 题
- *   node tools/audit-sample.mjs --n 20             # 每科抽 20 题
- *   node tools/audit-sample.mjs --subject 事业编·职测 --n 30
- */
-import { DatabaseSync } from 'node:sqlite';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+#!/usr/bin/env node
+/** 随机抽 300 道可用题，按「格式/内容」规则体检，输出分类计数与样本。 */
+import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB = path.resolve(__dirname, '..', 'app-assets', 'tiku_app.db');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(HERE, "..");
+const db = new DatabaseSync(join(ROOT, "app-assets", "tiku_app.db"), { readOnly: true });
+const img = new DatabaseSync(join(ROOT, "app-assets", "images.db"), { readOnly: true });
 
-const argv = process.argv.slice(2);
-const arg = (n, d = null) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
-const N = Number(arg('n', 6));
-const ONLY = arg('subject', null);
+const N = Number(process.argv[2] || 300);
+const rows = db
+  .prepare(
+    `SELECT questionId, subject, chapter, type, content, contentHtml, material, options, answer, answerIndex, analysis, analysisHtml, optionType
+     FROM (SELECT q.*, p.subject AS subject FROM questions q JOIN papers p ON p.id=q.paperId WHERE COALESCE(q.q_bad,0)=0 ORDER BY RANDOM() LIMIT ?)`,
+  )
+  .all(N);
 
-const d = new DatabaseSync(DB, { readOnly: true });
+const hasImgKey = img.prepare("SELECT 1 FROM images WHERE key=? LIMIT 1");
+const strip = (s) => String(s || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+const PLACEHOLDER = /^(缺失|略|无|暂无|见解析|答案见解析|[（(]图[)）]|如图|同上)$/;
+const out = {};
+const add = (k, r) => {
+  out[k] = out[k] || { n: 0, ids: [] };
+  out[k].n++;
+  if (out[k].ids.length < 6) out[k].ids.push(r.questionId);
+};
 
-const stripHtml = (s) => String(s || '')
-  .replace(/<br\s*\/?>/gi, ' ')
-  .replace(/<\/(p|div|li|tr)>/gi, ' ')
-  .replace(/<[^>]+>/g, '')
-  .replace(/&nbsp;/g, ' ')
-  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
-  .replace(/\s+/g, ' ')
-  .trim();
+const latexKeys = (s) => [...String(s || "").matchAll(/latex=([A-Za-z0-9_-]+)/g)].map((m) => m[1]);
 
-/* ---------- 检查规则 ---------- */
-
-const problems = [];
-
-function check(q) {
-  const p = [];
-  const stem = stripHtml(q.content);
-  const opts = safeJson(q.options);
-  const ans = String(q.answer || '').trim().toUpperCase();
-  const ana = stripHtml(q.analysis);
-
-  // 1. 题干
-  if (stem.length < 8) p.push(`题干过短(${stem.length}字): ${stem.slice(0, 40)}`);
-  if (/^(如图|如下图|见图|根据图|根据下图)/.test(stem) && !/https?:\/\/|data:image/.test(String(q.contentHtml || q.content))) {
-    p.push('题干只有「如图」但没有图片');
+for (const r of rows) {
+  const type = Number(r.type);
+  const isObj = [1, 2, 3, 5].includes(type);
+  const stem = strip(r.contentHtml) || strip(r.content);
+  const ana = strip(r.analysisHtml) || strip(r.analysis);
+  let opts = [];
+  try {
+    opts = JSON.parse(String(r.options || "[]"));
+    if (!Array.isArray(opts)) opts = [];
+  } catch {
+    add("options_json_broken", r);
   }
-  if (/；；；|;;;/.test(ana)) p.push('解析里有公式图被剥离后的连续分号');
+  const optTexts = opts.map((o) => strip(typeof o === "string" ? o : o && o.text));
+  const mat = String(r.material || "");
+  const cmat = strip(mat);
+  const allHtml = [r.contentHtml, r.material, r.analysisHtml].join("\n");
 
-  // 2. 选项
-  const kind = q.type;
-  if ([21, 24, 25, 26].includes(kind)) {
-    // 主观题，ptions 空是正常的
-  } else if (!Array.isArray(opts) || opts.length === 0) {
-    p.push('无选项(客观题)');
-  } else if (opts.length < 2) {
-    p.push(`选项只有 ${opts.length} 个`);
-  } else {
-    const empty = opts.filter((o) => !stripHtml(o).length).length;
-    if (empty) p.push(`${empty} 个选项内容为空`);
-    // 单选题应该 4 个
-    if (ans.length === 1 && opts.length !== 4) p.push(`单选但 ${opts.length} 个选项`);
-  }
+  // 1 题干
+  if (!stem) add("stem_empty", r);
+  else if (PLACEHOLDER.test(stem)) add("stem_placeholder", r);
+  else if (stem.length < 8) add("stem_too_short", r);
 
-  // 3. 答案
-  if (!ans) {
-    if (![21, 24, 25, 26].includes(kind)) p.push('无答案');
-  } else if (!/^[A-H]+$/.test(ans)) {
-    p.push(`答案格式异常: ${ans}`);
-  } else if (Array.isArray(opts) && opts.length && ans.split('').some((c) => c.charCodeAt(0) - 65 >= opts.length)) {
-    p.push(`答案 ${ans} 超出选项范围(${opts.length}个)`);
-  }
-
-  // 4. 解析
-  if (!ana) {
-    if (kind !== 21 && kind !== 24 && kind !== 25 && kind !== 26) p.push('无解析');
-  } else {
-    if (ana.length < 15) p.push(`解析过短(${ana.length}字)`);
-    // 解析里通常会重复答案字母，若完全没有该字母，可疑
-    if (ans.length && !ana.includes(ans[0]) && ana.length > 40) {
-      p.push(`解析里没提到答案 ${ans}，可能解析错配`);
+  // 2 选项
+  if (isObj) {
+    if (opts.length === 0) add("options_missing", r);
+    else if (opts.length < 2) add("options_less_than_2", r);
+    else if (optTexts.some((t) => !t)) add("option_text_empty", r);
+    else if (type === 3) {
+      const ok = optTexts.every((t) => /正确|错误|对|错|是|否/.test(t));
+      if (!ok) add("judge_option_weird", r);
     }
   }
 
-  return p;
-}
-
-function safeJson(s) {
-  try { return typeof s === 'string' ? JSON.parse(s) : s; } catch { return null; }
-}
-
-/* ---------- 抽样 ---------- */
-
-const subjects = ONLY
-  ? [{ subject: ONLY }]
-  : d.prepare(`SELECT p.subject, COUNT(DISTINCT q.questionId) n FROM questions q JOIN papers p ON p.id=q.paperId GROUP BY p.subject ORDER BY n DESC`).all();
-
-let total = 0;
-let flagged = 0;
-
-for (const { subject } of subjects) {
-  const rows = d.prepare(`
-    SELECT q.questionId, q.type, q.content, q.contentHtml, q.options, q.answer, q.analysis, q.chapter, p.name AS paper
-    FROM questions q JOIN papers p ON p.id = q.paperId
-    WHERE p.subject = ?
-    ORDER BY RANDOM() LIMIT ?
-  `).all(subject, N);
-
-  console.log(`\n${'='.repeat(70)}`);
-  console.log(`${subject} —— 抽查 ${rows.length} 题`);
-  console.log('='.repeat(70));
-
-  for (const q of rows) {
-    total++;
-    const p = check(q);
-    if (p.length) flagged++;
-
-    const stem = stripHtml(q.content);
-    const opts = safeJson(q.options) || [];
-    console.log(`\n[q${q.questionId}] ${q.chapter || '(无章节)'} · 类型 ${q.type}`);
-    console.log(`  卷：${q.paper}`);
-    console.log(`  题：${stem.slice(0, 90)}${stem.length > 90 ? '…' : ''}`);
-    if (opts.length) {
-      console.log(`  项：${opts.map((o, i) => String.fromCharCode(65 + i) + '.' + stripHtml(o).slice(0, 18)).join('  ')}`);
-    }
-    console.log(`  答：${q.answer || '(空)'}`);
-    const ana = stripHtml(q.analysis);
-    console.log(`  析：${ana.slice(0, 70)}${ana.length > 70 ? '…' : ''}`);
-    if (p.length) console.log(`  ⚠ ${p.join(' | ')}`);
+  // 3 答案
+  if (isObj) {
+    const a = String(r.answer || "").trim();
+    const ai = Number(r.answerIndex ?? -1);
+    if (!a && ai < 0) add("answer_missing", r);
+    else if (type !== 2 && ai >= 0 && opts.length && ai >= opts.length) add("answer_index_out_of_range", r);
+    else if (type !== 2 && ai < 0 && !a) add("answer_index_neg", r);
   }
+
+  // 4 解析
+  if (!ana) add("analysis_empty", r);
+  else if (ana.length < 20) add("analysis_too_short", r);
+
+  // 5 材料提图表但无图
+  if (/表\s*[1-9一二三四]|下列图表|下列图形|如下图|下图所示|见图|图表|如下表|见下表|下表/.test(cmat) && !/<img/i.test(mat) && cmat.length < 400) {
+    add("material_says_table_no_img", r);
+  }
+
+  // 6 公式图 key 缺失
+  for (const k of new Set(latexKeys(allHtml))) {
+    if (!hasImgKey.get(k)) {
+      add("img_key_missing", r);
+      break;
+    }
+  }
+
+  // 7 HTML 畸形
+  if (/https:https:\/\//.test(allHtml)) add("double_scheme", r);
+  if (/<img[^>]*$/m.test(allHtml)) add("img_tag_unclosed", r);
+  if ((allHtml.match(/<[a-zA-Z]/g) || []).length > 0 && /<table/i.test(allHtml) && !/<\/table>/i.test(allHtml)) {
+    add("table_unclosed", r);
+  }
+
+  // 8 判断题但选项是 ABCD
+  if (type === 3 && opts.length >= 4 && optTexts.every((t) => /^[A-D]$/.test(t))) add("judge_abcd_options", r);
+  if (type === 1 && opts.length >= 4 && optTexts.every((t) => /^(正确|错误)$/.test(t))) add("choice_with_judge_options", r);
 }
 
-console.log(`\n${'='.repeat(70)}`);
-console.log(`合计抽查 ${total} 题，可疑 ${flagged} 题（${(flagged / total * 100).toFixed(1)}%）`);
-console.log('='.repeat(70));
-
-d.close();
+console.log("样本:", rows.length);
+const sorted = Object.entries(out).sort((a, b) => b[1].n - a[1].n);
+if (!sorted.length) console.log("未发现异常");
+for (const [k, v] of sorted) console.log(`${k}: ${v.n}  ${v.ids.join(",")}`);

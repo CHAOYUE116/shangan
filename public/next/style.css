@@ -304,6 +304,7 @@ h2.section-title { font-size: 17px; margin: 0; font-weight: 650; letter-spacing:
 .feedback.no .fb-title { color: var(--red); }
 .fb-compare { font-size: 13px; color: var(--text-2); margin-top: 6px; }
 .fb-compare b { color: var(--text); }
+.fb-cost { font-size: 12.5px; color: var(--text-3); margin-top: 4px; }
 .result-q summary::-webkit-details-marker { display: none; }
 .result-q[open] summary { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .result-opt { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 14px; line-height: 1.55; }
@@ -1405,7 +1406,7 @@ html[data-theme="dark"] mark.kw { background: #6B5A12; color: #FFE9A3; }
 .segmented.seg-sm { display: flex; padding: 3px; border-radius: 10px; background: var(--soft); }
 .segmented.seg-sm button { min-width: 52px; min-height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font-size: 13px; }
 .segmented.seg-sm button.active { background: var(--card, #fff); color: var(--text); font-weight: 650; box-shadow: var(--shadow); }
-.module-caret { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: var(--soft); color: var(--text-3); font-size: 11px; line-height: 1; }
+.module-caret { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: var(--soft); color: var(--text-3); font-size: 15px; line-height: 1; }
 .module-caret.open { background: var(--primary-soft); color: var(--primary); }
 .module-caret.ghost { background: transparent; }
 .stat-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px; text-align: left; }
@@ -1683,3 +1684,125 @@ html[data-theme="dark"] .rp-mod { border-bottom-color: #2A2E37; }
 
 .rep-hero { display: block; }
 .rep-hero .page-title { margin-bottom: 10px; }
+
+/* ��պ��ߣ�������� <u> </u>��һ���ո񣩣��ֻ��϶̵�����������ͳһ�ɶ����»��߿� */
+.q-stem u.blk, .rv-stem u.blk, u.blk {
+  display: inline-block;
+  width: 3.2em;
+  height: 1em;
+  margin: 0 3px;
+  vertical-align: -0.12em;
+  border-bottom: 1.6px solid var(--text-2, #3b4048);
+  text-decoration: none;
+}
+.dark u.blk, [data-theme="dark"] u.blk { border-bottom-color: var(--text, #e7e9ee); }
+
+.module-caret { font-size: 16px; font-weight: 600; }
+.module-caret.ghost { font-size: 0; }
+
+/* 展开/收起：用矢量箭头，字形比 ▸ 大且能随状态旋转 */
+.module-caret svg { width: 18px; height: 18px; display: block; transition: transform .16s ease; }
+.module-caret.open svg { transform: rotate(90deg); }
+.module-caret { color: var(--text-2); }
+.module-caret.open { color: var(--primary); }
+
+/* 多选题 / 判断题：考试时第一眼就要能看出来 */
+.q-meta .tag.multi {
+  background: #FDE7E9;
+  color: #C0392B;
+  font-weight: 700;
+  border: 1px solid rgba(192, 57, 43, .28);
+}
+.q-meta .tag.judge {
+  background: #EAF3FF;
+  color: #1F5FBF;
+  font-weight: 700;
+  border: 1px solid rgba(31, 95, 191, .22);
+}
+.q-hint.exam {
+  background: #FFF4E5;
+  color: #8A5A00;
+  border: 1px solid rgba(154, 103, 0, .18);
+  font-weight: 600;
+}
+html[data-theme="dark"] .q-meta .tag.multi { background: rgba(192,57,43,.22); color: #FF9B90; }
+html[data-theme="dark"] .q-meta .tag.judge { background: rgba(31,95,191,.24); color: #9CC4FF; }
+html[data-theme="dark"] .q-hint.exam { background: rgba(154,103,0,.22); color: #F0C070; }
+.paper-src { font-size: 11px; color: var(--text-3); letter-spacing: .2px; }
+html[data-theme="dark"] .paper-src { color: #8a9095; }
+
+/* ---------- 深色模式修复：薄弱专项等 training-card 之前是白底 ---------- */
+html[data-theme="dark"] .training-card { background: #1b2440 !important; }
+html[data-theme="dark"] .training-card .btn-ghost { background: #232a3a !important; border-color: #33405a !important; color: #d6dcea !important; }
+html[data-theme="dark"] .training-card .training-sub { color: #9aa3af !important; }
+
+/* ---------- 基础测评：做成真卡片，别像一条提示 ---------- */
+.diag-card { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 16px; margin: 0 0 14px; box-shadow: var(--shadow); }
+.diag-card .dc-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary); font-size: 18px; flex: none; }
+.diag-card .dc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.diag-card .dc-title { font-size: 15.5px; font-weight: 700; color: var(--text); }
+.diag-card .dc-tag { font-size: 11px; font-weight: 600; color: var(--primary); background: var(--primary-soft);
+  border-radius: 6px; padding: 2px 6px; margin-left: 6px; vertical-align: 1px; }
+.diag-card .dc-sub { font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+.diag-card .dc-go { flex: none; font-size: 13px; color: var(--primary); font-weight: 600; }
+html[data-theme="dark"] .diag-card { background: #171a20; border-color: #252a33; }
+
+/* ---------- 引导页第 4 步：AI Key 提醒 ---------- */
+.ob-flag { margin: 12px 0 14px; padding: 12px 14px; border-radius: 12px;
+  background: var(--amber-soft); border: 1px solid #f3d39a; color: #8a5a00;
+  font-size: 13px; line-height: 1.6; }
+.ob-flag b { color: #7a4d00; }
+html[data-theme="dark"] .ob-flag { background: #2a2413; border-color: #4a3d17; color: #f0c987; }
+html[data-theme="dark"] .ob-flag b { color: #ffd79a; }
+.ob-req { font-size: 11px; font-weight: 700; color: #fff; background: var(--red); border-radius: 4px;
+  padding: 1px 5px; margin-left: 4px; vertical-align: 1px; }
+.field-bad { border-color: var(--red) !important; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
+.ob-ai-state { margin: 8px 0 2px; font-size: 12.5px; line-height: 1.5; padding: 8px 10px; border-radius: 10px; }
+.ob-ai-state.ok { background: var(--green-soft); color: var(--green); }
+.ob-ai-state.fail { background: var(--red-soft); color: var(--red); }
+
+/* ===== 引导页：Key 未填时的抖动与红字 ===== */
+@keyframes obShake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px); }
+  30% { transform: translateX(6px); }
+  45% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+.field.field-bad, .field-bad {
+  animation: obShake .45s ease-in-out;
+  border-color: #e5484d !important;
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, .18) !important;
+}
+.ob-err {
+  color: #e5484d;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+html[data-theme="dark"] .ob-err { color: #ff7a7f; }
+
+/* 用时展示：三种样式，用 body.cost-a / cost-b / cost-c 切换，默认 b */
+.cost-tag { display: none; }
+.cost-strip { display: none; }
+body.cost-a .fb-cost { display: none; }
+body.cost-a .cost-tag { display: inline-flex; background: #eef2ff; color: #3b5bdb; font-weight: 700; }
+html[data-theme="dark"] body.cost-a .cost-tag { background: #1d2540; color: #9db2ff; }
+body.cost-c .fb-cost { display: none; }
+body.cost-c .cost-strip { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(47,91,234,.08); color: var(--text); font-size: 13px; }
+body.cost-c .cost-strip b { font-weight: 700; }
+body.cost-c .cost-ico { font-style: normal; font-size: 14px; opacity: .8; }
+html[data-theme="dark"] body.cost-c .cost-strip { background: rgba(120,150,255,.14); }
+
+/* 纠错弹层：原因 chip */
+.fb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-chip {
+  border: 1px solid var(--line, #e6e8ef); background: var(--card, #fff); color: var(--ink-2, #52596b);
+  font-size: 13.5px; line-height: 1; padding: 9px 13px; border-radius: 999px; cursor: pointer;
+}
+.fb-chip.on { border-color: var(--brand, #2f5bea); color: var(--brand, #2f5bea); background: rgba(47,91,234,.08); font-weight: 600; }

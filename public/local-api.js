@@ -535,6 +535,7 @@ export function createRecordsApi(store, tiku, onChanged) {
           subject: r.subject || '',
           chapter: r.chapter || '',
           time: fmtDT(r.created_at),
+          costMs: r.cost_ms ?? null,
           type: q?.type ?? null,
         });
       }

@@ -120,6 +120,10 @@ const REASONS = {
   R10: '题干或选项是占位词',
   R11: '资料分析缺材料',
   R12: '材料提到表格但表没采到',
+  R13: '客观题没有解析',
+  R14: '客观题没有选项',
+  R15: '选项图没有采到',
+  R16: '选项写在题干里',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const isPlaceholderOptions = (raw) => {
@@ -254,14 +258,53 @@ for (const r of rows) {
     detail = '题干无数据、材料为空';
   }
 
-  // R12 材料说「见下表/如下表/下表是」但材料里没有表：
-  //     这类题的数据全在那张表里，表没采到 = 做不了（粉笔侧已下架，补不回来）。
-  if (!reason) {
-    const mat = material.trim();
-    const saysTable = /(见下表|如下表|下表是|下表为|见下表|下表)/.test(mat) || /(见下表|如下表|下表是|下表为)/.test(String(stem));
-    if (saysTable && !hasImg(mat) && !hasImg(contentHtml)) {
+  // R12 资料分析的材料只剩一句引导语，真正的表/图没采到：
+  //     ① 「见下表/如下表/下表是/表1 表2/下列图表/如下图/具体如下：」——提到图表但 material 里没有 <img>；
+  //     ② 材料极短（<150 字）且只有「根据所给资料，回答 91-95 题」这类话，又没有几个数字。
+  //     数据全在那张图表里，做不了（粉笔侧已下架，补不回来）。
+  if (!reason && String(r.chapter || '') === '资料分析' && !hasImg(material) && !hasImg(contentHtml)) {
+    const mat = String(material || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '');
+    const nums = (mat.match(/\d+(?:\.\d+)?/g) || []).length;
+    const saysChart = /(表\s*[1-9]|表[一二三四]|下列图表|下列图形|如下图|下图所示|见图|如下表|见下表|下表|具体[^。]{0,12}如下[：:])/.test(mat) && mat.length < 800;
+    const leadOnly = mat.length > 0 && mat.length < 150 && /(根据|资料|材料|完成|回答)/.test(mat) && nums < 4;
+    if (saysChart || leadOnly) {
       reason = 'R12';
-      detail = mat ? '材料提到表格但没有表' : '题干提到表格、材料为空';
+      detail = saysChart ? '材料提到图表但没有图' : '材料只有一句引导语';
+    }
+  }
+
+  // R13 客观题没有任何解析（不含图，纯空）：做完看不到讲解，等于白做
+  if (!reason && isObj) {
+    const htmlNoTag = analysisHtml.replace(/<[^>]+>/g, '').trim();
+    if (!hasImg(analysisHtml) && analysis.trim().length < 20 && htmlNoTag.length < 20) {
+      reason = 'R13';
+      detail = '解析为空';
+    }
+  }
+
+  // R14 客观题没有选项（type 1/2/3；判断题 type 5 的「正确/错误」由前端合成，不算）
+  if (!reason && ['1', '2', '3'].includes(String(r.type))) {
+    let opts = [];
+    try { opts = JSON.parse(String(r.options || '[]')); } catch {}
+    if (!Array.isArray(opts) || opts.length < 2) {
+      reason = 'R14';
+      detail = '没有选项';
+    }
+  }
+
+  // R15 选项是图（饼图/折线图/柱状图）但没采到，只有 A/B/C/D 占位
+  if (!reason && /^\["A","B","C","D"\]$|^\["A","B","C","D","E"\]$/.test(String(r.options || '').trim())) {
+    reason = 'R15';
+    detail = '选项图没有采到';
+  }
+
+  // R16 列式题（type 61）把选项写在题干里，没有结构化选项，点不了
+  if (!reason && String(r.type) === '61') {
+    let opts = [];
+    try { opts = JSON.parse(String(r.options || '[]')); } catch {}
+    if (!Array.isArray(opts) || opts.length < 2) {
+      reason = 'R16';
+      detail = '选项写在题干里';
     }
   }
 

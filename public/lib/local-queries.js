@@ -26,9 +26,9 @@ const Q_PAPERS_BY_CATEGORY =
 const Q_PAPER_BY_ID =
   'SELECT id, subjectName, category, name, questionCount, difficulty, chapters FROM papers WHERE id = ?';
 const Q_QUESTIONS_BY_PAPER =
-  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
+  'SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.paperId = ? ORDER BY q.id';
 const Q_QUESTION_BY_ID =
-  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, difficulty_est, diff_band, analysis, analysisHtml, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
+  'SELECT questionId, paperId, chapter, type, content, contentHtml, options, answer, answerIndex, difficulty, difficulty_est, diff_band, analysis, analysisHtml, material, (SELECT name FROM papers WHERE id = paperId) AS paperName FROM questions WHERE questionId = ? ORDER BY id LIMIT 1';
 const Q_MATERIALS_BY_PAPER =
   'SELECT title, idx, text FROM materials WHERE paperId = ? ORDER BY idx';
 // 考点来源：老表 question_keypoints（粉笔原样）+ 新表 question_keypoints_ext（我们自己补的，
@@ -340,6 +340,9 @@ export function toQuestion(q) {
     diffBand: q.diff_band ?? null,
     analysis: q.analysis ?? null,
     analysisHtml: q.analysisHtml ?? null,
+    // 材料题：questions.material 是题干自带的整段材料（表格/短文）。早期只查 q_material_map，
+    // 而扫 id 入库那批 map 是空的，模考/练习里材料题就只剩题干和选项
+    material: q.material || null,
   };
 }
 
@@ -427,7 +430,7 @@ function randomQuestions(tiku, subject, chapters, n, mock, year, difficulty) {
   }
   const sel = picks.slice(0, n);
   const qs = tiku.all(
-    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
+    `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material, (SELECT name FROM papers WHERE id = q.paperId) AS paperName
      FROM questions q WHERE q.id IN (${sel.map(() => '?').join(',')})`,
     ...sel
   );
@@ -495,7 +498,7 @@ function enrichGroups(tiku, practice, rows, subject, diffFilter) {
   const allIds = [...new Set([...qids, ...[...groupMembers.values()].flat()])];
   let qs = [];
   if (allIds.length) {
-    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
+    qs = tiku.all(`SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material, (SELECT name FROM papers WHERE id = q.paperId) AS paperName FROM questions q WHERE q.questionId IN (${allIds.map(() => '?').join(',')}) GROUP BY q.questionId`, ...allIds);
   }
   const orderOf = new Map(qs.map((q) => [q.questionId, q.id]));
   const byId = new Map(qs.map((q) => [q.questionId, q]));
@@ -511,7 +514,8 @@ function enrichGroups(tiku, practice, rows, subject, diffFilter) {
       gt = members.length;
       mat = materials.get(gid) || null;
     }
-    out.push({ ...toQuestion(q), groupId: gid ?? null, groupIndex: gi, groupTotal: gt, material: mat });
+    // 材料优先取 questions.material（扫 id 入库那批没有 q_material_map 行），表里没有才退回 map
+    out.push({ ...toQuestion(q), groupId: gid ?? null, groupIndex: gi, groupTotal: gt, material: (o && o.material) || mat || null });
   }
   const pos = new Map(qids.map((id, i) => [id, i]));
   // 排序规则：同一组内按卷序；组与组/组与单题之间按各自首题（或自身）在原列表位置——
@@ -978,7 +982,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         ).map((r) => r.questionId);
         if (!ids.length) return [];
         const qs = tiku.all(
-          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+          `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material
            FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
           ...ids
         );
@@ -998,7 +1002,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
           ).map((r) => r.question_id);
           if (!ids.length) return [];
           const qs = tiku.all(
-            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material
              FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
             ...ids
           );
@@ -1023,7 +1027,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
         }
         if (ids.length) {
           const qs = tiku.all(
-            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml
+            `SELECT q.questionId, q.paperId, q.chapter, q.type, q.content, q.contentHtml, q.options, q.optionsHtml, q.answer, q.answerIndex, q.difficulty, q.difficulty_est, q.diff_band, q.analysis, q.analysisHtml, q.material
                FROM questions q WHERE q.questionId IN (${ids.map(() => '?').join(',')}) GROUP BY q.questionId`,
             ...ids
           );
@@ -1226,7 +1230,17 @@ export function createLocalApi(tiku, practice, stats = {}) {
       const yc = isEssay ? '' : yearCond('10');
       // 申论/综应的卷子里有 2008 年以前的、也有名字里没年份的，套年份过滤会漏题
       // （综应曾因此少 156 道）；这两科直接按题目去重统计章节，不走 papers 预聚合。
-      const totals = isEssay
+      // 快路径：chapter_totals 是构建时预聚合好的（subject × chapter × 题数），
+      // 900 MB 库上直接扫 papers/questions 要 3–7 秒，查这张小表 <10 ms。
+      const fastTotals = (() => {
+        try {
+          const rows = tiku.all('SELECT chapter, c FROM chapter_totals WHERE subject = ? ORDER BY c DESC', subject);
+          return rows && rows.length ? rows.map((r) => ({ chapter: r.chapter, c: r.c })) : null;
+        } catch (e) { return null; }
+      })();
+      const totals = fastTotals
+        ? fastTotals
+        : isEssay
         ? tiku.all(`
           SELECT q.chapter, COUNT(DISTINCT q.questionId) c FROM questions q JOIN papers p ON p.id = q.paperId
           WHERE p.subjectName = ? GROUP BY q.chapter ORDER BY c DESC
@@ -1369,19 +1383,23 @@ export function createLocalApi(tiku, practice, stats = {}) {
         const catDone = statOf('catStats').get(subject) || new Map();
         // 三级：粉笔的叶子考点就在 question_keypoints 里（「中心理解题」「主题词」这种）。
         // 按 (二级, 考点) 聚合一次，前端的展开层直接用它，不再逐题回表。
-        const leafRows = (() => {
-          try {
-            return practice.all(`
-              SELECT qc.sub AS sb, k.kpName AS kp, COUNT(DISTINCT qc.question_id) AS n
-              FROM question_categories qc
-              JOIN questions q ON q.questionId = qc.question_id
-              JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
-              JOIN question_keypoints k ON k.questionId = qc.question_id
-              WHERE qc.subject = ? AND COALESCE(TRIM(qc.sub), '') <> ''
-              GROUP BY qc.sub, k.kpName
-            `, subject);
-          } catch { return []; }
-        })();
+        // 注意：这一步要把 20 万行 qc 和 11 万行 keypoints 做 join，手机上要好几秒。
+        // 0.9.9 起题库树回退成两级，默认不再算它；只有真的要用三级时才打开开关。
+        const leafRows = (globalThis.__NEED_LEAVES__)
+          ? (() => {
+            try {
+              return practice.all(`
+                SELECT qc.sub AS sb, k.kpName AS kp, COUNT(DISTINCT qc.question_id) AS n
+                FROM question_categories qc
+                JOIN questions q ON q.questionId = qc.question_id
+                JOIN papers p ON p.id = q.paperId AND ${YEAR_OF} BETWEEN ${YEAR_FROM} AND ${YEAR_TO}
+                JOIN question_keypoints k ON k.questionId = qc.question_id
+                WHERE qc.subject = ? AND COALESCE(TRIM(qc.sub), '') <> ''
+                GROUP BY qc.sub, k.kpName
+              `, subject);
+            } catch { return []; }
+          })()
+          : [];
         const leavesOf = new Map(); // sub 名 → [{name,total}]
         for (const r of leafRows) {
           const arr = leavesOf.get(r.sb) || [];
@@ -1405,6 +1423,26 @@ export function createLocalApi(tiku, practice, stats = {}) {
           const total = Math.max(subSum, real);
           return { group: g.group, total, done: subs.reduce((s, x) => s + x.done, 0), rate: null, chapters: [], subs };
         });
+        // 资料分析：粉笔二级是「材料形态」，直接用库里 sub，不套 FENBI_TREE 的考点
+        {
+          const zl = groups.find((x) => x.group === '资料分析');
+          if (zl) {
+            const names = ['文字资料', '统计表', '统计图', '综合资料'];
+            const subs2 = names
+              .map((n) => {
+                const t = idxMap.get(`资料分析|${n}`) || 0;
+                const d = catDone.get(`资料分析|${n}`);
+                return { name: n, total: t, done: d?.c || 0, rate: null, chapters: [], leaves: [] };
+              })
+              .filter((x) => x.total > 0);
+            const sum2 = subs2.reduce((a, x) => a + x.total, 0);
+            const real2 = groupReal.get('资料分析') || 0;
+            if (real2 > sum2) {
+              subs2.push({ name: '其他', total: real2 - sum2, done: catDone.get('资料分析|')?.c || 0, rate: null, chapters: [], leaves: [] });
+            }
+            zl.subs = subs2;
+          }
+        }
       } else {
         // 申论 / 综应：照粉笔的题型树分组。
         // 我们库里的 chapter 只有「一、」「二、」「作答要求」这类序号，靠不住；

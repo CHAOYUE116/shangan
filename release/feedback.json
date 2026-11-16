@@ -1,0 +1,8 @@
+{
+  "_comment": "App 端纠错的收件地址。改这里就换了收件箱，已安装的 App 下次启动自动跟随，不需要重新打包。",
+  "provider": "ntfy",
+  "base": "https://ntfy.sh",
+  "topic": "shangan-fb-9d41k7",
+  "_provider_options": "ntfy = 公共/自建 ntfy 话题；webhook = 任意 HTTPS 端点，App 直接 POST 原始 JSON（Worker/飞书/Supabase 都走这个）",
+  "updatedAt": "2026-11-16T14:00:00Z"
+}

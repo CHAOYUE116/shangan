@@ -122,7 +122,30 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.9.31';
+const APP_VERSION = '0.9.72';
+
+// 纠错上报：默认走 ntfy.sh 公共话题（免注册、免登录、App 里不放任何 token）。
+// 地址可远程改：启动时读 release/feedback.json，读到就用它覆盖下面这些默认值 →
+// 以后换收件箱（换 topic / 换成自己的 Worker、飞书、Supabase）只改仓库里那个 JSON，
+// 已安装的 App 下次启动自动跟随，不用重新打包。
+const FEEDBACK_CFG_URL = 'https://raw.githubusercontent.com/CHAOYUE116/shangan/main/release/feedback.json';
+const FEEDBACK_TOPIC = 'shangan-fb-9d41k7';
+const FEEDBACK_API = 'https://ntfy.sh';
+const FEEDBACK_CFG = { provider: 'ntfy', base: FEEDBACK_API, topic: FEEDBACK_TOPIC, url: '' };
+const FEEDBACK_OK = true;
+const FEEDBACK_REPO = 'chaoyue116/shangan-app';
+const FEEDBACK_REASONS = [
+  ['material', '材料缺失'],
+  ['image', '图片缺失/打不开'],
+  ['option', '选项缺失或错位'],
+  ['answer', '答案错误'],
+  ['analysis', '解析错误'],
+  ['category', '分类不对'],
+  ['typo', '题干错别字'],
+  ['dup', '重复题'],
+  ['stale', '题目过时'],
+  ['other', '其他'],
+];
 const DEFAULT_PROFILE = { examType: '公务员', province: '山东', examName: '2027 国考', examDate: '2026-11-29', dailyGoal: 20, scheme: '公务员·国考', excluded: [] };
 const DEFAULT_EXAM_BY_TYPE = {
   '事业编': { name: '2027 事业单位联考', date: '2027-03-15' },
@@ -488,6 +511,16 @@ function tickQCost() {
   P.qCost[P.idx] = (P.qCost[P.idx] || 0) + dt;
 }
 /** 取某题累计用时（毫秒） */
+/** 毫秒 → 人话用时：<1s 用 0.x 秒，<60s 用 x 秒，否则 m 分 s 秒 */
+function fmtCost(ms) {
+  const n = Number(ms) || 0;
+  if (n <= 0) return '—';
+  if (n < 1000) return '不到 1 秒';
+  const sec = n / 1000;
+  if (sec < 60) return (sec < 10 ? sec.toFixed(1) : String(Math.round(sec))) + ' 秒';
+  const m = Math.floor(sec / 60), r = Math.round(sec % 60);
+  return r ? m + ' 分 ' + r + ' 秒' : m + ' 分';
+}
 function qCostOf(idx) {
   const P = S.practice;
   return Math.min(Number((P.qCost || {})[idx]) || 0, 30 * 60 * 1000);
@@ -639,16 +672,31 @@ function splitAnalysis(text) {
   const s = String(text || '').replace(/\s+/g, ' ').trim();
   if (s.length < 40) return null;
   const re = /([A-H])\s*项?\s*(正确|错误)/g;
-  const hits = [];
   let m;
-  while ((m = re.exec(s))) hits.push({ at: m.index, letter: m[1], ok: m[2] === '正确' });
+  const hits = [];
+  while ((m = re.exec(s))) {
+    // 切分点回退到该标记所在句子的开头，避免把「…符合文段内容，故 A项错误」切成「故」
+    const before = s.slice(0, m.index);
+    const cut = Math.max(
+      before.lastIndexOf('。'),
+      before.lastIndexOf('；'),
+      before.lastIndexOf(';'),
+      before.lastIndexOf('，'),      // 「…，故A项错误」这类
+      before.lastIndexOf(' '),
+    );
+    hits.push({ at: cut > 20 ? cut + 1 : m.index, letter: m[1], ok: m[2] === '正确' });
+  }
   if (hits.length < 2) return null;
-  return hits.map((h, i) => ({
+  const uniq = [];
+  for (const h of hits) {
+    if (uniq.length && Math.abs(h.at - uniq[uniq.length - 1].at) < 6) continue;
+    uniq.push(h);
+  }
+  if (uniq.length < 2) return null;
+  return uniq.map((h, i) => ({
     letter: h.letter,
     ok: h.ok,
-    text: s.slice(h.at, i + 1 < hits.length ? hits[i + 1].at : s.length)
-      .replace(/^[A-H]\s*项?\s*(正确|错误)\s*[：:，,、]?\s*/, '')
-      .trim(),
+    text: s.slice(h.at, i + 1 < uniq.length ? uniq[i + 1].at : s.length).trim(),
   }));
 }
 
@@ -688,7 +736,7 @@ function answerToLetters(q) {
   return '';
 }
 
-function renderAnalysisBlock(q, fb, extraBtns) {
+function renderAnalysisBlock(q, fb, extraBtns, costMs) {
   const raw = String(q.analysis || '').trim();
   const rich = q.analysisHtml;
   const correctLetters = ((fb && fb.correct) || []).map((i) => 'ABCDEFGH'[i]).join('');
@@ -714,11 +762,16 @@ function renderAnalysisBlock(q, fb, extraBtns) {
   const pickedLabel = pickedBlock && pickedBlock.ok
     ? `${esc(pickedBlock.letter)} 为什么不算答案${isNeg ? '（它本身说法是对的，但题问的是「错误的」）' : ''}`
     : `${esc(pickedLetters)} 错在哪里`;
+  const full = `<div class="ana-line" style="white-space:pre-wrap">${renderRichText(rich || raw)}</div>`;
+  const extra = [
+    ansBlock && ansBlock.text.length > 20 ? `<div class="ana-line"><b>${esc(ansBlock.letter)} 为什么是答案：</b>${renderRichText(ansBlock.text)}</div>` : '',
+    pickedBlock && pickedLetters && pickedLetters !== ansTxt ? `<div class="ana-line bad"><b>${pickedLabel}：</b>${renderRichText(pickedBlock.text)}</div>` : '',
+  ].join('');
+  for (const b of blocks) if (!b.text) return `<div class="ana-card">${head}${full}</div>`;
   return `<div class="ana-card">
-    ${head.replace('解析', whyTitle)}
-    ${ansBlock ? `<div class="ana-line"><b>${esc(ansBlock.letter)} 为什么是答案：</b>${renderRichText(ansBlock.text)}</div>` : ''}
-    ${pickedBlock && pickedLetters && pickedLetters !== ansTxt ? `<div class="ana-line bad"><b>${pickedLabel}：</b>${renderRichText(pickedBlock.text)}</div>` : ''}
-    <details class="ana-more"><summary><span>完整解析${blocks.length > 2 ? ` · ${blocks.length} 段` : ''}</span><em>展开 ›</em></summary><div class="ana-full" style="white-space:pre-wrap">${renderRichText(rich || raw)}</div></details>
+    ${head}
+    ${full}
+    ${extra ? `<details class="ana-more"><summary><span>逐项拆解</span><em>展开 ›</em></summary>${extra}</details>` : ''}
   </div>`;
 }
 
@@ -1183,6 +1236,8 @@ async function openLibrary(subject) {
   S.lib.view = 'subjects';
   S.tab = 'library';
   $('#view').innerHTML = '<div class="spinner"></div>';
+  // tab 高亮先切过去：否则等接口的 1–2 秒里底部还亮着「首页」，看着像没点动
+  document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === 'library'));
   try {
     const [chapters, categories, chapDone, kpDone] = await Promise.all([
       api('/api/chapters?subject=' + encodeURIComponent(next)),
@@ -1248,7 +1303,9 @@ function renderLibrary() {
       const pct = g.total ? Math.min(100, Math.round((dn / g.total) * 100)) : 0;
       const subs2 = (g.subs || []).filter((x) => x.total > 0 && x.name !== '全部');
       const open = !!openGroups[g.group];
-      const caret = subs2.length ? `<button class="module-caret ${open ? 'open' : ''}" data-toggle-group="${esc(g.group)}" aria-label="${open ? '收起' : '展开'}">${open ? '▾' : '▸'}</button>` : '<span class="module-caret ghost"></span>';
+      const caret = subs2.length
+    ? `<button class="module-caret ${open ? 'open' : ''}" data-toggle-group="${esc(g.group)}" aria-label="${open ? '收起' : '展开'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 16 12l-7 6.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`
+    : '<span class="module-caret ghost"></span>';
       return `<div class="module-row" data-act="group" data-group="${esc(g.group)}" data-sub="全部">${caret}<div class="module-no">${String(i + 1).padStart(2, '0')}</div><div class="module-name">${esc(g.group)}</div><div class="module-count ${dn ? 'has' : ''}">${dn}/${g.total}</div><div class="module-bar"><i style="width:${pct}%"></i></div></div>${open ? subs2.map((x) => {
         // 二级的「已做」直接用接口算好的 x.done（按 category|sub 索引统计），
         // 之前用 doneOf(name) 是按 chapter 名匹配，二级名和 chapter 对不上，永远显示 0
@@ -1497,6 +1554,12 @@ function kindOf(name) {
   if (/模拟|模考|预测|押题/.test(s)) return '模拟';
   return '真题';
 }
+/** 卷子来自哪个题库：只有华图卷单独标，粉笔是默认来源，不打扰视觉 */
+function srcOf(p) {
+  const c = String((p && p.category) || "");
+  if (c === "huatu") return ' <span class="paper-src">来源 华图</span>';
+  return '';
+}
 function renderPapers(opts = {}) {
   const inExam = opts.host === 'exam' || (opts.host == null && !!S.examPapers);
   const f = S.lib.filter;
@@ -1508,12 +1571,13 @@ function renderPapers(opts = {}) {
   const years = ['全部', ...[...new Set(S.lib.papers.map((p) => yearOf(p.name)))].filter((y) => y !== '其他').sort((a, b) => Number(b) - Number(a)).slice(0, 7), '其他'];
   const kinds = ['全部', '真题', '模拟'];
   // 卷子列表也按「统考/联考 → 浙江 → 年份」排，最新、最像自己要考的放最前
+  // 卷子列表：年份降序为主（2027 → 2015），同年里 统考/联考 → 浙江 优先
   const paperRank = (p) => {
     const n = String(p.name || '');
-    let r = 0;
+    const y = Number(yearOf(n)) || 0;
+    let r = -y * 1000;
     if (/统考|联考/.test(n)) r -= 4;
     if (/浙江/.test(n)) r -= 2;
-    r -= Number(yearOf(n)) / 10000;
     return r;
   };
   const list = S.lib.papers
@@ -1544,14 +1608,14 @@ function renderPapers(opts = {}) {
     <div class="paper-item" data-act="paper" data-id="${p.id}" data-name="${esc(p.name || '')}" data-subject="${esc(p.subject || '')}">
       <div class="paper-top"><span class="tag">${esc(S.lib.subject)}</span><span class="tag ${kindOf(p.name) === '模拟' ? 'warn' : 'ok'}">${kindOf(p.name)}</span>${d ? doneTag : ''}<span class="paper-year">${yearOf(p.name)}</span></div>
       <div class="paper-title">${esc(p.name)}</div>
-      <div class="paper-meta">${p.questionCount} 题${p.difficulty ? ` · 难度 ${p.difficulty}` : ''}</div>
+      <div class="paper-meta">${p.questionCount} 题${p.difficulty ? ` · 难度 ${p.difficulty}` : ''}${srcOf(p)}</div>
     </div>`; }).join('') || '<div class="empty-state">没有匹配的试卷</div>'}</div>
   ${list.length > S.lib.show ? `<button class="btn btn-ghost btn-block" data-act="more-papers" style="margin-top:12px">加载更多（已显示 ${Math.min(S.lib.show, list.length)} / ${list.length} 套）</button>` : ''}`;
 }
 
 /* ---------- 回顾 ---------- */
 function itemShape(x, kind) {
-  return { questionId: x.questionId || x.question_id || x.id, content: x.content || x.prompt || '', subject: x.subject || '', chapter: x.chapter || '', note: x.note || '', time: x.time || '', answer: x.answer == null ? '' : String(x.answer), myAnswer: x.myAnswer == null ? '' : String(x.myAnswer), available: x.available !== false };
+  return { questionId: x.questionId || x.question_id || x.id, content: x.content || x.prompt || '', subject: x.subject || '', chapter: x.chapter || '', note: x.note || '', time: x.time || '', answer: x.answer == null ? '' : String(x.answer), myAnswer: x.myAnswer == null ? '' : String(x.myAnswer), available: x.available !== false, costMs: x.costMs == null ? (x.cost_ms == null ? null : x.cost_ms) : x.costMs };
 }
 async function loadReview(tab) {
   S.review.tab = tab;
@@ -1678,8 +1742,8 @@ function renderReview() {
   ${tab === 'notes' && list.length ? `<button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-act="note-search">搜索笔记</button>` : ''}
   <div class="card list-card">
     ${shown.length ? shown.map((r) => `<div class="list-item" data-act="open-q" data-id="${r.questionId}">
-      <div class="list-main"><div class="item-snippet">${esc(r.content || r.note || '(无题干)')}</div>
-      <div class="item-bottom"><span class="tag">${esc(r.subject || '')}</span><span class="tag">${esc(r.chapter || '')}</span>${r.note ? `<span class="tag ok">有笔记</span>` : ''}${tab === 'wrong' ? answerHint(r) : ''}</div></div></div>`).join('') : `<div class="empty-state">${S.review.chapter ? `「${esc(S.review.chapter)}」下没有${tab === 'wrong' ? '错题' : '内容'}` : `暂无${tab === 'wrong' ? '错题' : tab === 'fav' ? '收藏' : '笔记'}`}<br><span class="muted">去刷题后会自动出现在这里</span></div>`}
+      <div class="list-main"><div class="item-snippet">${esc(snippetText(r))}</div>
+      <div class="item-bottom"><span class="tag">${esc(r.subject || '')}</span><span class="tag">${esc(r.chapter || '')}</span>${r.note ? `<span class="tag ok">有笔记</span>` : ''}${tab === 'wrong' ? answerHint(r) : ''}${r.costMs ? `<span class="tag">用时 ${esc(fmtCost(r.costMs))}</span>` : ''}</div></div></div>`).join('') : `<div class="empty-state">${S.review.chapter ? `「${esc(S.review.chapter)}」下没有${tab === 'wrong' ? '错题' : '内容'}` : `暂无${tab === 'wrong' ? '错题' : tab === 'fav' ? '收藏' : '笔记'}`}<br><span class="muted">去刷题后会自动出现在这里</span></div>`}
   </div>`;
 }
 
@@ -1724,11 +1788,11 @@ function renderExam() {
     const age = diagAgeDays();
     const ready = abilityReady();
     if (!d || !d.modules || !d.modules.length) {
-      return `<button class="diag-mini" data-act="diag-view"><span class="diag-mini-txt"><span class="diag-mini-top"><b>基础测评</b> · 还没做</span><span class="diag-mini-sub">做完才出六维画像${ready.ready ? '；现在样本够了，也能先看个粗判' : ''}</span></span><span class="chev">›</span></button>`;
+      return `<button class="diag-card" data-act="diag-view"><span class="dc-ico">◎</span><span class="dc-main"><span class="dc-title">基础测评<span class="dc-tag">36 题 · 约 25 分钟</span></span><span class="dc-sub">做完才出六维画像${ready.ready ? '；现在样本够了，也能先看个粗判' : '，之后再做题会按弱项推'}</span></span><span class="dc-go">去测评 ›</span></button>`;
     }
     const w = ([...(d.modules || [])].sort((x, y) => x.rate - y.rate))[0];
     const stale = age != null && age >= 30;
-    return `<button class="diag-mini" data-act="diag-view"><span class="diag-mini-txt"><span class="diag-mini-top"><b>基础测评</b> · ${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前'}</span><span class="diag-mini-sub">最该补 ${esc(w.name)} ${Math.round(w.rate * 100)}%${stale ? ' · 已过一个月，建议重测' : ''}</span></span><span class="chev">›</span></button>`;
+    return `<button class="diag-card" data-act="diag-view"><span class="dc-ico">◎</span><span class="dc-main"><span class="dc-title">基础测评<span class="dc-tag">${age == null ? '已保存' : age === 0 ? '今天测的' : age + ' 天前'}</span></span><span class="dc-sub">最该补 ${esc(w.name)} ${Math.round(w.rate * 100)}%${stale ? ' · 已过一个月，建议重测' : ' · 点开看完整画像'}</span></span><span class="dc-go">看画像 ›</span></button>`;
   })()}
   <div class="section-head"><h2 class="section-title">随机组卷</h2><span class="muted" style="font-size:12px">不挑卷子，按题量直接开考</span></div>
   ${presets.map((p) => `<section class="exam-card"><div class="exam-top"><span class="exam-no">${p.no}</span><span class="module-count">${esc(p.meta)}</span></div><div class="exam-title">${p.title}</div><div class="exam-meta">${esc(S.profile.examName)} · 随机组卷</div><button class="btn btn-primary btn-block" data-act="exam" data-n="${p.n}">开始模考</button></section>`).join('')}
@@ -3582,17 +3646,27 @@ function renderPractice() {
     }
     const ai = q.__ans && q.__ans.answerIndex >= 0 ? q.__ans.answerIndex : -1;
     const fb = { correct: ai >= 0 ? [ai] : [], selected: [], ok: true };
-    body.innerHTML = `<div class="card-sub" style="margin:-4px 0 10px;color:var(--brand)">背题模式 · 直接看答案和解析</div>${renderQuestionBlock(q, fb)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}`;
+    body.innerHTML = `<div class="card-sub" style="margin:-4px 0 10px;color:var(--brand)">背题模式 · 直接看答案和解析${qCostOf(P.idx) > 0 ? ` · 用时 ${fmtCost(qCostOf(P.idx))}` : ''}</div>${renderQuestionBlock(q, fb)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>', qCostOf(P.idx))}`;
     acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
     return;
   }
   if (P.exam || !P.confirmed) {
     const picked = selArr(P.selected);
-    const multi = isMultiOf(q) && !P.exam;
-    const hint = multi ? `<div class="q-hint">多选题 · 选几个都行，选完点「确认答案」</div>` : '';
+    const multi = isMultiOf(q);
+    const judge = String(q.type ?? '') === '5';
+    // 考试时最容易看错题型：多选/判断必须在题号下面一眼能看到，不能只靠一个小灰标签
+    const typeBadge = multi ? '<span class="tag multi">多选 · 答案不止一个</span>' : judge ? '<span class="tag judge">判断题</span>' : '';
+    // 真题 / 模拟：标题里带「模拟」的算模拟卷，其余（含考生回忆版）都算真题
+    const paperName = String(q.paperName || P.title || '');
+    const mockBadge = /模拟/.test(paperName)
+      ? '<span class="tag warn">模拟题</span>'
+      : paperName
+        ? '<span class="tag ok">真题</span>'
+        : '';
+    const hint = multi ? `<div class="q-hint ${P.exam ? 'exam' : ''}">${P.exam ? '多选题：选几个都行，没选满会算错' : '多选题 · 选几个都行，选完点「确认答案」'}</div>` : '';
     const faved = S.favIds && S.favIds.has(String(q.id));
     const tools = `<div class="q-tools"><button class="link-sm ${faved ? 'on' : ''}" data-act="fav-toggle" aria-pressed="${faved}">${faved ? '★ 已收藏' : '☆ 收藏'}</button><button class="link-sm" data-act="note-edit">✎ 笔记</button></div>`;
-    body.innerHTML = `<div class="q-meta"><span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(blankify(q.contentHtml || esc(q.content || '')))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
+    body.innerHTML = `<div class="q-meta">${typeBadge}${mockBadge}<span class="tag">${esc(q.chapter || '')}</span><span class="tag">${typeTagOf(q, options)}</span>${q.difficulty > 0 ? `<span class="tag">难度 ${q.difficulty}</span>` : ''}${P.exam ? '<span class="tag warn">考试</span>' : ''}</div><div class="q-stem">${q.sourceTag ? `<span class="q-src">${esc(q.sourceTag)}</span>` : ''}${safeHtml(blankify(q.contentHtml || esc(q.content || '')))}</div>${renderMaterial(q)}${hint}${options.map((o, i) => `<button class="option ${picked.includes(i) ? 'selected' : ''}" data-opt="${i}"><span class="key">${'ABCDEFGH'[i]}</span><span class="txt">${renderOption(optRich(q, o, i))}</span></button>`).join('')}${options.length ? '' : gradeBox(q)}${P.exam ? '' : tools}`;
     if (P.exam) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '交卷' : '下一题'}</button>`;
     else if (options.length) acts.innerHTML = `${prevBtn()}<button class="btn btn-primary" data-confirm ${hasSel(P.selected) ? '' : 'disabled style="opacity:.45"'}>确认答案</button>`;
     else acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="show-answer">参考答案</button><button class="btn btn-primary" data-act="ai-grade" ${P.gradeLoading ? 'disabled style="opacity:.45"' : ''}>${P.gradeLoading ? '批改中…' : 'AI 批改'}</button>`;
@@ -3608,7 +3682,7 @@ function renderPractice() {
       ${deep.mother ? `<div><b>母题模板</b><p style="white-space:pre-wrap;margin-top:4px">${esc(deep.mother)}</p></div>` : ''}
     </div>` : '';
     const aiCard = `<div class="ai-card"><div class="ai-head"><span class="ai-badge">AI 讲题</span>${P.aiCached ? '<span class="tag ok">缓存</span>' : ''}<span class="ai-sub">换个方式讲这道题</span><button class="btn btn-ghost btn-sm" data-act="ai-explain" ${P.aiLoading ? 'disabled' : ''}>${P.aiLoading ? '解析中…' : P.ai ? '重新讲' : '听一遍'}</button></div>${P.aiLoading ? `<div class="ai-loading"><span class="spinner ai-spinner"></span><span>AI 正在拆解题目…</span></div>` : ''}${P.ai ? `<div class="ai-sections">${renderAiStructured(P.ai)}</div>` : ''}${P.ai ? `<div class="ai-chat"><div class="ai-chat-title">继续追问</div>${P.aiChat.map((m) => `<div class="ai-chat-bubble ${m.role}">${m.role === 'assistant' ? aiRichText(m.content) : esc(m.content)}</div>`).join('')}${P.aiLoading ? `<div class="ai-chat-loading"><span class="spinner ai-spinner"></span> AI 正在回答…</div>` : ''}<div class="ai-chat-input"><input id="ai-chat-input" class="field" placeholder="还有哪里不懂？继续问"><button class="btn btn-primary btn-sm" data-act="ai-send">发送</button></div></div>` : ''}</div>`;
-    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b>${fb.slow ? ' · <span class="tag warn">会但慢</span>' : ''}</div></div>${refStatLine(q.__ref)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>')}${deepCard}${aiCard}`;
+    body.innerHTML = `${renderQuestionBlock(q, fb)}<div class="feedback ${fb.ok ? 'ok' : 'no'}" style="margin-top:14px"><div class="fb-title">${fb.ok ? '✓ 答对了' : '✗ 选错了'}</div><div class="fb-compare">正确答案 <b>${(fb.correct || []).map((i) => 'ABCDEFGH'[i]).join('') || '见解析'}</b> · 你的选择 <b>${(fb.selected || []).map((i) => 'ABCDEFGH'[i]).join('') || '—'}</b>${fb.slow ? ' · <span class="tag warn">比平时慢</span>' : ''}${qCostOf(P.idx) > 0 ? ` <span class="tag cost-tag">用时 ${fmtCost(qCostOf(P.idx))}</span>` : ''}</div>${qCostOf(P.idx) > 0 ? `<div class="fb-cost">本题用时 ${fmtCost(qCostOf(P.idx))}</div><div class="cost-strip"><i class="cost-ico">⏱</i><b>本题用时 ${fmtCost(qCostOf(P.idx))}</b></div>` : ''}</div>${refStatLine(q.__ref)}${renderAnalysisBlock(q, fb, '<button class="btn btn-ghost btn-sm" data-act="similar">同考点再练</button><button class="btn btn-ghost btn-sm" data-act="correction">纠错</button>', qCostOf(P.idx))}${deepCard}${aiCard}`;
     acts.innerHTML = `${prevBtn()}<button class="btn btn-ghost" data-act="fav-toggle">收藏</button><button class="btn btn-ghost" data-act="note-edit">笔记</button><button class="btn btn-primary" data-next>${P.idx >= P.qs.length - 1 ? '完成本轮' : '下一题'}</button>`;
   }
 }
@@ -3748,6 +3822,12 @@ async function openQuestionById(id, title) {
 
 /* ---------- 事件 ---------- */
 document.addEventListener('click', (e) => {
+  // 纠错弹层里的原因 chip：只切换选中，不触发别的动作
+  const fbChip = e.target.closest('.fb-chip');
+  if (fbChip) {
+    fbChip.classList.toggle('on');
+    return;
+  }
   // 按考点练的分组标题：只展开/收起，不进练习
   const kpGroup = e.target.closest('[data-toggle-kp]');
   if (kpGroup) {
@@ -3770,6 +3850,7 @@ document.addEventListener('click', (e) => {
   const tab = e.target.closest('#tabbar .tab');
   if (tab) {
     const t = tab.dataset.tab;
+    S.userNav = Date.now();   // 告诉 boot：用户已经自己导航了，别再把他拉回首页
     if (t === 'library') {
       const valid = visibleSubjects().some((s) => s.subjectName === S.lib.subject);
       if (!valid || !S.lib.chapters.length || S.lib.view !== 'subjects') { openLibrary(valid ? S.lib.subject : undefined); return; }
@@ -4075,6 +4156,46 @@ document.addEventListener('click', (e) => {
     sheet(`<div class="sheet-head"><b>参考答案</b><button class="sheet-close">✕</button></div><div class="ai-out">${esc(q?.analysis || '暂无参考答案')}</div>`);
     return;
   }
+  if (a === 'correction-more') {
+    const box = $('#correction-more');
+    if (box) box.hidden = !box.hidden;
+    return;
+  }
+  if (a === 'correction-submit') {
+    const q = currentQ();
+    if (!q) return;
+    const reasons = $$('.fb-chip.on').map((el) => el.dataset.fb);
+    const note = ($('#correction-text')?.value || '').trim();
+    const expect = ($('#correction-expect')?.value || '').trim();
+    const payload = {
+      questionId: String(q.questionId || q.id),
+      reasons, note, expect,
+      question: fbSnapshot(q),
+      version: APP_VERSION,
+      dbVersion: (window.NativeDB && window.NativeDB.getDbVersion && window.NativeDB.getDbVersion()) || '',
+      at: new Date().toISOString(),
+    };
+    const btn = act;
+    if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
+    fbSend(payload)
+      .then((ok) => {
+        if (ok) { closeSheet(); toast('已提交，谢谢！我们会核对这道题'); return; }
+        throw new Error('offline');
+      })
+      .catch(() => {
+        if (btn) { btn.disabled = false; btn.textContent = '提交纠错'; }
+        fbEnqueue(payload);
+        const txt = fbPlainText(payload);
+        navigator.clipboard?.writeText(txt).catch(() => {});
+        if (!FEEDBACK_API) {
+          window.open(`https://github.com/${FEEDBACK_REPO}/issues/new?title=${encodeURIComponent('[纠错] ' + payload.questionId)}&body=${encodeURIComponent(txt)}`, '_blank');
+          toast('已复制纠错内容，粘到打开的页面里提交');
+        } else {
+          toast('网络不通，已存在本机，下次联网自动上传');
+        }
+      });
+    return;
+  }
   if (a === 'correction-save') {
     const q = currentQ();
     const text = ($('#correction-text')?.value || '').trim();
@@ -4348,6 +4469,20 @@ document.addEventListener('keydown', (e) => {
  *   1) 让带库的实现批量核对并删掉僵尸记录；
  *   2) 把复习队列（sg_review_v1）里指向这些题的条目也摘掉。
  */
+/**
+ * 列表里的题干摘要。
+ * 有些题的题干里有公式图（分母、百分号、单位…都可能是图），纯文本 content 会把它们吞成空，
+ * 列表里就变成「浓度为的盐水」这种看着像缺数的句子。这里把图留在原位打一个 ▢，
+ * 至少让人知道「这儿有图」，而不是以为题目坏了。
+ */
+function snippetText(r) {
+  const raw = String(r.contentHtml || '');
+  if (raw && /<img/i.test(raw)) {
+    return raw.replace(/<img[^>]*>/gi, ' ▢ ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  return String(r.content || r.note || '(无题干)').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function pruneStaleRecords(silent) {
   let removed = 0;
   try {
@@ -5170,7 +5305,116 @@ function openNoteSearch() {
 function openCorrection() {
   const q = currentQ();
   if (!q) return;
-  sheet(`<div class="sheet-head"><b>题目纠错</b><button class="sheet-close">✕</button></div><div class="card-sub" style="margin:0 0 10px">说明题干、答案或解析哪里有问题；会保存到回顾笔记。</div><textarea class="field" id="correction-text" rows="5" maxlength="500" placeholder="例如：答案应为 C，解析中第二条理由不成立"></textarea><button class="btn btn-primary btn-block" style="margin-top:12px" data-act="correction-save">提交纠错</button>`);
+  const chips = FEEDBACK_REASONS.map(([k, label]) => `<button class="fb-chip" data-fb="${k}">${label}</button>`).join('');
+  sheet(`<div class="sheet-head"><b>题目纠错</b><button class="sheet-close">✕</button></div>
+    <div class="card-sub" style="margin:0 0 12px">不用填东西，点下面这个按钮就行，题号和我们需要的题目内容会自动带上。</div>
+    <button class="btn btn-primary btn-block" data-act="correction-submit">直接提交</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:8px" data-act="correction-more">想补充说明 / 选问题类型</button>
+    <div id="correction-more" hidden style="margin-top:12px">
+      <div class="fb-chips">${chips}</div>
+      <input class="field" id="correction-expect" maxlength="60" placeholder="可选：你认为的正确答案 / 正确分类" style="margin-top:10px">
+      <textarea class="field" id="correction-text" rows="4" maxlength="500" placeholder="补充说明，例如：表格里的数据没了、答案应为 C、图片打不开" style="margin-top:8px"></textarea>
+      <button class="btn btn-primary btn-block" style="margin-top:10px" data-act="correction-submit">带说明提交</button>
+    </div>
+    <div class="card-sub" style="margin-top:12px;font-size:12px">只看这道题，不看你的账号，也不用登录。</div>`);
+}
+
+function fbSnapshot(q) {
+  return {
+    id: q.id,
+    questionId: q.questionId || q.id,
+    source: q.source || null,
+    subject: q.subject || S.practice?.subject || null,
+    chapter: q.chapter || null,
+    type: q.type ?? null,
+    answer: q.answer ?? null,
+    stem: String(q.content || '').replace(/<[^>]+>/g, ' ').slice(0, 400),
+    options: Array.isArray(q.options) ? q.options.slice(0, 8) : q.options,
+    materialLen: String(q.material || '').replace(/<[^>]+>/g, '').length,
+    analysisLen: String(q.analysis || '').replace(/<[^>]+>/g, '').length,
+    imgCount: (String(q.material || '') + String(q.contentHtml || '') + String(q.analysisHtml || '')).match(/<img\b/gi)?.length || 0,
+  };
+}
+
+function fbEnqueue(payload) {
+  try {
+    const q = JSON.parse(localStorage.getItem('sg_fb_q') || '[]');
+    q.push(payload);
+    localStorage.setItem('sg_fb_q', JSON.stringify(q.slice(-50)));
+  } catch { /* ignore */ }
+}
+
+async function fbLoadCfg() {
+  try {
+    const cached = JSON.parse(localStorage.getItem('sg_fb_cfg') || 'null');
+    if (cached && cached.at && Date.now() - cached.at < 6 * 3600e3) Object.assign(FEEDBACK_CFG, cached.cfg);
+  } catch { /* ignore */ }
+  try {
+    const r = await fetch(FEEDBACK_CFG_URL + '?t=' + Math.floor(Date.now() / 3600e3), { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && (j.provider === 'ntfy' || j.provider === 'webhook')) {
+      FEEDBACK_CFG.provider = j.provider;
+      if (j.base) FEEDBACK_CFG.base = String(j.base).replace(/\/$/, '');
+      if (j.topic) FEEDBACK_CFG.topic = String(j.topic);
+      if (j.url) FEEDBACK_CFG.url = String(j.url).replace(/\/$/, '');
+      localStorage.setItem('sg_fb_cfg', JSON.stringify({ at: Date.now(), cfg: { ...FEEDBACK_CFG } }));
+    }
+  } catch { /* 离线就用默认值，不影响提交 */ }
+}
+
+async function fbSend(payload) {
+  if (!FEEDBACK_OK) return false;
+  if (FEEDBACK_CFG.provider === 'webhook' && FEEDBACK_CFG.url) {
+    const r = await fetch(FEEDBACK_CFG.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!r.ok) return false;
+    const j = await r.json().catch(() => ({}));
+    return r.ok && (j.ok === undefined ? true : !!j.ok);
+  }
+  const text = fbPlainText(payload) + '\n---\n' + JSON.stringify(payload);
+  const r = await fetch(FEEDBACK_CFG.base || FEEDBACK_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      topic: FEEDBACK_CFG.topic || FEEDBACK_TOPIC,
+      title: '纠错 ' + payload.questionId,
+      message: text.slice(0, 3900),
+      tags: ['warning'],
+      priority: 3,
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+  return r.ok;
+}
+
+async function fbFlush() {
+  if (!FEEDBACK_OK) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('sg_fb_q') || '[]'); } catch { list = []; }
+  if (!list.length) return;
+  const rest = [];
+  for (const p of list) {
+    try { if (!(await fbSend(p))) rest.push(p); } catch { rest.push(p); }
+  }
+  try { localStorage.setItem('sg_fb_q', JSON.stringify(rest)); } catch { /* ignore */ }
+}
+
+function fbPlainText(p) {
+  const rs = (p.reasons || []).map((k) => (FEEDBACK_REASONS.find((x) => x[0] === k) || [k, k])[1]).join('、');
+  return [
+    `【纠错】题号 ${p.questionId}`,
+    `原因：${rs || '（未选）'}`,
+    p.expect ? `期望：${p.expect}` : '',
+    p.note ? `说明：${p.note}` : '',
+    `模块：${p.question?.chapter || '-'} ｜ 来源：${p.question?.source || '-'}`,
+    `题干：${p.question?.stem || '-'}`,
+    `版本：${p.version} ｜ 库：${p.dbVersion}`,
+  ].filter(Boolean).join('\n');
 }
 
 async function openNoteEditor() {
@@ -5406,7 +5650,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('[data-ob-ai-skip]')) { try { localStorage.setItem(AI_OB_KEY, 'skip'); } catch { /* ignore */ } S.ob.step = 4; renderOnboarding(); return; }
-  if (e.target.closest('[data-ob-ai-next]')) { obSaveAi().then(() => { if (S.ob) { S.ob.step = 4; renderOnboarding(); } }); return; }
+  if (e.target.closest('[data-ob-ai-next]')) { obTestAi(); return; }
   if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(4, S.ob.step + 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-back]')) { S.ob.step = Math.max(0, S.ob.step - 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')); return; }
@@ -5506,17 +5750,25 @@ function renderOnboarding() {
     el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 3 步 / 共 5 步</div><div class="ob-title">目标和节奏</div><div class="ob-sub">用来算倒计时、每日任务和组卷难度</div><div class="ob-label">考试</div><div class="ob-list">${dates.map((x) => `<button class="ob-row ${d.examName === x.name ? 'active' : ''}" data-ob-date="${x.date}" data-ob-name="${x.name}"><span>${x.name}</span><span class="muted">${x.date}</span></button>`).join('')}</div><div class="ob-label">每日目标</div><div class="ob-grid four">${[15, 20, 30, 50].map((n) => `<button class="ob-chip ${d.dailyGoal === n ? 'active' : ''}" data-ob-goal="${n}">${n} 题</button>`).join('')}</div></div><div class="ob-foot"><button class="btn btn-ghost" data-ob-back>上一步</button><button class="btn btn-primary" data-ob-next>下一步</button></div>`;
   } else if (ob.step === 3) {
     const gw = AI_GATEWAYS[d.aiGw] || AI_GATEWAYS[0];
-    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 4 步 / 共 5 步 · 可跳过</div><div class="ob-title">接一个 AI（可选）</div><div class="ob-sub">讲题、申论批改、排计划都靠它。填自己的 Key 才生效，Key 只存在这台手机上。</div>
+    const st = ob.aiState || {};
+    const testing = st.status === 'testing';
+    const stateHtml = st.status === 'ok'
+      ? `<div class="ob-ai-state ok">✓ 连接成功，Key 已保存</div>`
+      : st.status === 'fail'
+        ? `<div class="ob-ai-state fail">✕ 没通：${esc(st.msg || '检查 Key / 模型名 / 网络')}<br><span class="muted">可以改完再试，或点左下角「先跳过」</span></div>`
+        : '';
+    el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 4 步 / 共 5 步</div><div class="ob-title">接一个 AI</div><div class="ob-sub">讲题、申论批改、排计划都靠它。Key 只存在这台手机上。</div>
+      <div class="ob-flag"><b>建议这一步就填好</b><br>不填 Key：做完题看不到 AI 讲题、申论没人批改、也排不出计划。<br>填完点下面的 <b>测试并下一步</b>，真的通了才放行；不想配就点 <b>先跳过</b>，做题、统计、引擎都不受影响。</div>
       <div class="ob-list">${AI_GATEWAYS.map((x, i) => `<button class="ob-row ${d.aiGw === i ? 'active' : ''}" data-ob-gw="${i}"><span>${esc(x.label)}${x.tip ? `<br><span class="muted" style="font-size:12px">${esc(x.tip)}</span>` : ''}</span><span class="muted">${d.aiGw === i ? '已选' : ''}</span></button>`).join('')}</div>
-      <div class="ob-label">API Key</div>
-      <input class="field" id="ob-ai-key" type="password" value="${esc(d.aiKey || '')}" placeholder="粘贴 Key，一般以 sk- 开头">
+      <div class="ob-label">API Key <span class="ob-req">必填</span></div>
+      <input class="field ${st.status === 'fail' ? 'field-bad' : ''}" id="ob-ai-key" type="password" value="${esc(d.aiKey || '')}" placeholder="粘贴 Key，一般以 sk- 开头">
       <div class="ob-label">模型</div>
       <input class="field" id="ob-ai-model" value="${esc(d.aiModel || gw.model || '')}" placeholder="例如 deepseek-chat">
+      ${stateHtml}
       <div class="ob-label">内置技能</div>
       <button class="ob-row ${d.skills !== false ? 'active' : ''}" data-ob-skills><span>申论批改 · 花生十三</span><span class="muted">${d.skills !== false ? '默认开启' : '已关闭'}</span></button>
-      <div class="ob-hint">技能是给 AI 用的答题规范，不配 Key 也能先装着；配了就直接生效。随时可在「我的 → AI 设置」改。</div>
-      <div class="ob-hint">没 Key 就先跳过，做题、统计、引擎都不受影响。</div></div>
-    <div class="ob-foot"><button class="btn btn-ghost" data-ob-ai-skip>先跳过</button><button class="btn btn-primary" data-ob-ai-next>${d.aiKey ? '保存并继续' : '继续'}</button></div>`;
+      <div class="ob-hint">技能是给 AI 用的答题规范，不配 Key 也能先装着；配了就直接生效。随时可在「我的 → AI 设置」改。</div></div>
+    <div class="ob-foot"><button class="btn btn-ghost" data-ob-ai-skip>先跳过</button><button class="btn btn-primary" data-ob-ai-next ${testing ? 'disabled' : ''}>${testing ? '测试中…' : '测试并下一步'}</button></div>`;
   } else {
     el.innerHTML = `<div class="ob-body"><div class="ob-kicker">第 5 步 / 共 5 步 · 可跳过</div><div class="ob-title">先做个基础测评？</div><div class="ob-sub">六个模块各抽几道题，约 25 分钟。测完不用自己判断强弱 —— 每日任务会先补错得多的那几块。</div>
       <div class="ob-ai-list">
@@ -5571,8 +5823,9 @@ function renderAiOnboard() {
       <div class="ob-kicker">第 1 步 / 共 2 步</div>
       <div class="ob-title">选一个服务商</div>
       <div class="ob-sub">本质是按量买 token。讲一道题的成本大约几厘钱。</div>
+      <div class="ob-flag"><b>Key 一定要填</b><br>不填 Key：AI 讲题点不动、申论没人批改、也排不出计划。<br>填完点 <b>测试并下一步</b> —— 真的回话了才放行；连不上就只能「跳过」。</div>
       <div class="ob-list">${AI_GATEWAYS.map((x, i) => `<button class="ob-row ${ob.gw === i ? 'active' : ''}" data-ai-ob-gw="${i}"><span>${esc(x.label)}${x.tip ? `<br><span class="muted" style="font-size:12px">${esc(x.tip)}</span>` : ''}</span><span class="muted">${ob.gw === i ? '已选' : ''}</span></button>`).join('')}</div>
-      <div class="ob-label">API Key</div>
+      <div class="ob-label">API Key <span class="ob-req">必填</span></div>
       <input class="field" id="ai-ob-key" type="password" value="${esc(ob.key)}" placeholder="粘贴 Key，一般以 sk- 开头">
       ${g.signup ? `<div class="ob-hint">还没有？去 <a href="${esc(g.signup)}" target="_blank" class="link">${esc(g.label)} 控制台</a> 建一个。</div>` : ''}
       <div class="ob-label">模型</div>
@@ -5581,7 +5834,7 @@ function renderAiOnboard() {
       <input class="field" id="ai-ob-base" value="${esc(ob.base || g.url)}" placeholder="https://api.deepseek.com/v1">
       <div class="ob-hint">默认填好的是 ${esc(g.label)} 官方地址；用中转/代理时改成你自己的。</div>
     </div>
-    <div class="ob-foot"><button class="btn btn-ghost" data-ai-ob-skip>跳过</button><button class="btn btn-ghost" data-ai-ob-back>上一步</button><button class="btn btn-primary" data-ai-ob-test>保存并测试</button></div>`;
+    <div class="ob-foot"><button class="btn btn-ghost" data-ai-ob-skip>跳过</button><button class="btn btn-ghost" data-ai-ob-back>上一步</button><button class="btn btn-primary" data-ai-ob-test>测试并下一步</button></div>`;
   } else {
     const ok = ob.state === 'ok';
     const testing = ob.state === 'testing';
@@ -5636,8 +5889,89 @@ async function obSaveAi() {
   else toast('Key 没写进去，稍后可以到「我的 → AI 设置」再配');
 }
 
-async function aiOnboardTest() {
-  const ob = S.aiOb;
+/** 引导页第 4 步：保存 → 真发一次请求 → 通了才进下一步 */
+async function obTestAi() {
+  const ob = S.ob; const d = ob && ob.draft;
+  if (!d) return;
+  d.aiKey = ($('#ob-ai-key')?.value || d.aiKey || '').trim();
+  d.aiModel = ($('#ob-ai-model')?.value || d.aiModel || '').trim();
+  const g = AI_GATEWAYS[d.aiGw] || AI_GATEWAYS[0];
+  const base = String(d.aiBase || g.url || '').replace(/\/+$/, '');
+  if (!d.aiKey) {
+    ob.aiState = { status: 'fail', msg: '先把 API Key 填上，或者点「先跳过」' };
+    renderOnboarding();
+    $('#ob-ai-key')?.focus();
+    return;
+  }
+  if (!d.aiModel) {
+    ob.aiState = { status: 'fail', msg: '模型名没填' };
+    renderOnboarding();
+    return;
+  }
+  ob.aiState = { status: 'testing' };
+  renderOnboarding();
+  try {
+    if (window.__LOCAL_API_PROMISE__) { try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ } }
+    const ids = (g.agents && g.agents.length) ? g.agents.slice() : ((S.agents || []).map((a) => a.id).filter((x) => x != null));
+    const idList = ids.length ? ids : [1];
+    let okCount = 0;
+    let lastErr = '';
+    for (const id of idList) {
+      try {
+        await api(`/api/ai/agents/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: base, model: d.aiModel, api_key: d.aiKey }),
+        });
+      } catch { /* 不存在的 id 跳过 */ }
+      try {
+        const r = await api(`/api/ai/agents/${id}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: '只回复两个字：收到' }),
+        });
+        if (r && !r.error && (r.content || r.text || r.reply)) { okCount += 1; break; }
+        lastErr = (r && r.error) || '返回内容为空';
+      } catch (err) {
+        lastErr = String((err && err.message) || err);
+      }
+    }
+    if (okCount) {
+      try { localStorage.setItem(AI_OB_KEY, 'done'); } catch { /* ignore */ }
+      ob.aiState = { status: 'ok' };
+      renderOnboarding();
+      setTimeout(() => { if (S.ob) { S.ob.step = 4; renderOnboarding(); } }, 600);
+    } else {
+      ob.aiState = { status: 'fail', msg: aiErrHint(lastErr) };
+      renderOnboarding();
+    }
+  } catch (err) {
+    ob.aiState = { status: 'fail', msg: aiErrHint(String((err && err.message) || err)) };
+    renderOnboarding();
+  }
+}
+
+/** Key 没填时：滚到输入框中间 + 抖两下 + 红字提示 */
+function flashObKey(msg) {
+  const el = $('#ai-ob-key');
+  if (!el) { toast(msg); return; }
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.remove('field-bad');
+  void el.offsetWidth;
+  el.classList.add('field-bad');
+  try { el.focus({ preventScroll: true }); } catch { el.focus(); }
+  let tip = document.getElementById('ai-ob-key-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'ai-ob-key-tip';
+    tip.className = 'ob-err';
+    el.insertAdjacentElement('afterend', tip);
+  }
+  tip.textContent = msg;
+  setTimeout(() => { if (tip && tip.parentNode) tip.remove(); }, 6000);
+}
+
+async function aiOnboardTest() {  const ob = S.aiOb;
   if (!ob) return;
   const keyEl = $('#ai-ob-key');
   const modelEl = $('#ai-ob-model');
@@ -5647,7 +5981,7 @@ async function aiOnboardTest() {
   if (baseEl) ob.base = baseEl.value.trim();
   const g = AI_GATEWAYS[ob.gw];
   const baseUrl = (ob.base || g.url || '').replace(/\/+$/, '');
-  if (!ob.key) { toast('先填 API Key'); return; }
+  if (!ob.key) { flashObKey('这里必须填 Key：粘贴 sk- 开头的那一串'); return; }
   if (!ob.model) { toast('先填模型名'); return; }
   if (!/^https?:\/\//i.test(baseUrl)) { toast('接口地址要以 http(s):// 开头'); return; }
   ob.step = 2; ob.state = 'testing'; ob.msg = '';
@@ -5873,6 +6207,8 @@ function bindAndroidBack() {
     try { await window.__LOCAL_API_PROMISE__; } catch { /* ignore */ }
   }
   mark('bridge-ready');
+  // 纠错上报：先取远程配置（换收件箱不用发版），再把本地队列补传（不打扰用户）
+  fbLoadCfg().then(() => fbFlush()).catch(() => { fbFlush().catch(() => {}); });
   // 0.7 实验版：能力引擎首次使用前把历史作答回放一遍（正式版没有这个对象，直接跳过）
   if (window.__ENGINE_ON__ && window.__ENGINE2__) {
     window.__ENGINE2__.ensure().then((k) => { if (k) console.info('[engine2] 回放历史作答', k, '条'); }).catch(() => {});
@@ -5895,7 +6231,13 @@ function bindAndroidBack() {
   // 首屏只等最少的数据。错题回填和摊平都能挪到后台，
   // 它们要读几百条记录，卡在前面会让白屏多两三秒。
   // loadHome 成功才切首页；失败就留着骨架，别渲染出一片白。
-  try { await loadHome(); go('home'); painted = true; } catch (e) { if (!painted) toast(e.message); }
+  // 但：如果用户在 loadHome 还没回来之前就点了别的 tab（最常见是冷启动点「题库」），
+  // 这里再 go('home') 会把他刚点开的页面顶掉 —— 表现为「点了题库，转一会儿又跳回首页」。
+  try {
+    await loadHome();
+    if (!S.userNav) go('home');
+    painted = true;
+  } catch (e) { if (!painted) toast(e.message); }
   mark('home-rendered');
   // 存一份首屏快照，下次冷启先拿它画第一帧
   try { localStorage.setItem('sg_home_snap', JSON.stringify({ stats: S.stats, subjects: S.subjects, t: Date.now() })); } catch { /* ignore */ }
