@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.64",
-    "versionCode": 204,
-    "code": 204,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.64-release.apk",
+    "version": "0.9.65",
+    "versionCode": 205,
+    "code": 205,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.64-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.64-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk"
       }
     ],
-    "size": 538818508,
-    "sha256": "813274f67e6859565e0b0af3112967407e2a5267f3d84cdf9d08a5d150ccee35",
-    "name": "shangan-0.9.64-release.apk",
-    "note": "给华图资料分析补回父题材料与图（253 道救回，78 张图入库）；粉笔已下架的 322 道仍在屏蔽名单"
+    "size": 532844187,
+    "sha256": "94f973478b3de9987ee8fe50143f440e68e39ad6866c38944ad01ea4bcfbcbc1",
+    "name": "shangan-0.9.65-release.apk",
+    "note": "新拦两类：客观题完全没解析（538 道）、客观题没选项（78 道，折线图没采到）；修 6 道选项混入 A./D. 标号"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "给华图资料分析补回父题材料与图（253 道救回，78 张图入库）；粉笔已下架的 322 道仍在屏蔽名单",
+  "note": "新拦两类：客观题完全没解析（538 道）、客观题没选项（78 道，折线图没采到）；修 6 道选项混入 A./D. 标号",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
