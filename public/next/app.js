@@ -122,13 +122,24 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.9.72';
+const APP_VERSION = '0.9.73';
 
 // 纠错上报：默认走 ntfy.sh 公共话题（免注册、免登录、App 里不放任何 token）。
 // 地址可远程改：启动时读 release/feedback.json，读到就用它覆盖下面这些默认值 →
 // 以后换收件箱（换 topic / 换成自己的 Worker、飞书、Supabase）只改仓库里那个 JSON，
 // 已安装的 App 下次启动自动跟随，不用重新打包。
-const FEEDBACK_CFG_URL = 'https://raw.githubusercontent.com/CHAOYUE116/shangan/main/release/feedback.json';
+const FEEDBACK_CFG_URLS = (() => {
+  const ts = Math.floor(Date.now() / 36e5);
+  const p = 'release/feedback.json';
+  const raw = `raw.githubusercontent.com/CHAOYUE116/shangan/main/${p}?t=${ts}`;
+  return [
+    `https://fastly.jsdelivr.net/gh/CHAOYUE116/shangan@main/${p}?t=${ts}`,
+    `https://gh-proxy.com/https://${raw}`,
+    `https://cdn.jsdelivr.net/gh/CHAOYUE116/shangan@main/${p}?t=${ts}`,
+    `https://raw.gitmirror.com/CHAOYUE116/shangan/main/${p}?t=${ts}`,
+    `https://${raw}`,
+  ];
+})();
 const FEEDBACK_TOPIC = 'shangan-fb-9d41k7';
 const FEEDBACK_API = 'https://ntfy.sh';
 const FEEDBACK_CFG = { provider: 'ntfy', base: FEEDBACK_API, topic: FEEDBACK_TOPIC, url: '' };
@@ -5348,19 +5359,22 @@ async function fbLoadCfg() {
   try {
     const cached = JSON.parse(localStorage.getItem('sg_fb_cfg') || 'null');
     if (cached && cached.at && Date.now() - cached.at < 6 * 3600e3) Object.assign(FEEDBACK_CFG, cached.cfg);
+    else if (cached && cached.cfg) Object.assign(FEEDBACK_CFG, cached.cfg); // 过期也先用，避免回退到硬编码
   } catch { /* ignore */ }
-  try {
-    const r = await fetch(FEEDBACK_CFG_URL + '?t=' + Math.floor(Date.now() / 3600e3), { signal: AbortSignal.timeout(4000) });
-    if (!r.ok) return;
-    const j = await r.json();
-    if (j && (j.provider === 'ntfy' || j.provider === 'webhook')) {
+  for (const u of FEEDBACK_CFG_URLS) {
+    try {
+      const r = await fetch(u, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j || (j.provider !== 'ntfy' && j.provider !== 'webhook')) continue;
       FEEDBACK_CFG.provider = j.provider;
       if (j.base) FEEDBACK_CFG.base = String(j.base).replace(/\/$/, '');
       if (j.topic) FEEDBACK_CFG.topic = String(j.topic);
       if (j.url) FEEDBACK_CFG.url = String(j.url).replace(/\/$/, '');
       localStorage.setItem('sg_fb_cfg', JSON.stringify({ at: Date.now(), cfg: { ...FEEDBACK_CFG } }));
-    }
-  } catch { /* 离线就用默认值，不影响提交 */ }
+      return;
+    } catch { /* 换下一个源 */ }
+  }
 }
 
 async function fbSend(payload) {
