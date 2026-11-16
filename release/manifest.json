@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.58",
-    "versionCode": 198,
-    "code": 198,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.58-release.apk",
+    "version": "0.9.61",
+    "versionCode": 201,
+    "code": 201,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.58-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.58-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.61-release.apk"
       }
     ],
-    "size": 514255727,
-    "sha256": "6529cbef1bdf58042f72f9aaa0478e2969c448e01df663e44520e9c4273ff018",
-    "name": "shangan-0.9.58-release.apk",
-    "note": "用时不放在解析标题里了：改到「答对/答错」那张卡的第二行，解析标题恢复成「解析」"
+    "size": 514256007,
+    "sha256": "44790cdd6b9b9bbbc5bb76a3276844a78db17817a0e1f34b29b36c043d237cab",
+    "name": "shangan-0.9.61-release.apk",
+    "note": "用时展示定为信息条样式（答对/答错都有）；答题解析恢复「解析」标题"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "用时不放在解析标题里了：改到「答对/答错」那张卡的第二行，解析标题恢复成「解析」",
+  "note": "用时展示定为信息条样式（答对/答错都有）；答题解析恢复「解析」标题",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
