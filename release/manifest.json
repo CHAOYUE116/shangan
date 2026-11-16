@@ -22,23 +22,23 @@
     "note": "一键纠错（点一下直连收件箱）+ 解析默认给全文 + 纠错地址可远程改；题库 0.5.58"
   },
   "tiku": {
-    "dbVersion": "0.5.52-20261114-1720",
+    "dbVersion": "0.5.58-20261116-2130",
     "questions": 185559,
     "full": {
-      "size": 192231000,
-      "rawSize": 923607040,
-      "sha256": "ec9c2e75045f8f10b351300b9eb5a953075997fbb24baf484a1df4d611050fdf",
-      "gzSha256": "e47ea07d2148c32cbed88fbadac6749e68d137418eb8aa5e305ba5985ca48691",
+      "size": 201758017,
+      "rawSize": 973131776,
+      "sha256": "79d29dc48a5dbcf7b9192764e6a917e8d0e8072aa350ab78c2bea6566b34da49",
+      "gzSha256": "ff7b6c6fc2ad7c908fd4f152690b7a2b3620cc4892046c58d92428d3dcc89879",
       "gz": true,
       "name": "tiku_app.db.gz"
     },
     "delta": [],
-    "note": "华图 33,321 道接入（官方模块/考点/难度）、资料分析按材料形态重分、外链图全本地化"
+    "note": "华图 430 套接入重算模块、R1–R16 质量闸门（坏题 2.4%）、资料分析按材料形态重分、未分类 25,076→9,265"
   },
   "images": {
-    "size": 400576512,
-    "gzSize": 316928923,
-    "sha256": "b7adbb7fd82cf56f6bb99ee021858946984252de0660eca8e7b815ed548deaff",
+    "size": 414679040,
+    "gzSize": 327491410,
+    "sha256": "10806debc8f952091eb75897793ec6230ccdc860d782da45bb9b6138c591099a",
     "gz": true,
     "name": "images.db.gz"
   },

@@ -122,7 +122,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.9.73';
+const APP_VERSION = '0.9.74';
 
 // 纠错上报：默认走 ntfy.sh 公共话题（免注册、免登录、App 里不放任何 token）。
 // 地址可远程改：启动时读 release/feedback.json，读到就用它覆盖下面这些默认值 →
@@ -6286,6 +6286,18 @@ function bindAndroidBack() {
 
   // 覆盖安装后内置题库可能落后，静默看一眼有没有增量（几 MB），不打断用户
   setTimeout(silentTikuCheck, 6000);
+
+  // 切到后台后系统可能把下载线程冻住/回收：回到前台先问一句，能续就续上
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!window.AppUpdate || !window.AppUpdate.resume) return;
+    let r = '';
+    try { r = String(AppUpdate.resume() || ''); } catch { return; }
+    if (r === 'restarted-app' || r === 'restarted-tiku') {
+      toast(r === 'restarted-app' ? '已继续下载安装包' : '已继续下载题库');
+      if (typeof checkUpdate === 'function') setTimeout(() => checkUpdate(), 300);
+    }
+  });
 })();
 
 /**
