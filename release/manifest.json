@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.68",
-    "versionCode": 208,
-    "code": 208,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk",
+    "version": "0.9.73",
+    "versionCode": 213,
+    "code": 213,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk"
       }
     ],
-    "size": 534159891,
-    "sha256": "88dec06aef08c97bdeec5809399db6ab0f97ed6818cd7284d31cd7103197c053",
-    "name": "shangan-0.9.68-release.apk",
-    "note": "题目纠错改版：10 类原因可多选 + 期望答案/分类 + 补充说明；提交走 Workers 中转建 GitHub Issue（未配置时复制文本并打开预填页）；断网先存本机，下次启动自动补传"
+    "size": 534161033,
+    "sha256": "71f92c9d1ee15157584677ac2cbcc675607528cf7e0abe774952ce829c9a1bf7",
+    "name": "shangan-0.9.73-release.apk",
+    "note": "一键纠错（点一下直连收件箱）+ 解析默认给全文 + 纠错地址可远程改；题库 0.5.58"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "题目纠错改版：10 类原因可多选 + 期望答案/分类 + 补充说明；提交走 Workers 中转建 GitHub Issue（未配置时复制文本并打开预填页）；断网先存本机，下次启动自动补传",
+  "note": "一键纠错（点一下直连收件箱）+ 解析默认给全文 + 纠错地址可远程改；题库 0.5.58",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
