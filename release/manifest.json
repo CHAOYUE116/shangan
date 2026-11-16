@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.65",
-    "versionCode": 205,
-    "code": 205,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk",
+    "version": "0.9.66",
+    "versionCode": 206,
+    "code": 206,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.66-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.66-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.65-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.66-release.apk"
       }
     ],
-    "size": 532844187,
-    "sha256": "94f973478b3de9987ee8fe50143f440e68e39ad6866c38944ad01ea4bcfbcbc1",
-    "name": "shangan-0.9.65-release.apk",
-    "note": "新拦两类：客观题完全没解析（538 道）、客观题没选项（78 道，折线图没采到）；修 6 道选项混入 A./D. 标号"
+    "size": 533461926,
+    "sha256": "08ec4c5eeb4e83d0492429765a8bc5cafb48308b7d16bbb65acabd981ca05d47",
+    "name": "shangan-0.9.66-release.apk",
+    "note": "修 12865 道题 chapter 脏值 [object Object]（华图导入对象被字符串化）；新拦 R15 选项图没采到 469 道、R16 选项写在题干里 378 道；30 道数量题搬回数量关系"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "新拦两类：客观题完全没解析（538 道）、客观题没选项（78 道，折线图没采到）；修 6 道选项混入 A./D. 标号",
+  "note": "修 12865 道题 chapter 脏值 [object Object]（华图导入对象被字符串化）；新拦 R15 选项图没采到 469 道、R16 选项写在题干里 378 道；30 道数量题搬回数量关系",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
