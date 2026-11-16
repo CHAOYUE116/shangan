@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.55",
-    "versionCode": 195,
-    "code": 195,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk",
+    "version": "0.9.57",
+    "versionCode": 197,
+    "code": 197,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.57-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.57-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.55-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.57-release.apk"
       }
     ],
-    "size": 514255448,
-    "sha256": "ab8d8f265a99b3af6c94d077987b11176f8ee69664ac1aea4335513d8ca2205e",
-    "name": "shangan-0.9.55-release.apk",
-    "note": "题库 0.5.52：华图 3.3 万道接入 + 资料分析按材料形态重分 + 外链图全本地化；AI 引导 Key 必填、深色卡片修复、多选标识"
+    "size": 514255720,
+    "sha256": "06f935e9b8dc17c90e29015cf3db991a5fc9ac0873a70efe0c266c60c41a3e08",
+    "name": "shangan-0.9.57-release.apk",
+    "note": "答题解析与错题列表显示本题用时；题库 0.5.52"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "题库 0.5.52：华图 3.3 万道接入 + 资料分析按材料形态重分 + 外链图全本地化；AI 引导 Key 必填、深色卡片修复、多选标识",
+  "note": "答题解析与错题列表显示本题用时；题库 0.5.52",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
