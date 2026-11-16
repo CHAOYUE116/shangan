@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.67",
-    "versionCode": 207,
-    "code": 207,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.67-release.apk",
+    "version": "0.9.68",
+    "versionCode": 208,
+    "code": 208,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.67-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.67-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.68-release.apk"
       }
     ],
-    "size": 534157889,
-    "sha256": "d345b6956fd29cda86224e1458b72656e0405da7c37bca9ec510bc9ac78d7ad3",
-    "name": "shangan-0.9.67-release.apk",
-    "note": "未分类 25,076 → 9,265：其中 6,553 道按已有分类回填、1,186 道按考点、8,072 道按题干规则；职测题库各模块题量同步更新"
+    "size": 534159891,
+    "sha256": "88dec06aef08c97bdeec5809399db6ab0f97ed6818cd7284d31cd7103197c053",
+    "name": "shangan-0.9.68-release.apk",
+    "note": "题目纠错改版：10 类原因可多选 + 期望答案/分类 + 补充说明；提交走 Workers 中转建 GitHub Issue（未配置时复制文本并打开预填页）；断网先存本机，下次启动自动补传"
   },
   "tiku": {
     "dbVersion": "0.5.52-20261114-1720",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "未分类 25,076 → 9,265：其中 6,553 道按已有分类回填、1,186 道按考点、8,072 道按题干规则；职测题库各模块题量同步更新",
+  "note": "题目纠错改版：10 类原因可多选 + 期望答案/分类 + 补充说明；提交走 Workers 中转建 GitHub Issue（未配置时复制文本并打开预填页）；断网先存本机，下次启动自动补传",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
