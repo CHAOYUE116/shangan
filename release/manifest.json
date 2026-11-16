@@ -2,24 +2,24 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.73",
-    "versionCode": 213,
-    "code": 213,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk",
+    "version": "0.9.74",
+    "versionCode": 214,
+    "code": 214,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.73-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk"
       }
     ],
-    "size": 534161033,
-    "sha256": "71f92c9d1ee15157584677ac2cbcc675607528cf7e0abe774952ce829c9a1bf7",
-    "name": "shangan-0.9.73-release.apk",
-    "note": "一键纠错（点一下直连收件箱）+ 解析默认给全文 + 纠错地址可远程改；题库 0.5.58"
+    "size": 534161636,
+    "sha256": "c4c3246c9783ae80be07dcd45806bb538faa376c97b1e92946ab4dfd0165256b",
+    "name": "shangan-0.9.74-release.apk",
+    "note": "切后台不再把下载冻住（回前台自动续传）+ 题库 0.5.58 上线（185,559 题、坏题 2.4%、未分类 25,076→9,265）"
   },
   "tiku": {
     "dbVersion": "0.5.58-20261116-2130",
@@ -43,6 +43,6 @@
     "name": "images.db.gz"
   },
   "mirrors": [],
-  "note": "一键纠错（点一下直连收件箱）+ 解析默认给全文 + 纠错地址可远程改；题库 0.5.58",
+  "note": "切后台不再把下载冻住（回前台自动续传）+ 题库 0.5.58 上线（185,559 题、坏题 2.4%、未分类 25,076→9,265）",
   "updatedAt": "2026-11-13T12:41:57.688Z"
 }
