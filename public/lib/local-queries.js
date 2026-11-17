@@ -1341,7 +1341,7 @@ export function createLocalApi(tiku, practice, stats = {}) {
           for (const [k, v] of subGj) {
             const [cat, sb] = k.split('|');
             if (cat !== g.group || !v) continue;
-            subs.push({ name: sb, total: v, done: null, rate: null, chapters: [], leaves: [] });
+            subs.push({ name: sb, total: v, done: (catDoneGj.get(`${g.group}|${sb}`)?.c || 0), rate: null, chapters: [], leaves: [] });
           }
           subs.sort((a, b) => b.total - a.total);
           return {
@@ -1441,6 +1441,8 @@ export function createLocalApi(tiku, practice, stats = {}) {
               subs2.push({ name: '其他', total: real2 - sum2, done: catDone.get('资料分析|')?.c || 0, rate: null, chapters: [], leaves: [] });
             }
             zl.subs = subs2;
+            // 二级换过一套之后，一级的 done 必须跟着重算，否则一级永远显示 0（本次用户报的「2/12343 不动」）
+            zl.done = subs2.reduce((a, x) => a + (x.done || 0), 0);
           }
         }
       } else {

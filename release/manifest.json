@@ -2,47 +2,47 @@
   "schema": 1,
   "publishedAt": "2026-11-12T01:30:58.270Z",
   "app": {
-    "version": "0.9.74",
-    "versionCode": 214,
-    "code": 214,
-    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk",
+    "version": "0.9.78",
+    "versionCode": 218,
+    "code": 218,
+    "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.78-release.apk",
     "sources": [
       {
         "name": "gh-proxy",
-        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk"
+        "url": "https://gh-proxy.com/https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.78-release.apk"
       },
       {
         "name": "github",
-        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.74-release.apk"
+        "url": "https://github.com/CHAOYUE116/shangan/releases/download/v0.9/shangan-0.9.78-release.apk"
       }
     ],
-    "size": 534161636,
-    "sha256": "c4c3246c9783ae80be07dcd45806bb538faa376c97b1e92946ab4dfd0165256b",
-    "name": "shangan-0.9.74-release.apk",
-    "note": "切后台不再把下载冻住（回前台自动续传）+ 题库 0.5.58 上线（185,559 题、坏题 2.4%、未分类 25,076→9,265）"
+    "size": 535569201,
+    "sha256": "82da31ebcadb8a7b8151415a0b2b6d7958a5f41b684e2a25d9c77de446098d40",
+    "name": "shangan-0.9.78-release.apk",
+    "note": "打开 App 只在清单版本确实更新时才弹窗（同版本/更旧版本不打扰）；题库 0.5.60（华图答案解析一致性补检、资料分析父题材料回填 102 道、坏题 6,283）"
   },
   "tiku": {
-    "dbVersion": "0.5.58-20261116-2130",
+    "dbVersion": "0.5.60-20261117-2140",
     "questions": 185559,
     "full": {
-      "size": 201758017,
-      "rawSize": 973131776,
-      "sha256": "79d29dc48a5dbcf7b9192764e6a917e8d0e8072aa350ab78c2bea6566b34da49",
-      "gzSha256": "ff7b6c6fc2ad7c908fd4f152690b7a2b3620cc4892046c58d92428d3dcc89879",
+      "size": 202316176,
+      "rawSize": 974295040,
+      "sha256": "ea3d896a4ed167b4e280cfe18fd4745bd9cbc3840d94fba3e0235d7f73bc6e45",
+      "gzSha256": "b053aca6a83d2fd1ec10b5ed99cbf867f8a7b5aebabacf3ed6e966dd9b26bcb5",
       "gz": true,
       "name": "tiku_app.db.gz"
     },
     "delta": [],
-    "note": "华图 430 套接入重算模块、R1–R16 质量闸门（坏题 2.4%）、资料分析按材料形态重分、未分类 25,076→9,265"
+    "note": "华图答案与解析一致性补检（R4 命中 58→104）、资料分析父题材料回填 102 道、坏题 6,283（3.14%）、职测可用 81,573"
   },
   "images": {
-    "size": 414679040,
-    "gzSize": 327491410,
-    "sha256": "10806debc8f952091eb75897793ec6230ccdc860d782da45bb9b6138c591099a",
+    "size": 418836480,
+    "gzSize": 328324731,
+    "sha256": "22830756fadba6e0825c69dcf70fef37c542ab2e2e555f0c709901d48b6f2cfa",
     "gz": true,
     "name": "images.db.gz"
   },
   "mirrors": [],
   "note": "切后台不再把下载冻住（回前台自动续传）+ 题库 0.5.58 上线（185,559 题、坏题 2.4%、未分类 25,076→9,265）",
-  "updatedAt": "2026-11-13T12:41:57.688Z"
+  "updatedAt": "2026-11-17T14:47:15.561Z"
 }

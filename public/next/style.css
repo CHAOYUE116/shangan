@@ -1806,3 +1806,18 @@ html[data-theme="dark"] body.cost-c .cost-strip { background: rgba(120,150,255,.
   font-size: 13.5px; line-height: 1; padding: 9px 13px; border-radius: 999px; cursor: pointer;
 }
 .fb-chip.on { border-color: var(--brand, #2f5bea); color: var(--brand, #2f5bea); background: rgba(47,91,234,.08); font-weight: 600; }
+
+/* ---------- 启动时的新版本弹窗 ---------- */
+.upd-hero { padding: 2px 2px 16px; }
+.upd-ver { font-size: 34px; font-weight: 800; letter-spacing: -.6px; color: var(--text); line-height: 1.1; }
+.upd-sub { margin-top: 8px; font-size: 13px; line-height: 1.55; color: var(--text-2, #52596b); }
+.upd-tiku {
+  margin-top: 12px; font-size: 12.5px; line-height: 1.5;
+  padding: 9px 11px; border-radius: 10px;
+  background: var(--amber-soft, #fff4de); color: #8a5a00;
+}
+.upd-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.upd-actions .btn { width: 100%; justify-content: center; min-height: 46px; }
+.upd-actions .btn-text { background: transparent; color: var(--text-3, #8a90a0); font-weight: 600; }
+html[data-theme="dark"] .upd-sub { color: #9aa3af; }
+html[data-theme="dark"] .upd-tiku { background: #2a2413; color: #f0c987; }

@@ -54,8 +54,13 @@ function lettersOf(s) {
 function strongAnswer(analysis) {
   const t = String(analysis || '');
   const m = /(?:正确答案|答案|正确选项)(?:是|为|应选|选)\s*[:：]?\s*([A-H](?:\s*[,、和]\s*[A-H])*)|(?:故选|应选|答案选|本题选)\s*[:：]?\s*([A-H](?:\s*[,、和]\s*[A-H])*)/.exec(t);
-  if (!m) return null;
-  return lettersOf(m[1] || m[2] || '');
+  if (m) return lettersOf(m[1] || m[2] || '');
+  // 华图/中公措辞：「因此，选择C选项」「故选择B选项」「综上，选择D选项」→ 取最后一次
+  const tail = [...t.matchAll(/(?:因此|故|所以|综上|故此)[，,]?\s*(?:本题)?\s*选择?\s*([A-H])\s*选项/g)];
+  if (tail.length) return lettersOf(tail[tail.length - 1][1]);
+  const any = [...t.matchAll(/选择\s*([A-H])\s*选项/g)];
+  if (any.length) return lettersOf(any[any.length - 1][1]);
+  return null;
 }
 
 function normAnswer(row) {
@@ -124,6 +129,8 @@ const REASONS = {
   R14: '客观题没有选项',
   R15: '选项图没有采到',
   R16: '选项写在题干里',
+  R17: '资料分析材料没采到',
+  R18: '题干要看图，但图没采到',
 };
 const MATH_CH = /数量|资料分析|数学|资料|统计/i;
 const isPlaceholderOptions = (raw) => {
@@ -305,6 +312,26 @@ for (const r of rows) {
     if (!Array.isArray(opts) || opts.length < 2) {
       reason = 'R16';
       detail = '选项写在题干里';
+    }
+  }
+
+  // R17 资料分析材料整块没采到：材料 <40 字、材料无图、题干也无图 → 数据不在任何地方，做不了
+  if (!reason && String(r.chapter || '') === '资料分析') {
+    const mat = String(r.material || '');
+    const matText = mat.replace(/<[^>]*>/g, '').trim();
+    if (matText.length < 40 && !/<img/i.test(mat) && !/<img/i.test(String(r.contentHtml || ''))) {
+      reason = 'R17';
+      detail = '材料没采到（' + matText.length + ' 字）';
+    }
+  }
+
+  // R18 题干要求看图（四幅图形/坐标图/示意图/阴影部分/图中）但三处都没有图 → 选项或题干本身是图，做不了
+  if (!reason && isObj && !hasImg(contentHtml) && !hasImg(material) && !hasImg(analysisHtml)) {
+    const s = String(stem || '');
+    if (/(以下[四两三多]?幅?(图形|图表|坐标图)|以下坐标图|如下(图|表)|阴影部分|示意图|图中)/.test(s)
+        && !/(图中所示|如图所示)/.test(s)) {
+      reason = 'R18';
+      detail = '题干要看图，但图没采到';
     }
   }
 

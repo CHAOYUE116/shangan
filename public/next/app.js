@@ -122,7 +122,7 @@ function sheet(html) {
 }
 function closeSheet() { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; }
 
-const APP_VERSION = '0.9.74';
+const APP_VERSION = '0.9.78';
 
 // 纠错上报：默认走 ntfy.sh 公共话题（免注册、免登录、App 里不放任何 token）。
 // 地址可远程改：启动时读 release/feedback.json，读到就用它覆盖下面这些默认值 →
@@ -5667,14 +5667,14 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-ob-ai-next]')) { obTestAi(); return; }
   if (e.target.closest('[data-ob-next]')) { S.ob.step = Math.min(4, S.ob.step + 1); renderOnboarding(); return; }
   if (e.target.closest('[data-ob-back]')) { S.ob.step = Math.max(0, S.ob.step - 1); renderOnboarding(); return; }
-  if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; loadHome().then(() => go('home')).catch(() => go('home')); return; }
+  if (e.target.closest('[data-ob-skip]')) { saveProfile(DEFAULT_PROFILE); S.ob = null; $('#onboard').hidden = true; flushUpdPending(); loadHome().then(() => go('home')).catch(() => go('home')); return; }
   if (e.target.closest('[data-ob-finish-skip]') || e.target.closest('[data-ob-finish]')) {
     const skipDiag = !!e.target.closest('[data-ob-finish-skip]');
     const want = S.ob.draft.skills !== false;
     saveProfile(S.ob.draft);
     S.settings.skills = want;
     saveSettings();
-    S.ob = null; $('#onboard').hidden = true;
+    S.ob = null; $('#onboard').hidden = true; flushUpdPending();
     if (want) setTimeout(() => { ensureBuiltinSkills(true).catch(() => {}); }, 1200);
     if (skipDiag) {
       try { localStorage.setItem(DIAG_SKIP_KEY, String(Date.now())); } catch { /* ignore */ }
@@ -5688,7 +5688,7 @@ document.addEventListener('click', (e) => {
     saveProfile(S.ob.draft);
     S.settings.skills = want;
     saveSettings();
-    S.ob = null; $('#onboard').hidden = true;
+    S.ob = null; $('#onboard').hidden = true; flushUpdPending();
     if (want) setTimeout(() => { ensureBuiltinSkills(true).catch(() => {}); }, 1200);
     loadHome().catch(() => {}).then(() => {
       go('exam');
@@ -6297,8 +6297,102 @@ function bindAndroidBack() {
       toast(r === 'restarted-app' ? '已继续下载安装包' : '已继续下载题库');
       if (typeof checkUpdate === 'function') setTimeout(() => checkUpdate(), 300);
     }
+    // 后台下载完（或回到前台时已经下载完）→ 提醒装一下
+    setTimeout(() => { try { maybeOfferInstall(); } catch { /* ignore */ } }, 800);
   });
 })();
+
+/** 启动时发现新版本 → 弹窗：立即更新 / 后台下载 / 暂不更新（7 天内不再打扰） */
+const UPD_SKIP_KEY = 'sg_upd_skip';
+function updSkipped(ver) {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(UPD_SKIP_KEY) || '{}'); } catch { /* ignore */ }
+  if (String(s.ver || '') !== String(ver)) return false;
+  return Date.now() - Number(s.ts || 0) < 7 * 86400000;
+}
+function updSkip(ver) {
+  try { localStorage.setItem(UPD_SKIP_KEY, JSON.stringify({ ver: String(ver || ''), ts: Date.now() })); } catch { /* ignore */ }
+}
+
+/** 引导页关掉之后，把挂起的更新提示补上 */
+function flushUpdPending() {
+  const p = S.updPending;
+  if (!p || !p.app) return;
+  S.updPending = null;
+  setTimeout(() => { try { showAppUpdatePrompt(p.app, p.tiku || ''); } catch { /* ignore */ } }, 700);
+}
+
+function showAppUpdatePrompt(remoteApp, remoteTiku) {
+  // 引导页盖在上面时不弹，等引导结束再弹（否则用户第一次打开就看到两层叠加）
+  const ob = document.getElementById('onboard');
+  if (ob && !ob.hidden) { S.updPending = { app: remoteApp, tiku: remoteTiku }; return; }
+  sheet(`
+    <div class="sheet-head"><b>发现新版本</b></div>
+    <div class="upd-hero">
+      <div class="upd-ver">v${esc(remoteApp)}</div>
+      <div class="upd-sub">当前 v${esc(APP_VERSION)} · 覆盖安装，做题记录不会丢</div>
+      ${remoteTiku ? `<div class="upd-tiku">题库也有新版：${esc(remoteTiku)}</div>` : ''}
+    </div>
+    <div class="upd-actions">
+      <button class="btn btn-primary" data-upd="now">立即更新</button>
+      <button class="btn btn-ghost" data-upd="bg">后台下载</button>
+      <button class="btn btn-text" data-upd="later">暂不更新</button>
+    </div>
+  `);
+  const box = document.querySelector('.sheet-wrap:not([hidden])');
+  if (!box) return;
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-upd]');
+    if (!b) return;
+    const k = b.dataset.upd;
+    if (k === 'now') { closeSheet(); checkUpdate('app'); return; }
+    if (k === 'bg') {
+      closeSheet();
+      try {
+        AppUpdate.downloadApp();
+        toast('已开始后台下载，下完会提示你安装');
+      } catch (err) { toast('下载失败：' + err.message); }
+      return;
+    }
+    updSkip(remoteApp);
+    closeSheet();
+    toast('好，7 天后再提醒你');
+  });
+}
+
+/** 后台下载完回到前台时，提醒装一下 */
+function maybeOfferInstall() {
+  if (!window.AppUpdate || !window.AppUpdate.status) return;
+  let s = null;
+  try { s = JSON.parse(AppUpdate.status()); } catch { return; }
+  if (!s || s.newAppState !== 'done') return;
+  const key = 'installed-' + String(s.newAppVersion || '');
+  if (updSkipped(key)) return;
+  sheet(`
+    <div class="sheet-head"><b>新版已下载好</b></div>
+    <div class="upd-hero">
+      <div class="upd-ver">v${esc(s.newAppVersion || '')}</div>
+      <div class="upd-sub">点下面直接装，装完自动打开</div>
+    </div>
+    <div class="upd-actions">
+      <button class="btn btn-primary" id="upd-install-now">现在安装</button>
+      <button class="btn btn-text" data-upd="later">稍后</button>
+    </div>
+  `);
+  const box = document.querySelector('.sheet-wrap:not([hidden])');
+  if (!box) return;
+  const go = box.querySelector('#upd-install-now');
+  if (go) go.onclick = () => {
+    try {
+      const r = AppUpdate.installApp();
+      if (r === 'ok') { toast('已打开安装器'); closeSheet(); }
+      else if (r === 'needPermission') toast('请在系统设置里允许「安装未知应用」');
+      else toast(String(r || '安装失败'));
+    } catch (err) { toast('安装失败：' + err.message); }
+  };
+  const later = box.querySelector('[data-upd="later"]');
+  if (later) later.onclick = () => { updSkip(key); closeSheet(); };
+}
 
 /**
  * 启动后静默检查题库版本。只在发现新版本时提示一句，不弹全屏。
@@ -6329,13 +6423,23 @@ async function silentTikuCheck() {
       const remoteApp = String((m.app && (m.app.versionName || m.app.version)) || '');
       const localTiku = String(local.localVersion || '');
       const localName = String(local.currentVersionName || APP_VERSION);
-      const num = (v) => Number(String(v).replace(/\./g, '')) || 0;
       const tikuNew = !!(localTiku && remoteTiku && verNewer(remoteTiku, localTiku));
-      const appNew = !!(remoteApp && num(remoteApp) > num(localName));
+      // 只有「清单里的版本严格比本机新」才提示；同版本、或清单比本机旧，一律安静。
+      // 先按版本名逐段比（verNewer），版本名相同时再看 versionCode。
+      const remoteCode = Number((m.app && m.app.code) || 0) || 0;
+      const localCode = Number(local.currentVersionCode || 0) || 0;
+      const appNew = !!remoteApp && (verNewer(remoteApp, localName)
+        || (String(remoteApp) === String(localName) && remoteCode > 0 && localCode > 0 && remoteCode > localCode));
       if (!tikuNew && !appNew) return;                        // 都是最新，安静退出
       S.updateHint = { tiku: tikuNew ? remoteTiku : '', app: appNew ? remoteApp : '' };
       if (S.tab === 'home') go('home');
+      // 有新 App 版本 → 弹一次（同版本 7 天内不再打扰）；只有题库新版就只亮首页那句提示
+      if (appNew && !updSkipped(remoteApp)) {
+        setTimeout(() => showAppUpdatePrompt(remoteApp, tikuNew ? remoteTiku : ''), 600);
+      }
       return;
     } catch { /* 换下一个源 */ }
   }
 }
+// 质检钩子：验证「有新版才弹」的判定（模拟器/真机可直接调用）
+try { window.__SILENT_CHECK__ = silentTikuCheck; } catch {}
